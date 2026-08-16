@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Bindings>
+    <!-- Console Experience Action Bindings -->
+    <Binding name="ConsoleUI_ACTION_1" header="CONSOLEUI">ConsoleUI_ActionButton(1)</Binding>
+    <Binding name="ConsoleUI_ACTION_2">ConsoleUI_ActionButton(2)</Binding>
+    <Binding name="ConsoleUI_ACTION_3">ConsoleUI_ActionButton(3)</Binding>
+    <Binding name="ConsoleUI_ACTION_4">ConsoleUI_ActionButton(4)</Binding>
+    <Binding name="ConsoleUI_ACTION_5">ConsoleUI_ActionButton(5)</Binding>
+    <Binding name="ConsoleUI_ACTION_6">ConsoleUI_ActionButton(6)</Binding>
+    <Binding name="ConsoleUI_ACTION_7">ConsoleUI_ActionButton(7)</Binding>
+    <Binding name="ConsoleUI_ACTION_8">ConsoleUI_ActionButton(8)</Binding>
+    <Binding name="ConsoleUI_ACTION_9">ConsoleUI_ActionButton(9)</Binding>
+    <Binding name="ConsoleUI_ACTION_10">ConsoleUI_ActionButton(10)</Binding>
+    <Binding name="ConsoleUI_ACTION_11">ConsoleUI_ActionButton(11)</Binding>
+    <Binding name="ConsoleUI_ACTION_12">ConsoleUI_ActionButton(12)</Binding>
+    <Binding name="ConsoleUI_ACTION_13">ConsoleUI_ActionButton(13)</Binding>
+    <Binding name="ConsoleUI_ACTION_14">ConsoleUI_ActionButton(14)</Binding>
+    <Binding name="ConsoleUI_ACTION_15">ConsoleUI_ActionButton(15)</Binding>
+    <Binding name="ConsoleUI_ACTION_16">ConsoleUI_ActionButton(16)</Binding>
+    <Binding name="ConsoleUI_ACTION_17">ConsoleUI_ActionButton(17)</Binding>
+    <Binding name="ConsoleUI_ACTION_18">ConsoleUI_ActionButton(18)</Binding>
+    <Binding name="ConsoleUI_ACTION_19">ConsoleUI_ActionButton(19)</Binding>
+    <Binding name="ConsoleUI_ACTION_20">ConsoleUI_ActionButton(20)</Binding>
+    <Binding name="ConsoleUI_ACTION_21">ConsoleUI_ActionButton(21)</Binding>
+    <Binding name="ConsoleUI_ACTION_22">ConsoleUI_ActionButton(22)</Binding>
+    <Binding name="ConsoleUI_ACTION_23">ConsoleUI_ActionButton(23)</Binding>
+    <Binding name="ConsoleUI_ACTION_24">ConsoleUI_ActionButton(24)</Binding>
+    <Binding name="ConsoleUI_ACTION_25">ConsoleUI_ActionButton(25)</Binding>
+    <Binding name="ConsoleUI_ACTION_26">ConsoleUI_ActionButton(26)</Binding>
+    <Binding name="ConsoleUI_ACTION_27">ConsoleUI_ActionButton(27)</Binding>
+    <Binding name="ConsoleUI_ACTION_28">ConsoleUI_ActionButton(28)</Binding>
+    <Binding name="ConsoleUI_ACTION_29">ConsoleUI_ActionButton(29)</Binding>
+    <Binding name="ConsoleUI_ACTION_30">ConsoleUI_ActionButton(30)</Binding>
+    <Binding name="ConsoleUI_ACTION_31">ConsoleUI_ActionButton(31)</Binding>
+    <Binding name="ConsoleUI_ACTION_32">ConsoleUI_ActionButton(32)</Binding>
+    <Binding name="ConsoleUI_ACTION_33">ConsoleUI_ActionButton(33)</Binding>
+    <Binding name="ConsoleUI_ACTION_34">ConsoleUI_ActionButton(34)</Binding>
+    <Binding name="ConsoleUI_ACTION_35">ConsoleUI_ActionButton(35)</Binding>
+    <Binding name="ConsoleUI_ACTION_36">ConsoleUI_ActionButton(36)</Binding>
+    <Binding name="ConsoleUI_ACTION_37">ConsoleUI_ActionButton(37)</Binding>
+    <Binding name="ConsoleUI_ACTION_38">ConsoleUI_ActionButton(38)</Binding>
+    <Binding name="ConsoleUI_ACTION_39">ConsoleUI_ActionButton(39)</Binding>
+    <Binding name="ConsoleUI_ACTION_40">ConsoleUI_ActionButton(40)</Binding>
+    
+    <!-- Left Touch Bar Bindings -->
+    <Binding name="ConsoleUI_ACTION_41" header="CONSOLEUILEFTBAR">ConsoleUI_ActionButton(41)</Binding>
+    <Binding name="ConsoleUI_ACTION_42">ConsoleUI_ActionButton(42)</Binding>
+    <Binding name="ConsoleUI_ACTION_43">ConsoleUI_ActionButton(43)</Binding>
+    <Binding name="ConsoleUI_ACTION_44">ConsoleUI_ActionButton(44)</Binding>
+    <Binding name="ConsoleUI_ACTION_45">ConsoleUI_ActionButton(45)</Binding>
+    
+    <!-- Right Touch Bar Bindings -->
+    <Binding name="ConsoleUI_ACTION_46" header="CONSOLEUIRIGHTBAR">ConsoleUI_ActionButton(46)</Binding>
+    <Binding name="ConsoleUI_ACTION_47">ConsoleUI_ActionButton(47)</Binding>
+    <Binding name="ConsoleUI_ACTION_48">ConsoleUI_ActionButton(48)</Binding>
+    <Binding name="ConsoleUI_ACTION_49">ConsoleUI_ActionButton(49)</Binding>
+    <Binding name="ConsoleUI_ACTION_50">ConsoleUI_ActionButton(50)</Binding>
+    
+    <!-- Cursor Navigation Bindings -->
+    <Binding name="ConsoleUI_CURSOR_MOVE_UP" header="CONSOLEUICURSOR">ConsoleUI_MoveCursor("UP")</Binding>
+    <Binding name="ConsoleUI_CURSOR_MOVE_DOWN">ConsoleUI_MoveCursor("DOWN")</Binding>
+    <Binding name="ConsoleUI_CURSOR_MOVE_LEFT">ConsoleUI_MoveCursor("LEFT")</Binding>
+    <Binding name="ConsoleUI_CURSOR_MOVE_RIGHT">ConsoleUI_MoveCursor("RIGHT")</Binding>
+    <Binding name="ConsoleUI_CURSOR_CLICK_LEFT">ConsoleUI_ClickCursor("LeftButton")</Binding>
+    <Binding name="ConsoleUI_CURSOR_CLICK_RIGHT">ConsoleUI_ClickCursor("RightButton")</Binding>
+    <Binding name="ConsoleUI_CURSOR_PICKUP">ConsoleUI_PickupItem()</Binding>
+    <Binding name="ConsoleUI_CURSOR_BIND">ConsoleUI_Bind()</Binding>
+    <Binding name="ConsoleUI_CURSOR_DELETE">ConsoleUI_DeleteItem()</Binding>
+    <Binding name="ConsoleUI_CURSOR_UNEQUIP">ConsoleUI_UnequipItem()</Binding>
+    <Binding name="ConsoleUI_CURSOR_CLOSE">ConsoleUI_CloseFrame()</Binding>
+    <Binding name="ConsoleUI_PLACEMENT_CLEAR">ConsoleUI_PLACEMENT_CLEAR()</Binding>
+    
+    <!-- Radial Menu -->
+    <Binding name="ConsoleUI_TOGGLE_RADIAL" header="CONSOLEUIRADIAL">ConsoleUI_ToggleRadialMenu()</Binding>
+    <Binding name="ConsoleUI_RADIAL_UP" runOnUp="true">ConsoleUI_RadialInput("UP", keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RADIAL_DOWN" runOnUp="true">ConsoleUI_RadialInput("DOWN", keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RADIAL_LEFT" runOnUp="true">ConsoleUI_RadialInput("LEFT", keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RADIAL_RIGHT" runOnUp="true">ConsoleUI_RadialInput("RIGHT", keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RADIAL_ACTION_A" runOnUp="true">ConsoleUI_RadialActivate("A", keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RADIAL_ACTION_X" runOnUp="true">ConsoleUI_RadialActivate("X", keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RADIAL_ACTION_Y" runOnUp="true">ConsoleUI_RadialActivate("Y", keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RADIAL_ACTION_B" runOnUp="true">ConsoleUI_RadialActivate("B", keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RING_1" runOnUp="true">ConsoleUI_RingButton(1, keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RING_2" runOnUp="true">ConsoleUI_RingButton(2, keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RING_3" runOnUp="true">ConsoleUI_RingButton(3, keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RING_4" runOnUp="true">ConsoleUI_RingButton(4, keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RING_5" runOnUp="true">ConsoleUI_RingButton(5, keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RING_6" runOnUp="true">ConsoleUI_RingButton(6, keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RING_7" runOnUp="true">ConsoleUI_RingButton(7, keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RING_8" runOnUp="true">ConsoleUI_RingButton(8, keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_RING_CANCEL">ConsoleUI_RingCancel()</Binding>
+    
+    <!-- Interact Binding -->
+    <Binding name="ConsoleUI_INTERACT" header="CONSOLEUIINTERACT">ConsoleUI_InteractNearest()</Binding>
+</Bindings>

@@ -1,0 +1,6 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Include file="..\radial\radial.lua"/>
+  <Include file="..\radial\rings.lua"/>
+  <Include file="..\radial\editor.lua"/>
+  <Include file="..\radial\check_rings.lua"/>
+</Ui>

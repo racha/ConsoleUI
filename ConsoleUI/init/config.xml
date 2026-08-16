@@ -1,0 +1,6 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Include file="..\config\profiles.lua"/>
+  <Include file="..\config\proxied.lua"/>
+  <Include file="..\config\config.lua"/>
+  <Include file="..\config\bindings_ui.lua"/>
+</Ui>

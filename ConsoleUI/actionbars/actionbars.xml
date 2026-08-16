@@ -1,0 +1,233 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/">
+
+    <!-- Controller Action Button Template -->
+    <CheckButton name="ConsoleActionButtonTemplate" hidden="false" parent="UIParent" virtual="true">
+        <Size>
+            <AbsDimension x="40" y="40"/>
+        </Size>
+        <Frames>
+            <!-- Cooldown created in Lua -->
+        </Frames>
+        <Layers>
+            <Layer level="BACKGROUND">
+                <Texture name="$parentBackground" file="Interface\Buttons\UI-Quickslot">
+                    <Size>
+                        <AbsDimension x="64" y="64"/>
+                    </Size>
+                    <Anchors>
+                        <Anchor point="CENTER"/>
+                    </Anchors>
+                </Texture>
+                <!-- Match ConsolePortLK's layer order exactly: its icon lives
+                     in BACKGROUND and the mask is applied from OVERLAY. -->
+                <Texture name="$parentIcon" parentKey="icon">
+                    <Size>
+                        <AbsDimension x="36" y="36"/>
+                    </Size>
+                    <Anchors>
+                        <Anchor point="CENTER"/>
+                    </Anchors>
+                </Texture>
+            </Layer>
+            <Layer level="ARTWORK">
+                <Texture name="$parentFlash" file="Interface\Buttons\UI-QuickslotRed" hidden="true">
+                    <Size>
+                        <AbsDimension x="36" y="36"/>
+                    </Size>
+                    <Anchors>
+                        <Anchor point="CENTER"/>
+                    </Anchors>
+                </Texture>
+                <FontString name="$parentHotKey" inherits="NumberFontNormalSmallGray" justifyH="RIGHT">
+                    <Size>
+                        <AbsDimension x="36" y="10"/>
+                    </Size>
+                    <Anchors>
+                        <Anchor point="TOPLEFT">
+                            <Offset>
+                                <AbsDimension x="1" y="-3"/>
+                            </Offset>
+                        </Anchor>
+                    </Anchors>
+                </FontString>
+                <FontString name="$parentCount" inherits="NumberFontNormal" justifyH="RIGHT">
+                    <Size>
+                        <AbsDimension x="36" y="10"/>
+                    </Size>
+                    <Anchors>
+                        <Anchor point="BOTTOMRIGHT">
+                            <Offset>
+                                <AbsDimension x="-2" y="2"/>
+                            </Offset>
+                        </Anchor>
+                    </Anchors>
+                </FontString>
+            </Layer>
+            <Layer level="OVERLAY">
+                <!-- Controller button icon overlay at top center -->
+                <Texture name="$parentControllerIcon" file="Interface\AddOns\ConsoleUI\textures\controllers\xbox\a">
+                    <Size>
+                        <AbsDimension x="16" y="16"/>
+                    </Size>
+                    <Anchors>
+                        <Anchor point="TOP">
+                            <Offset>
+                                <AbsDimension x="0" y="0"/>
+                            </Offset>
+                        </Anchor>
+                    </Anchors>
+                </Texture>
+            </Layer>
+        </Layers>
+        <NormalTexture name="$parentNormalTexture" file="Interface\Buttons\UI-Quickslot2">
+            <Size>
+                <AbsDimension x="64" y="64"/>
+            </Size>
+            <Anchors>
+                <Anchor point="CENTER"/>
+            </Anchors>
+        </NormalTexture>
+        <PushedTexture file="Interface\Buttons\UI-Quickslot-Depress"/>
+        <HighlightTexture alphaMode="ADD" file="Interface\Buttons\ButtonHilight-Square"/>
+        <CheckedTexture alphaMode="ADD" file="Interface\Buttons\CheckButtonHilight"/>
+        <Scripts>
+            <OnLoad>
+                ConsoleActionButton_OnLoad();
+            </OnLoad>
+            <OnEvent>
+                ConsoleActionButton_OnEvent(event);
+            </OnEvent>
+            <OnUpdate>
+                ConsoleActionButton_OnUpdate(arg1);
+            </OnUpdate>
+            <OnEnter>
+                ConsoleActionButton_OnEnter();
+            </OnEnter>
+            <OnLeave>
+                GameTooltip:Hide();
+            </OnLeave>
+            <OnClick>
+                ConsoleActionButton_OnClick(arg1);
+            </OnClick>
+            <OnDragStart>
+                ConsoleActionButton_OnDragStart();
+            </OnDragStart>
+            <OnReceiveDrag>
+                ConsoleActionButton_OnReceiveDrag();
+            </OnReceiveDrag>
+        </Scripts>
+    </CheckButton>
+
+    <!-- ============================================================ -->
+    <!-- LEFT CLUSTER: D-Pad + RT (slot 10) outside bottom-left       -->
+    <!-- Positions are overwritten by Config:UpdateActionBarLayout    -->
+    <!-- ============================================================ -->
+    
+    <!-- 10 = RT -->
+    <CheckButton name="ConsoleActionButton10" inherits="ConsoleActionButtonTemplate" id="10" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="-70" y="55"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+    <!-- 7 = Up (top of left star) -->
+    <CheckButton name="ConsoleActionButton7" inherits="ConsoleActionButtonTemplate" id="7" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="-70" y="95"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+    <!-- 5 = Down (bottom of left star) -->
+    <CheckButton name="ConsoleActionButton5" inherits="ConsoleActionButtonTemplate" id="5" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="-70" y="15"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+    <!-- 6 = Left (left of left star) -->
+    <CheckButton name="ConsoleActionButton6" inherits="ConsoleActionButtonTemplate" id="6" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="-110" y="55"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+    <!-- 8 = Right (right of left star) -->
+    <CheckButton name="ConsoleActionButton8" inherits="ConsoleActionButtonTemplate" id="8" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="-30" y="55"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+
+    <!-- ============================================================ -->
+    <!-- RIGHT STAR: RB (center) + Face Buttons (A/X/Y/B around it)   -->
+    <!-- Positioned at bottom center, right side                      -->
+    <!-- ============================================================ -->
+    
+    <!-- 9 = RB (CENTER of right star) -->
+    <CheckButton name="ConsoleActionButton9" inherits="ConsoleActionButtonTemplate" id="9" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="70" y="55"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+    <!-- 3 = Y (top of right star) -->
+    <CheckButton name="ConsoleActionButton3" inherits="ConsoleActionButtonTemplate" id="3" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="70" y="95"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+    <!-- 1 = A (bottom of right star) -->
+    <CheckButton name="ConsoleActionButton1" inherits="ConsoleActionButtonTemplate" id="1" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="70" y="15"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+    <!-- 2 = X (left of right star) -->
+    <CheckButton name="ConsoleActionButton2" inherits="ConsoleActionButtonTemplate" id="2" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="30" y="55"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+    <!-- 4 = B (right of right star) -->
+    <CheckButton name="ConsoleActionButton4" inherits="ConsoleActionButtonTemplate" id="4" parent="UIParent">
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">
+                <Offset>
+                    <AbsDimension x="110" y="55"/>
+                </Offset>
+            </Anchor>
+        </Anchors>
+    </CheckButton>
+
+</Ui>

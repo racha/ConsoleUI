@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Bindings>
+    <Binding name="CONSOLEUIK_PAD_UP" header="CONSOLEUIKEYBOARD" runOnUp="true" hidden="true">CONSOLEUIK_Pad("UP", keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_PAD_DOWN" runOnUp="true" hidden="true">CONSOLEUIK_Pad("DOWN", keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_PAD_LEFT" runOnUp="true" hidden="true">CONSOLEUIK_Pad("LEFT", keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_PAD_RIGHT" runOnUp="true" hidden="true">CONSOLEUIK_Pad("RIGHT", keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_FACE_Y" runOnUp="true" hidden="true">CONSOLEUIK_Face(1, keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_FACE_X" runOnUp="true" hidden="true">CONSOLEUIK_Face(2, keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_FACE_A" runOnUp="true" hidden="true">CONSOLEUIK_Face(3, keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_FACE_B" runOnUp="true" hidden="true">CONSOLEUIK_Face(4, keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_ACCEPT" runOnUp="true" hidden="true">CONSOLEUIK_Accept(keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_GUESS_UP" runOnUp="true" hidden="true">CONSOLEUIK_Guess(-1, keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_GUESS_DOWN" runOnUp="true" hidden="true">CONSOLEUIK_Guess(1, keystate ~= "up")</Binding>
+    <Binding name="CONSOLEUIK_CLOSE" runOnUp="true" hidden="true">CONSOLEUIK_Close(keystate ~= "up")</Binding>
+</Bindings>

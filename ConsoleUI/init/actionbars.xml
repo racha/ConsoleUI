@@ -1,0 +1,9 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Include file="..\actionbars\layout.lua"/>
+  <Include file="..\actionbars\slicemask.lua"/>
+  <Include file="..\actionbars\bars.lua"/>
+  <Include file="..\actionbars\check_layout.lua"/>
+  <Include file="..\actionbars\placement.lua"/>
+  <Include file="..\actionbars\autorank.lua"/>
+  <Include file="..\actionbars\actionbars.xml"/>
+</Ui>

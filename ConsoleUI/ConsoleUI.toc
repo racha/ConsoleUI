@@ -1,0 +1,32 @@
+## Interface: 11200
+## Title: Console|cffffd12eUI|r
+## Title-esES: Console|cffffd12eUI|r
+## Title-frFR: Console|cffffd12eUI|r
+## Title-koKR: Console|cffffd12eUI|r
+## Title-zhCN: Console|cffffd12eUI|r
+## Title-zhTW: Console|cffffd12eUI|r
+## Author: HouseLegend
+# x-release-please-start-version
+## Version: 1.0.0-RC1
+# x-release-please-end
+## Notes: Game controller UI for WoW Vanilla (Interface 11200)
+## Notes-esES: Interfaz de mando para WoW Vanilla
+## Notes-frFR: Interface manette pour WoW Vanilla
+## Notes-koKR: WoW Vanilla 컨트롤러 UI
+## Notes-zhCN: 魔兽世界游戏手柄界面
+## Notes-zhTW: 魔獸世界遊戲控制器介面
+## DefaultState: Enabled
+## LoadOnDemand: 0
+## SavedVariablesPerCharacter: ConsoleUIDB
+## OptionalDeps: pfUI
+
+main.lua
+init\locale.xml
+keybindings.lua
+init\actionbars.xml
+init\cursor.xml
+init\radial.xml
+init\config.xml
+init\xpbar.xml
+init\castbar.xml
+Bindings.xml
