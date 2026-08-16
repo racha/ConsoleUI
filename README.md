@@ -87,32 +87,75 @@ If you used an older name (`ConsolePortClassic`), delete that folder first. This
 
 ---
 
-## First-time setup
+## First-time setup (Steam Link)
 
-You still need a **controller mapper** on the phone / Deck / PC (Octo, Steam Input, reWASD, whatever you already use). The addon reads keyboard keys. The mapper turns the pad into those keys.
+Vanilla has no real gamepad support. Steam turns the pad into keyboard keys. ConsoleUI then reads those keys. This is the same Steam setup [Console Experience](https://github.com/pepordev/ConsoleExperienceClassic) tells people to use.
 
-### Suggested mapper layout
+Do this on the **PC that runs the game**. The phone or TV only runs **Steam Link**.
 
-| Pad | Key |
-| --- | --- |
-| A | `1` |
-| X | `2` |
-| Y | `3` |
-| B | `4` |
-| D-pad Down / Left / Up / Right | `5` `6` `7` `8` |
-| RB | `9` |
-| RT | `0` |
-| **LT** | **Shift** |
-| **LB** | **Ctrl** |
+### 1. Add the game to Steam and name it TurtleWoW
 
-That gives you **four pages** of ten buttons:
+The community controller layout is filed under the name **TurtleWoW**. If Steam still calls the game `WoW` or `Wow.exe`, you will not find the layout.
 
-- no modifier — base page
+1. Open **Steam** on the PC.
+2. **Games** → **Add a Non-Steam Game to My Library**.
+3. **Browse** to the TurtleWoW (or Vanilla) `.exe` and add it.
+4. In the library, right-click that game → **Properties**.
+5. Change the name to exactly **`TurtleWoW`**.
+6. Under **Controller**, turn **Enable Steam Input** on.
+
+### 2. Apply the Console Experience layout
+
+1. Still in Properties, open **Controller Layout** (or start the game once, then use the Steam overlay → Controller).
+2. Open **Community** layouts.
+3. Search for: **`WoW Vanilla Console experience by p3p0 v1.2`**
+4. Apply it.
+
+That layout is the one pepordev recommends in the Console Experience README.
+
+### 3. Fix the right stick for your screen
+
+The right stick is the mouse. TVs, phones, and Steam Link all need a different speed.
+
+1. Edit the layout → **Right Joystick**.
+2. Raise or lower **sensitivity** until the cursor is usable on *your* screen.
+3. Leave it as mouse move, not a D-pad. Do not turn the triggers into toggles — they must stay **held**.
+
+### 4. Launch from Steam, then Steam Link
+
+1. On the phone / TV, open **Steam Link** and sign into the same Steam account.
+2. Connect to the PC.
+3. Start **TurtleWoW** from the Steam library — not a desktop shortcut.
+
+If you start the game outside Steam, the pad will do nothing.
+
+### Suggested layout (same as Console Experience)
+
+This is what that community config sends. Copy it if you use Steam Deck, reWASD, or Octo instead.
+
+| Pad | Key | What it does |
+| --- | --- | --- |
+| A | `1` | Face button (often Jump) |
+| X | `2` | Face button |
+| Y | `3` | Face button |
+| B | `4` | Face button |
+| D-pad Down / Left / Up / Right | `5` `6` `7` `8` | Left cluster |
+| RB | `9` | Bumper |
+| LB | `0` | Other bumper |
+| **LT** | **Shift** | Page 2 (hold) |
+| **RT** | **Ctrl** | Page 3 (hold) |
+| Left stick | WASD | Walk |
+| Right stick | Mouse | Look / cursor |
+| Start | your menu key | Quick Menu if you bind it |
+
+Four pages of ten buttons:
+
+- nothing held — base page
 - hold **LT** — page 2
-- hold **LB** — page 3
-- hold **LT + LB** — page 4
+- hold **RT** — page 3
+- hold **LT + RT** — page 4
 
-Drag spells onto the bars like a normal action bar, or use `/cui` → **Bindings** → **Spell Placement**.
+Put spells on the bars like a normal action bar, or use `/cui` → **Bindings** → **Spell Placement**.
 
 Open `/cui` → **Interface** and pick **Xbox** or **PlayStation** so the on-screen icons match your pad.
 
@@ -124,7 +167,7 @@ Open `/cui` → **Interface** and pick **Xbox** or **PlayStation** so the on-scr
 
 Ten diamonds on the screen: D-pad + RT on the left, Y / X / A / B + RB on the right.
 
-Press the matching pad button to use that slot. Hold LT or LB to change page.
+Press the matching pad button to use that slot. Hold **LT** or **RT** to change page (same as Console Experience).
 
 `/cui` → **Bars** if you want them bigger, gold-edged, or moved.
 
@@ -161,7 +204,7 @@ Rings are extra wheels you fill yourself. Eight slices each. Spells or bag items
 3. On the right, pick your ring.
 4. In the world: **hold** that button, tilt toward a slice, **let go** to use it.
 
-Do not put a ring on **B**. B is also “cancel”, so that fight never ends well. Use LT / LB pages or the D-pad.
+Do not put a ring on **B**. B is also “cancel”, so that fight never ends well. Use an **LT** or **RT** page, or the D-pad.
 
 ### Touch bars (phone and Steam Deck)
 
