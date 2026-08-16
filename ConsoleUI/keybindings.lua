@@ -319,6 +319,10 @@ function ConsoleUIKeybindings:Initialize()
     if ConsoleUI.radial and ConsoleUI.radial.RepairMovementBindings then
         ConsoleUI.radial:RepairMovementBindings()
     end
+
+    if ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings() then
+        ConsoleUI_SaveBindings()
+    end
     
     -- Override default action button handlers like pfUI does
     -- This redirects default action bar keypresses to our buttons

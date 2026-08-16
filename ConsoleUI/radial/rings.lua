@@ -545,6 +545,14 @@ function Rings:IsVisible()
     return self.frame and self.frame:IsVisible()
 end
 
+function Rings:EnsureOverlayMatchesFrame()
+    if self.overlay and self.overlay:IsShown() and not self:IsVisible() then
+        self.overlay:EnableMouse(false)
+        self.overlay:Hide()
+        self.overlay:SetAlpha(0)
+    end
+end
+
 function Rings:OnBinding(id, pressed)
     if pressed then
         self:Show(id)

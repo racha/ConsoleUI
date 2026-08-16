@@ -826,6 +826,14 @@ function Radial:IsOpen()
     return self.overlay and self.overlay:IsShown() and self:IsVisible()
 end
 
+function Radial:EnsureOverlayMatchesFrame()
+    if self.overlay and self.overlay:IsShown() and not self:IsVisible() then
+        self.overlay:EnableMouse(false)
+        self.overlay:Hide()
+        self.overlay:SetAlpha(0)
+    end
+end
+
 function Radial:Initialize()
     self:CreateFrame()
     self:HookGameMenu()

@@ -145,7 +145,9 @@ This is what that community config sends. Copy it if you use Steam Deck, reWASD,
 | **LT** | **Shift** | Page 2 (hold) |
 | **RT** | **Ctrl** | Page 3 (hold) |
 | Left stick | WASD | Walk |
-| Right stick | Mouse | Look / cursor |
+| Right stick | Mouse | Move the cursor |
+| **L3** (click left stick) | **Left mouse** | Hold to move the camera |
+| **R3** (click right stick) | **Right mouse** | Hold to turn the character |
 | Start | your menu key | Quick Menu if you bind it |
 
 Four pages of ten buttons:

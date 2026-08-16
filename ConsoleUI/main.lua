@@ -97,6 +97,15 @@ ConsoleUI:SetScript("OnEvent", function()
                 ConsoleUI.keybindings:Initialize()
             end
         end
+        if ConsoleUI.radial and ConsoleUI.radial.EnsureOverlayMatchesFrame then
+            ConsoleUI.radial:EnsureOverlayMatchesFrame()
+        end
+        if ConsoleUI.rings and ConsoleUI.rings.EnsureOverlayMatchesFrame then
+            ConsoleUI.rings:EnsureOverlayMatchesFrame()
+        end
+        if ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings() then
+            ConsoleUI_SaveBindings()
+        end
         
     elseif event == "PLAYER_LOGOUT" then
         -- Save configuration
@@ -140,6 +149,32 @@ function ConsoleUI_Debug(msg)
     if ConsoleUI.config and ConsoleUI.config:Get("debugEnabled") then
         ConsoleUI_Log(msg)
     end
+end
+
+-- Hold-left = move camera, hold-right = turn. Vanilla defaults.
+-- After the ConsoleUI rename, SetupDefaultBindings ran again and could
+-- SaveBindings before mouse keys were in memory, wiping both.
+function ConsoleUI_RepairCameraBindings()
+    local function missing(action)
+        local key = GetBindingKey(action)
+        return not key or key == ""
+    end
+    local function free(key)
+        local current = GetBindingAction(key)
+        return not current or current == ""
+    end
+    local changed = false
+    if missing("CAMERAORSELECTORMOVE") and free("BUTTON1") then
+        SetBinding("BUTTON1", "CAMERAORSELECTORMOVE")
+        changed = true
+        ConsoleUI_Debug("Restored BUTTON1 to CAMERAORSELECTORMOVE")
+    end
+    if missing("TURNORACTION") and free("BUTTON2") then
+        SetBinding("BUTTON2", "TURNORACTION")
+        changed = true
+        ConsoleUI_Debug("Restored BUTTON2 to TURNORACTION")
+    end
+    return changed
 end
 
 -- Persist bindings to the set the player is actually using.
@@ -216,6 +251,10 @@ function ConsoleUI:ReportDiagnostics()
     local radial = self.radial
     ConsoleUI_Print("ConsoleUI-DIAG|radial=vis:" .. tostring(radial and radial:IsVisible()) .. ",dir:" .. tostring(radial and radial.GetSelectedDirectionID and radial:GetSelectedDirectionID() or "none"))
     ConsoleUI_Print("ConsoleUI-DIAG|bind W=" .. tostring(GetBindingAction("W")) .. "|A=" .. tostring(GetBindingAction("A")) .. "|S=" .. tostring(GetBindingAction("S")) .. "|D=" .. tostring(GetBindingAction("D")) .. "|1=" .. tostring(GetBindingAction("1")))
+    ConsoleUI_Print("ConsoleUI-DIAG|mouse BUTTON1=" .. tostring(GetBindingAction("BUTTON1")) .. "|BUTTON2=" .. tostring(GetBindingAction("BUTTON2")) .. "|cam=" .. tostring(GetBindingKey("CAMERAORSELECTORMOVE")) .. "|turn=" .. tostring(GetBindingKey("TURNORACTION")))
+    local overlay = radial and radial.overlay
+    local ringOverlay = self.rings and self.rings.overlay
+    ConsoleUI_Print("ConsoleUI-DIAG|overlay=" .. tostring(overlay and overlay:IsShown()) .. "|ringOverlay=" .. tostring(ringOverlay and ringOverlay:IsShown()))
     if ConsoleUIKeyboard then
         ConsoleUI_Print("ConsoleUI-DIAG|kb=" .. tostring(ConsoleUIKeyboard:IsShown()) .. "|stolen=" .. tostring(ConsoleUIKeyboard.stolen ~= nil))
     end
