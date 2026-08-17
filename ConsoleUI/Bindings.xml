@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Bindings>
-    <!-- Console Experience Action Bindings -->
+    <!-- ConsoleUI Action Bindings -->
     <Binding name="ConsoleUI_ACTION_1" header="CONSOLEUI">ConsoleUI_ActionButton(1)</Binding>
     <Binding name="ConsoleUI_ACTION_2">ConsoleUI_ActionButton(2)</Binding>
     <Binding name="ConsoleUI_ACTION_3">ConsoleUI_ActionButton(3)</Binding>

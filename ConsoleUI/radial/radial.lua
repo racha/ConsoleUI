@@ -645,7 +645,7 @@ function Radial:RepairMovementBindings()
         else
             ConsoleUI_SaveBindings()
         end
-        ConsoleUI_Print("Restored movement keys that were stuck on the Quick Menu.")
+        ConsoleUI_PrintDebug("Restored movement keys that were stuck on the Quick Menu.")
     end
 end
 

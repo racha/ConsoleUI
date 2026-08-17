@@ -246,6 +246,12 @@ function ActionBars:EnsureDiamond(button)
 end
 
 function ActionBars:DiamondActive(button)
+    -- Touch bars use slots 41-50. GetActionID used to read the trailing
+    -- "Button3" and treat that as main-bar slot 3, so a Y-cast painted
+    -- left-3 white. They also should never show current-action fill.
+    if button.sideBarIndex then
+        return false
+    end
     if button._diamondPushed then
         return true
     end
@@ -879,7 +885,7 @@ function ActionBars:CheckModifiers()
         -- This ensures icons, cooldowns, states, etc. are all refreshed
         self:UpdateAllButtons()
         -- Debug message (optional)
-        -- DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[CE]|r Switched to page " .. newPage)
+        -- DEFAULT_CHAT_FRAME:AddMessage("|cffffd12e[ConsoleUI]|r Switched to page " .. newPage)
     end
 end
 
@@ -1004,6 +1010,9 @@ end
 -- ============================================================================
 
 function ActionBars:GetActionID(button)
+    if button.actionSlot then
+        return button.actionSlot
+    end
     local id = button:GetID()
     if not id or id == 0 then
         local name = button:GetName() or ""
@@ -2572,12 +2581,8 @@ function ActionBars:UpdateSideBarButton(button)
     -- Update cooldown
     self:UpdateSideBarButtonCooldown(button)
     
-    -- Update checked state (for auto-attack, etc)
-    if IsCurrentAction(actionSlot) or IsAutoRepeatAction(actionSlot) then
-        button:SetChecked(1)
-    else
-        button:SetChecked(0)
-    end
+    -- Touch bars never show current-action / auto-attack highlight.
+    button:SetChecked(0)
     
     -- Start range timer if action has range
     if ActionHasRange(actionSlot) then

@@ -29,8 +29,6 @@ ConsoleUI:SetScript("OnEvent", function()
             if ConsoleUIDB == nil then
                 ConsoleUIDB = {}
             end
-            
--- Addon loaded message (always show)
         end
         
     elseif event == "VARIABLES_LOADED" then
@@ -106,6 +104,7 @@ ConsoleUI:SetScript("OnEvent", function()
         if ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings() then
             ConsoleUI_SaveBindings()
         end
+        ConsoleUI_Welcome()
         
     elseif event == "PLAYER_LOGOUT" then
         -- Save configuration
@@ -236,6 +235,26 @@ function ConsoleUI_Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|cffffd12e[ConsoleUI]|r " .. tostring(msg))
 end
 
+function ConsoleUI_PrintDebug(msg)
+    if ConsoleUI.config and ConsoleUI.config:Get("debugEnabled") then
+        ConsoleUI_Print(msg)
+    end
+end
+
+function ConsoleUI_Welcome()
+    if ConsoleUI.welcomed then return end
+    ConsoleUI.welcomed = true
+    local version = "1.0.0-RC2"
+    if GetAddOnMetadata then
+        version = GetAddOnMetadata("ConsoleUI", "Version") or version
+    end
+    local text = "v" .. version .. " loaded. Type /cui for settings."
+    if ConsoleUI.locale and ConsoleUI.locale.T then
+        text = string.format(ConsoleUI.locale.T("v%s loaded. Type /cui for settings."), version)
+    end
+    ConsoleUI_Print(text)
+end
+
 -- Paste the complete chat output from /cui debug into a test report.
 -- Kept to APIs available in the 1.12 client.
 function ConsoleUI:ReportDiagnostics()
@@ -282,7 +301,7 @@ SlashCmdList["CONSOLEUIFRAME"] = function(msg)
         local parent = frame:GetParent()
         local parentName = parent and (parent:GetName() or "(unnamed parent)") or "none"
         
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[CE Frame]|r")
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffd12e[ConsoleUI Frame]|r")
         DEFAULT_CHAT_FRAME:AddMessage("  Name: |cffffcc00" .. name .. "|r")
         DEFAULT_CHAT_FRAME:AddMessage("  Type: |cff88ccff" .. objType .. "|r")
         DEFAULT_CHAT_FRAME:AddMessage("  Parent: |cffcccccc" .. parentName .. "|r")
@@ -366,6 +385,6 @@ SlashCmdList["CONSOLEUIFRAME"] = function(msg)
             ConsoleUI_FrameCopyBox:Show()
         end
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[CE Frame]|r No frame under mouse")
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffd12e[ConsoleUI Frame]|r No frame under mouse")
     end
 end

@@ -852,16 +852,18 @@ end
 -- Slash Commands
 -- ============================================================================
 
-SLASH_CEPROFILE1 = "/ceprofile"
-SLASH_CEPROFILE2 = "/cep"
-SlashCmdList["CEPROFILE"] = function(msg)
+SLASH_CUIPROFILE1 = "/cuiprofile"
+SLASH_CUIPROFILE2 = "/cuip"
+SLASH_CUIPROFILE3 = "/ceprofile"
+SLASH_CUIPROFILE4 = "/cep"
+SlashCmdList["CUIPROFILE"] = function(msg)
     msg = string.gsub(msg, "^%s*(.-)%s*$", "%1")  -- Trim whitespace
     
     if msg == "" or msg == nil then
         -- Show current profile
         local currentProfile = Profiles:GetCurrentProfileName()
         ConsoleUI_Print("Current profile: " .. currentProfile)
-        ConsoleUI_Print("Usage: /ceprofile <name> or /cep <name>")
+        ConsoleUI_Print("Usage: /cuiprofile <name> or /cuip <name>")
         ConsoleUI_Print("Available profiles:")
         local profiles = Profiles:ListProfiles()
         for _, name in ipairs(profiles) do

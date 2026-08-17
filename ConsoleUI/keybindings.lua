@@ -122,7 +122,7 @@ function ConsoleUI_InteractNearest()
         InteractNearest(1)
     else
         -- Fallback: target nearest enemy if Interact.dll is not loaded
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff9900[CE]|r " .. L("Interact.dll not loaded - using TargetNearestEnemy() as fallback"), 1, 0.6, 0)
+        ConsoleUI_Print(L("Interact.dll not loaded - using TargetNearestEnemy() as fallback"))
         TargetNearestEnemy()
     end
 end
@@ -305,10 +305,10 @@ function ConsoleUIKeybindings:Initialize()
     end
     
     if not hasExistingBindings then
-        ConsoleUI_Debug("No CE bindings found, setting up defaults...")
+        ConsoleUI_Debug("No ConsoleUI bindings found, setting up defaults...")
         self:SetupDefaultBindings()
     else
-        ConsoleUI_Debug("Existing CE bindings found, skipping default setup")
+        ConsoleUI_Debug("Existing ConsoleUI bindings found, skipping default setup")
     end
     
     -- Initialize and apply proxied actions (replaces old useAForJump system)

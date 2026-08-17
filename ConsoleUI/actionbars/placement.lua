@@ -11,10 +11,17 @@ local Placement = ConsoleUI.placement
 
 -- Constants
 local NUM_BUTTONS = 10
-local BUTTON_SIZE = 60
-local BUTTON_SPACING = 8
-local FRAME_PADDING = 25
-local ICON_SIZE = 14
+local BUTTON_SIZE = 46
+local BUTTON_SPACING = 6
+local FRAME_PADDING = 14
+local ICON_SIZE = 16
+local HEADER_H = 62
+local FOOTER_H = 54
+local CARD_PAD = 12
+local CARD_HEAD = 28
+local LABEL_W = 72
+local TOUCH_MAX = 5
+local COL_HEAD_H = 22
 
 -- Bonus bar base offset (6 pages * 12 buttons = 72, minus 12 = 60)
 local BONUS_BAR_BASE = 60
@@ -33,7 +40,7 @@ end
 local MODIFIER_OFFSETS = {
     [1] = 10,   -- LT (Shift) - slots 11-20
     [2] = 20,   -- RT (Ctrl) - slots 21-30
-    [3] = 30,   -- LT+LB (Shift+Ctrl) - slots 31-40
+    [3] = 30,   -- LT+RT (Shift+Ctrl) - slots 31-40
 }
 
 -- Get localized text (with fallback)
@@ -201,10 +208,10 @@ function Placement:BuildPageInfo()
         })
     end
     
-    -- Add modifier pages
+    -- Add modifier pages (LT = Shift, RT = Ctrl — same as the Steam layout)
     table.insert(pages, { text = "LT", icons = {"lt"}, offset = MODIFIER_OFFSETS[1], isStance = false })
-    table.insert(pages, { text = "LB", icons = {"lb"}, offset = MODIFIER_OFFSETS[2], isStance = false })
-    table.insert(pages, { text = "LT+LB", icons = {"lt", "lb"}, offset = MODIFIER_OFFSETS[3], isStance = false })
+    table.insert(pages, { text = "RT", icons = {"rt"}, offset = MODIFIER_OFFSETS[2], isStance = false })
+    table.insert(pages, { text = "LT+RT", icons = {"lt", "rt"}, offset = MODIFIER_OFFSETS[3], isStance = false })
     
     return pages
 end
@@ -260,61 +267,142 @@ function Placement:GetActionSlotForButton(pageIndex, buttonIndex)
     return ((pageIndex - 1) * NUM_BUTTONS) + buttonIndex
 end
 
+function Placement.ClampTouchCount(n)
+    if ConsoleUI.config and ConsoleUI.config.ClampTouchCount then
+        return ConsoleUI.config:ClampTouchCount(n)
+    end
+    n = tonumber(n) or 3
+    if n < 1 then n = 1 end
+    if n > TOUCH_MAX then n = TOUCH_MAX end
+    return math.floor(n)
+end
+
+local function Cfg()
+    return ConsoleUI.config
+end
+
+local function Colors()
+    local cfg = Cfg()
+    if cfg and cfg.UI_COLORS then
+        return cfg.UI_COLORS
+    end
+    return {
+        gold = {1.00, 0.82, 0.18, 1.00},
+        panel = {0.067, 0.071, 0.086, 0.98},
+        header = {0.082, 0.086, 0.106, 0.98},
+        content = {0.078, 0.082, 0.098, 0.96},
+        section = {0.094, 0.102, 0.122, 0.96},
+        inset = {0.078, 0.082, 0.102, 0.96},
+        border = {1.00, 1.00, 1.00, 0.14},
+        borderStrong = {1.00, 1.00, 1.00, 0.20},
+        muted = {0.545, 0.561, 0.596, 1.00},
+        text = {0.945, 0.949, 0.957, 1.00},
+        active = {0.145, 0.122, 0.055, 0.96},
+    }
+end
+
+local function CardBackdrop()
+    local cfg = Cfg()
+    if cfg and cfg.BACKDROP_CARD then
+        return cfg.BACKDROP_CARD
+    end
+    return {
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 10,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    }
+end
+
+function Placement:PaintSlot(button, filled, hovered)
+    if not button then return end
+    if hovered then
+        button:SetBackdropColor(0.145, 0.122, 0.055, 0.96)
+        button:SetBackdropBorderColor(1.00, 0.82, 0.18, 0.28)
+    elseif filled then
+        button:SetBackdropColor(0.094, 0.102, 0.122, 0.96)
+        button:SetBackdropBorderColor(1, 1, 1, 0.14)
+    else
+        button:SetBackdropColor(0.078, 0.082, 0.102, 0.96)
+        button:SetBackdropBorderColor(1, 1, 1, 0.08)
+    end
+end
+
+function Placement:MakeCard(parent, title)
+    local c = Colors()
+    local card = CreateFrame("Frame", nil, parent)
+    card:SetBackdrop(CardBackdrop())
+    card:SetBackdropColor(unpack(c.section))
+    card:SetBackdropBorderColor(unpack(c.border))
+
+    local pip = card:CreateTexture(nil, "ARTWORK")
+    pip:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+    pip:SetWidth(3)
+    pip:SetHeight(10)
+    pip:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -10)
+    pip:SetVertexColor(unpack(c.gold))
+    card.pip = pip
+
+    local label = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("LEFT", pip, "RIGHT", 7, 0)
+    label:SetText(string.upper(title or ""))
+    label:SetTextColor(0.78, 0.79, 0.81)
+    card.title = label
+    return card
+end
+
 -- ============================================================================
 -- Frame Creation
 -- ============================================================================
 
 function Placement:CreateFrame()
     if self.frame then return self.frame end
-    
-    -- Build page info based on class and learned forms
+
     self.PAGE_INFO = self:BuildPageInfo()
     local NUM_PAGES = table.getn(self.PAGE_INFO)
-    
-    -- Calculate frame size (bigger frame)
-    -- Add extra width for row labels on the left
-    local labelColumnWidth = 80  -- Space for stance names and modifier icons
-    local frameWidth = (BUTTON_SIZE * NUM_BUTTONS) + (BUTTON_SPACING * (NUM_BUTTONS - 1)) + (FRAME_PADDING * 2) + labelColumnWidth
-    local frameHeight = (BUTTON_SIZE * NUM_PAGES) + (BUTTON_SPACING * (NUM_PAGES - 1)) + (FRAME_PADDING * 2) + 80  -- +80 for title and header row
-    
-    -- Main frame
+    local c = Colors()
+    local cfg = Cfg()
+
+    local gridW = LABEL_W + (BUTTON_SIZE * NUM_BUTTONS) + (BUTTON_SPACING * (NUM_BUTTONS - 1))
+    local frameWidth = FRAME_PADDING * 2 + CARD_PAD * 2 + gridW
+    if frameWidth < 640 then frameWidth = 640 end
+
     local frame = CreateFrame("Frame", "ConsoleUIPlacementFrame", UIParent)
     frame:SetWidth(frameWidth)
-    frame:SetHeight(frameHeight)
+    frame:SetHeight(400)
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     frame:SetFrameStrata("FULLSCREEN_DIALOG")
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:SetClampedToScreen(true)
-    frame:SetAlpha(1.0)  -- Ensure frame itself is fully opaque
     frame:Hide()
-    
-    -- Create completely solid opaque background
-    -- Use backdrop with solid texture and multiple background layers
-    frame:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true,
-        tileSize = 16,
-        edgeSize = 32,
-        insets = { left = 11, right = 12, top = 12, bottom = 11 }
-    })
-    -- Set backdrop to fully opaque black (multiple times to ensure)
-    frame:SetBackdropColor(0, 0, 0, 1.0)
-    frame:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
-    
-    -- Additional solid background layer behind backdrop for extra opacity
-    local solidBg = frame:CreateTexture(nil, "BACKGROUND")
-    solidBg:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
-    solidBg:SetAllPoints(frame)
-    solidBg:SetVertexColor(0, 0, 0, 1.0)  -- Fully opaque black
-    frame.solidBg = solidBg
-    
-    -- Title bar for dragging
+
+    if cfg and cfg.BACKDROP_PANEL then
+        frame:SetBackdrop(cfg.BACKDROP_PANEL)
+    else
+        frame:SetBackdrop(CardBackdrop())
+    end
+    frame:SetBackdropColor(unpack(c.panel))
+    frame:SetBackdropBorderColor(unpack(c.borderStrong))
+
+    local headerFill = frame:CreateTexture(nil, "BORDER")
+    headerFill:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+    headerFill:SetVertexColor(0.082, 0.086, 0.106, 0.98)
+    headerFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -5)
+    headerFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
+    headerFill:SetHeight(HEADER_H - 6)
+
+    local headerRule = frame:CreateTexture(nil, "OVERLAY")
+    headerRule:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+    headerRule:SetVertexColor(1, 1, 1, 0.08)
+    headerRule:SetPoint("BOTTOMLEFT", headerFill, "BOTTOMLEFT", 0, 0)
+    headerRule:SetPoint("BOTTOMRIGHT", headerFill, "BOTTOMRIGHT", 0, 0)
+    headerRule:SetHeight(1)
+
     local titleRegion = CreateFrame("Frame", nil, frame)
     titleRegion:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -5)
-    titleRegion:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -35, -5)
-    titleRegion:SetHeight(25)
+    titleRegion:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -5)
+    titleRegion:SetHeight(HEADER_H - 8)
     titleRegion:EnableMouse(true)
     titleRegion:SetScript("OnMouseDown", function()
         frame:StartMoving()
@@ -322,121 +410,102 @@ function Placement:CreateFrame()
     titleRegion:SetScript("OnMouseUp", function()
         frame:StopMovingOrSizing()
     end)
-    
-    -- Title text
+
+    local mark = frame:CreateTexture(nil, "ARTWORK")
+    mark:SetTexture((cfg and cfg.MARK) or "Interface\\AddOns\\ConsoleUI\\textures\\brand\\Mark")
+    mark:SetWidth(34)
+    mark:SetHeight(34)
+    mark:SetPoint("LEFT", headerFill, "LEFT", 12, 0)
+
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", frame, "TOP", 0, -15)
-    title:SetText(L("Place Action"))
-    
-    -- Close button
-    local closeButton = CreateFrame("Button", "ConsoleUIPlacementCloseButton", frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -5)
-    closeButton:SetScript("OnClick", function()
-        Placement:Hide()
-        ClearCursor()
-    end)
-    
-    -- Create column headers with button icons
-    local labelColumnWidth = 80  -- Space for stance names and modifier icons
-    
-    frame.headerIcons = {}  -- Store header icons for visibility control
+    title:SetPoint("LEFT", mark, "RIGHT", 10, 0)
+    title:SetText(L("Spell"))
+    title:SetTextColor(unpack(c.text))
+
+    local brand = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    brand:SetPoint("LEFT", title, "RIGHT", 4, 0)
+    brand:SetText(L("Placement"))
+    brand:SetTextColor(unpack(c.gold))
+
+    local credit = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    credit:SetPoint("RIGHT", headerFill, "RIGHT", -16, 0)
+    credit:SetText(L("Drop a spell on a slot"))
+    credit:SetTextColor(unpack(c.muted))
+
+    local content = CreateFrame("Frame", nil, frame)
+    content:SetPoint("TOPLEFT", frame, "TOPLEFT", FRAME_PADDING, -HEADER_H)
+    content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -FRAME_PADDING, FOOTER_H)
+    frame.content = content
+
+    local pagesCard = self:MakeCard(content, L("Action pages"))
+    pagesCard:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0)
+    pagesCard:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, 0)
+    frame.pagesCard = pagesCard
+
+    frame.headerIcons = {}
     for btn = 1, NUM_BUTTONS do
         local btnInfo = self.BUTTON_INFO[btn]
         if btnInfo then
-            local xOffset = FRAME_PADDING + labelColumnWidth + ((btn - 1) * (BUTTON_SIZE + BUTTON_SPACING)) + (BUTTON_SIZE / 2)
-            
-            -- Create header icon (square to prevent stretching)
-            local headerIcon = frame:CreateTexture(nil, "OVERLAY")
-            headerIcon:SetWidth(ICON_SIZE + 2)
-            headerIcon:SetHeight(ICON_SIZE + 2)
-            headerIcon:SetTexCoord(0, 1, 0, 1)  -- Ensure proper texture coordinates
+            local headerIcon = pagesCard:CreateTexture(nil, "OVERLAY")
+            headerIcon:SetWidth(ICON_SIZE)
+            headerIcon:SetHeight(ICON_SIZE)
+            headerIcon:SetTexCoord(0, 1, 0, 1)
             headerIcon:SetTexture(GetIconPath(btnInfo.icon))
-            headerIcon:SetPoint("TOP", frame, "TOPLEFT", xOffset, -42)
-            
-            -- Header icon stays visible (column may have buttons on other pages)
             frame.headerIcons[btn] = headerIcon
         end
     end
-    
-    -- Create action buttons grid
+
     self.buttons = {}
-    self.buttonsByPage = {}  -- Also store by page for easier updates
-    local NUM_PAGES = table.getn(self.PAGE_INFO)
-    
+    self.buttonsByPage = {}
     for page = 1, NUM_PAGES do
         self.buttonsByPage[page] = {}
         local pageInfo = self.PAGE_INFO[page]
-        
         for btn = 1, NUM_BUTTONS do
             local actionSlot = pageInfo.offset + btn
-            local button = self:CreateActionButton(frame, actionSlot, btn, page)
-            
-            -- Store the page offset for later use
+            local button = self:CreateActionButton(pagesCard, actionSlot, btn, page)
             button.pageOffset = pageInfo.offset
-            
-            -- Hide buttons that have proxied actions assigned
-            if ConsoleUI.proxied and ConsoleUI.proxied.IsSlotProxied then
-                if ConsoleUI.proxied:IsSlotProxied(actionSlot) then
-                    button:Hide()
-                end
+            if ConsoleUI.proxied and ConsoleUI.proxied.IsSlotProxied and ConsoleUI.proxied:IsSlotProxied(actionSlot) then
+                button:Hide()
             end
-            
             self.buttons[actionSlot] = button
             self.buttonsByPage[page][btn] = button
         end
     end
-    
-    -- Row labels (stance icons with text and modifier icons)
-    -- Position them inside the frame, to the left of the buttons
-    local labelColumnWidth = 80  -- Space for stance icons and modifier icons
-    local NUM_PAGES = table.getn(self.PAGE_INFO)
-    local STANCE_ICON_SIZE = 28  -- Size for stance/form icons
-    
+
+    self.rowLabels = {}
     for page = 1, NUM_PAGES do
         local pageInfo = self.PAGE_INFO[page]
-        -- Calculate Y position to center on the row
-        local buttonTopY = -70 - ((page - 1) * (BUTTON_SIZE + BUTTON_SPACING))
-        local rowCenterY = buttonTopY - (BUTTON_SIZE / 2)
-        
-        -- Create label container for row
-        local labelContainer = CreateFrame("Frame", "ConsoleUIPlacementRowLabel" .. page, frame)
-        labelContainer:SetWidth(75)
+        local labelContainer = CreateFrame("Frame", "ConsoleUIPlacementRowLabel" .. page, pagesCard)
+        labelContainer:SetWidth(LABEL_W - 8)
         labelContainer:SetHeight(BUTTON_SIZE)
-        labelContainer:SetPoint("CENTER", frame, "TOPLEFT", FRAME_PADDING + (labelColumnWidth / 2), rowCenterY)
-        
-        -- For stance pages, show icon with text below
+
         if pageInfo.isStance then
             if pageInfo.texture then
-                -- Create stance icon (positioned above center)
                 local stanceIcon = labelContainer:CreateTexture(nil, "OVERLAY")
-                stanceIcon:SetWidth(STANCE_ICON_SIZE)
-                stanceIcon:SetHeight(STANCE_ICON_SIZE)
+                stanceIcon:SetWidth(22)
+                stanceIcon:SetHeight(22)
                 stanceIcon:SetTexture(pageInfo.texture)
-                stanceIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- Slight inset to remove border
-                stanceIcon:SetPoint("TOP", labelContainer, "TOP", 0, 0)
+                stanceIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                stanceIcon:SetPoint("LEFT", labelContainer, "LEFT", 2, 0)
                 labelContainer.stanceIcon = stanceIcon
-                
-                -- Create text label below the icon
                 if pageInfo.text and pageInfo.text ~= "" then
                     local stanceLabel = labelContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                    stanceLabel:SetPoint("TOP", stanceIcon, "BOTTOM", 0, -2)
+                    stanceLabel:SetPoint("LEFT", stanceIcon, "RIGHT", 4, 0)
                     stanceLabel:SetText(pageInfo.text)
-                    stanceLabel:SetTextColor(1, 0.82, 0, 1)  -- Gold color for stance names
-                    stanceLabel:SetWidth(labelColumnWidth - 5)
-                    stanceLabel:SetJustifyH("CENTER")
+                    stanceLabel:SetTextColor(unpack(c.gold))
+                    stanceLabel:SetWidth(LABEL_W - 32)
+                    stanceLabel:SetJustifyH("LEFT")
                     labelContainer.stanceLabel = stanceLabel
                 end
             elseif pageInfo.text and pageInfo.text ~= "" then
-                -- Fallback to text only if no texture
                 local stanceLabel = labelContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                stanceLabel:SetPoint("CENTER", labelContainer, "CENTER", 0, 0)
+                stanceLabel:SetPoint("LEFT", labelContainer, "LEFT", 2, 0)
                 stanceLabel:SetText(pageInfo.text)
-                stanceLabel:SetTextColor(1, 0.82, 0, 1)  -- Gold color for stance names
+                stanceLabel:SetTextColor(unpack(c.gold))
                 labelContainer.stanceLabel = stanceLabel
             end
         end
-        
-        -- For modifier pages, show icons
+
         labelContainer.modIcons = {}
         if pageInfo.icons and table.getn(pageInfo.icons) > 0 then
             local xPos = 0
@@ -447,119 +516,118 @@ function Placement:CreateFrame()
                 modIcon:SetHeight(ICON_SIZE)
                 modIcon:SetTexCoord(0, 1, 0, 1)
                 modIcon:SetTexture(GetIconPath(iconName))
-                modIcon:SetPoint("RIGHT", labelContainer, "RIGHT", -xPos, 0)
+                modIcon:SetPoint("LEFT", labelContainer, "LEFT", xPos, 0)
                 labelContainer.modIcons[i] = modIcon
                 xPos = xPos + ICON_SIZE + 2
             end
         end
+        self.rowLabels[page] = labelContainer
     end
-    
-    -- Add to special frames so Escape closes it
+
+    local footerFill = frame:CreateTexture(nil, "BORDER")
+    footerFill:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+    footerFill:SetVertexColor(0.067, 0.071, 0.086, 0.98)
+    footerFill:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 5, 5)
+    footerFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 5)
+    footerFill:SetHeight(FOOTER_H - 8)
+
+    local footerRule = frame:CreateTexture(nil, "OVERLAY")
+    footerRule:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+    footerRule:SetVertexColor(1, 1, 1, 0.08)
+    footerRule:SetPoint("TOPLEFT", footerFill, "TOPLEFT", 0, 0)
+    footerRule:SetPoint("TOPRIGHT", footerFill, "TOPRIGHT", 0, 0)
+    footerRule:SetHeight(1)
+
+    local hint = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hint:SetPoint("LEFT", footerFill, "LEFT", 12, 0)
+    hint:SetText(L("Drag a spell or item onto a slot. Right-click to pick up."))
+    hint:SetTextColor(unpack(c.muted))
+    hint:SetJustifyH("LEFT")
+    frame.hint = hint
+
+    local closeButton
+    if cfg and cfg.MakePanelButton then
+        closeButton = cfg:MakePanelButton(frame, "ConsoleUIPlacementCloseButton", 96, CLOSE or L("Close"))
+    else
+        closeButton = CreateFrame("Button", "ConsoleUIPlacementCloseButton", frame, "UIPanelCloseButton")
+    end
+    closeButton:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -16, 14)
+    closeButton:SetScript("OnClick", function()
+        Placement:Hide()
+        ClearCursor()
+    end)
+    frame.closeButton = closeButton
+
     table.insert(UISpecialFrames, "ConsoleUIPlacementFrame")
-    
     self.frame = frame
-    
-    -- Hook to cursor for cursor navigation
+
     if ConsoleUI.hooks and ConsoleUI.hooks.HookDynamicFrame then
         ConsoleUI.hooks:HookDynamicFrame(frame, "Spell Placement")
     end
-    
+
+    self:LayoutPages()
     return frame
+end
+
+function Placement:LayoutPages()
+    if not self.frame or not self.frame.pagesCard then return end
+    local pagesCard = self.frame.pagesCard
+    local NUM_PAGES = self.PAGE_INFO and table.getn(self.PAGE_INFO) or 0
+    local gridTop = -CARD_HEAD
+    local x0 = CARD_PAD + LABEL_W
+
+    for btn = 1, NUM_BUTTONS do
+        local headerIcon = self.frame.headerIcons and self.frame.headerIcons[btn]
+        if headerIcon then
+            local x = x0 + ((btn - 1) * (BUTTON_SIZE + BUTTON_SPACING)) + (BUTTON_SIZE / 2)
+            headerIcon:ClearAllPoints()
+            headerIcon:SetPoint("TOP", pagesCard, "TOPLEFT", x, gridTop)
+        end
+    end
+
+    local rowsTop = gridTop - COL_HEAD_H
+    for page = 1, NUM_PAGES do
+        local y = rowsTop - ((page - 1) * (BUTTON_SIZE + BUTTON_SPACING))
+        if self.rowLabels and self.rowLabels[page] then
+            self.rowLabels[page]:ClearAllPoints()
+            self.rowLabels[page]:SetPoint("TOPLEFT", pagesCard, "TOPLEFT", CARD_PAD, y)
+        end
+        if self.buttonsByPage and self.buttonsByPage[page] then
+            for btn = 1, NUM_BUTTONS do
+                local button = self.buttonsByPage[page][btn]
+                if button then
+                    local x = x0 + ((btn - 1) * (BUTTON_SIZE + BUTTON_SPACING))
+                    button:ClearAllPoints()
+                    button:SetPoint("TOPLEFT", pagesCard, "TOPLEFT", x, y)
+                end
+            end
+        end
+    end
+
+    local pagesH = CARD_HEAD + COL_HEAD_H + (BUTTON_SIZE * NUM_PAGES) + (BUTTON_SPACING * math.max(NUM_PAGES - 1, 0)) + CARD_PAD
+    pagesCard:SetHeight(pagesH)
 end
 
 function Placement:CreateActionButton(parent, actionSlot, buttonIndex, pageIndex)
     local buttonName = "ConsoleUIPlacementButton" .. actionSlot
     local button = CreateFrame("Button", buttonName, parent)
-    
-    -- Position (accounting for header row and label column)
-    local labelColumnWidth = 80  -- Space for stance names and modifier icons
-    local xOffset = FRAME_PADDING + labelColumnWidth + ((buttonIndex - 1) * (BUTTON_SIZE + BUTTON_SPACING))
-    local yOffset = -70 - ((pageIndex - 1) * (BUTTON_SIZE + BUTTON_SPACING))
-    
+
     button:SetWidth(BUTTON_SIZE)
     button:SetHeight(BUTTON_SIZE)
-    button:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yOffset)
-    
-    -- Background
-    button:SetBackdrop({
-        bgFile = "Interface\\Buttons\\UI-Quickslot2",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = false,
-        tileSize = 0,
-        edgeSize = 8,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 }
-    })
-    button:SetBackdropColor(0.2, 0.2, 0.2, 1.0)  -- Fully opaque background
-    button:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)  -- Visible border
-    
-    -- Icon texture (with padding for controller icons at bottom)
-    -- Keep icon square to prevent stretching
-    local iconSize = BUTTON_SIZE - 10  -- Padding from edges
+    button:SetBackdrop(CardBackdrop())
+    self:PaintSlot(button, false, false)
+
+    local iconSize = BUTTON_SIZE - 10
     local icon = button:CreateTexture(buttonName .. "Icon", "ARTWORK")
     icon:SetWidth(iconSize)
-    icon:SetHeight(iconSize)  -- Square to prevent stretching
-    icon:SetPoint("CENTER", button, "CENTER", 0, 4)  -- Slightly above center to leave room for controller icons
-    icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)  -- Slight padding in texture coords to prevent edge clipping
+    icon:SetHeight(iconSize)
+    icon:SetPoint("CENTER", button, "CENTER", 0, 0)
+    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     button.icon = icon
-    
-    -- Controller button icons overlay
-    local btnInfo = self.BUTTON_INFO[buttonIndex]
-    local pageInfo = self.PAGE_INFO and self.PAGE_INFO[pageIndex]
-    
-    -- Create icon container (positioned at bottom-left with proper padding)
-    local iconContainer = CreateFrame("Frame", nil, button)
-    local numModIcons = 0
-    if pageInfo and pageInfo.icons then
-        numModIcons = table.getn(pageInfo.icons)
-    end
-    local iconContainerWidth = (numModIcons + 1) * ICON_SIZE + (numModIcons * 2)  -- Icons + spacing
-    iconContainer:SetWidth(iconContainerWidth)
-    iconContainer:SetHeight(ICON_SIZE)
-    iconContainer:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 4, 4)  -- Proper padding from bottom-left corner
-    iconContainer:SetFrameLevel(button:GetFrameLevel() + 2)
-    button.iconContainer = iconContainer
-    
-    -- Store icons for later refresh
-    button.iconContainer.modIcons = {}
-    button.iconContainer.mainIcon = nil
-    
-    -- Add modifier icons first (LT, RT) - positioned from left
-    local xPos = 0
-    if pageInfo and pageInfo.icons then
-        for i = 1, table.getn(pageInfo.icons) do
-            local modIconName = pageInfo.icons[i]
-            local modIcon = iconContainer:CreateTexture(nil, "OVERLAY")
-            modIcon:SetWidth(ICON_SIZE)
-            modIcon:SetHeight(ICON_SIZE)
-            modIcon:SetTexCoord(0, 1, 0, 1)  -- Ensure proper texture coordinates
-            modIcon:SetTexture(GetIconPath(modIconName))
-            modIcon:SetPoint("LEFT", iconContainer, "LEFT", xPos, 0)
-            button.iconContainer.modIcons[i] = modIcon
-            xPos = xPos + ICON_SIZE + 2  -- 2px spacing between icons
-        end
-    end
-    
-    -- Add main button icon
-    if btnInfo then
-        local mainIcon = iconContainer:CreateTexture(nil, "OVERLAY")
-        mainIcon:SetWidth(ICON_SIZE)
-        mainIcon:SetHeight(ICON_SIZE)
-        mainIcon:SetTexCoord(0, 1, 0, 1)  -- Ensure proper texture coordinates
-        mainIcon:SetTexture(GetIconPath(btnInfo.icon))
-        mainIcon:SetPoint("LEFT", iconContainer, "LEFT", xPos, 0)
-        button.iconContainer.mainIcon = mainIcon
-    end
-    
-    -- Store action slot
+
     button.actionSlot = actionSlot
     button.buttonIndex = buttonIndex
     button.pageIndex = pageIndex
-    
-    -- Highlight texture
-    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
-    highlight:SetBlendMode("ADD")
-    highlight:SetAllPoints(button)
     
     -- Click handler - place cursor item
     button:SetScript("OnClick", function()
@@ -617,10 +685,10 @@ function Placement:CreateActionButton(parent, actionSlot, buttonIndex, pageIndex
     -- Tooltip
     button:SetScript("OnEnter", function()
         local slot = this.actionSlot
+        Placement:PaintSlot(this, HasAction(slot), true)
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
         if HasAction(slot) then
             GameTooltip:SetAction(slot)
-            -- Prompts will be added automatically by tooltip system: A = Pickup/Place, B = Clear
         else
             local btnInfo = Placement.BUTTON_INFO[this.buttonIndex]
             local pageInfo = Placement.PAGE_INFO and Placement.PAGE_INFO[this.pageIndex]
@@ -630,12 +698,12 @@ function Placement:CreateActionButton(parent, actionSlot, buttonIndex, pageIndex
             end
             GameTooltip:SetText(slotName)
             GameTooltip:AddLine("Empty slot", 0.7, 0.7, 0.7)
-            -- Prompts will be added automatically by tooltip system: A = Pickup/Place, B = Clear
         end
         GameTooltip:Show()
     end)
     
     button:SetScript("OnLeave", function()
+        Placement:PaintSlot(this, HasAction(this.actionSlot), false)
         GameTooltip:Hide()
     end)
     
@@ -679,10 +747,10 @@ function Placement:UpdateButton(button)
     if texture then
         button.icon:SetTexture(texture)
         button.icon:Show()
-        button:SetBackdropColor(0.2, 0.2, 0.2, 1.0)  -- Fully opaque
+        self:PaintSlot(button, true, false)
     else
         button.icon:Hide()
-        button:SetBackdropColor(0.15, 0.15, 0.15, 1.0)  -- Fully opaque
+        self:PaintSlot(button, false, false)
     end
 end
 
@@ -694,7 +762,7 @@ function Placement:UpdateAllButtons()
     end
     
     -- Also update side bar buttons in placement frame
-    for i = 1, 5 do
+    for i = 1, TOUCH_MAX do
         if self.sideBarLeftButtons[i] then
             self:UpdateSideBarPlacementButton(self.sideBarLeftButtons[i])
         end
@@ -723,9 +791,8 @@ function Placement:RefreshIcons()
         end
     end
     
-    -- Update page modifier icons in labels
     for page = 1, NUM_PAGES do
-        local labelContainer = getglobal("ConsoleUIPlacementRowLabel" .. page)
+        local labelContainer = self.rowLabels and self.rowLabels[page]
         if labelContainer and labelContainer.modIcons then
             local pageInfo = self.PAGE_INFO[page]
             if pageInfo and pageInfo.icons then
@@ -734,33 +801,6 @@ function Placement:RefreshIcons()
                     if labelContainer.modIcons[i] then
                         labelContainer.modIcons[i]:SetTexture(GetIconPath(iconName))
                     end
-                end
-            end
-        end
-    end
-    
-    -- Update button icons
-    if self.buttons then
-        for actionSlot, button in pairs(self.buttons) do
-            if button.iconContainer then
-                local pageIndex = button.pageIndex
-                local pageInfo = self.PAGE_INFO[pageIndex]
-                
-                -- Update modifier icons
-                if pageInfo and pageInfo.icons and button.iconContainer.modIcons then
-                    for i = 1, table.getn(pageInfo.icons) do
-                        local modIconName = pageInfo.icons[i]
-                        if button.iconContainer.modIcons[i] then
-                            button.iconContainer.modIcons[i]:SetTexture(GetIconPath(modIconName))
-                        end
-                    end
-                end
-                
-                -- Update main button icon
-                local buttonIndex = button.buttonIndex
-                local btnInfo = self.BUTTON_INFO[buttonIndex]
-                if btnInfo and button.iconContainer.mainIcon then
-                    button.iconContainer.mainIcon:SetTexture(GetIconPath(btnInfo.icon))
                 end
             end
         end
@@ -783,26 +823,15 @@ function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex,
     
     button:SetWidth(BUTTON_SIZE)
     button:SetHeight(BUTTON_SIZE)
-    
-    -- Background
-    button:SetBackdrop({
-        bgFile = "Interface\\Buttons\\UI-Quickslot2",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = false,
-        tileSize = 0,
-        edgeSize = 8,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 }
-    })
-    button:SetBackdropColor(0.2, 0.2, 0.2, 1.0)
-    button:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-    
-    -- Icon texture
+    button:SetBackdrop(CardBackdrop())
+    self:PaintSlot(button, false, false)
+
     local iconSize = BUTTON_SIZE - 10
     local icon = button:CreateTexture(buttonName .. "Icon", "ARTWORK")
     icon:SetWidth(iconSize)
     icon:SetHeight(iconSize)
     icon:SetPoint("CENTER", button, "CENTER", 0, 0)
-    icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
+    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     button.icon = icon
     
     -- Store action slot and info
@@ -810,12 +839,6 @@ function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex,
     button.buttonIndex = buttonIndex
     button.pageIndex = 1  -- Side bars don't have pages, use 1 for consistency
     button.side = side
-    
-    -- Highlight texture
-    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
-    highlight:SetBlendMode("ADD")
-    highlight:SetAllPoints(button)
     
     -- Click handler - place cursor item
     button:SetScript("OnClick", function()
@@ -862,18 +885,20 @@ function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex,
     
     -- Tooltip
     button:SetScript("OnEnter", function()
+        Placement:PaintSlot(this, HasAction(this.actionSlot), true)
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
         if HasAction(this.actionSlot) then
             GameTooltip:SetAction(this.actionSlot)
         else
             local sideName = this.side == "left" and "Left" or "Right"
-            GameTooltip:SetText(sideName .. " Side Bar " .. this.buttonIndex)
+            GameTooltip:SetText(sideName .. " Touch " .. this.buttonIndex)
             GameTooltip:AddLine("Empty slot (touch screen)", 0.7, 0.7, 0.7)
         end
         GameTooltip:Show()
     end)
     
     button:SetScript("OnLeave", function()
+        Placement:PaintSlot(this, HasAction(this.actionSlot), false)
         GameTooltip:Hide()
     end)
     
@@ -909,150 +934,109 @@ function Placement:UpdateSideBarPlacementButton(button)
     if texture then
         button.icon:SetTexture(texture)
         button.icon:Show()
-        button:SetBackdropColor(0.2, 0.2, 0.2, 1.0)
+        self:PaintSlot(button, true, false)
     else
         button.icon:Hide()
-        button:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
+        self:PaintSlot(button, false, false)
+    end
+end
+
+function Placement:LayoutTouchCard(card, buttons, side, count, offset)
+    count = self.ClampTouchCount(count)
+    local innerH = CARD_HEAD + BUTTON_SIZE + CARD_PAD
+    card:SetHeight(innerH)
+    for i = 1, TOUCH_MAX do
+        if i <= count then
+            local actionSlot = offset + i
+            if not buttons[i] then
+                buttons[i] = self:CreateSideBarPlacementButton(card, actionSlot, i, side)
+            end
+            local button = buttons[i]
+            button.actionSlot = actionSlot
+            button:ClearAllPoints()
+            button:SetPoint("TOPLEFT", card, "TOPLEFT", CARD_PAD + ((i - 1) * (BUTTON_SIZE + BUTTON_SPACING)), -CARD_HEAD)
+            button:Show()
+            self:UpdateSideBarPlacementButton(button)
+        elseif buttons[i] then
+            buttons[i]:Hide()
+        end
     end
 end
 
 function Placement:UpdateSideBarButtons()
-    if not self.frame then return end
-    
+    if not self.frame or not self.frame.content then return end
+
     local config = ConsoleUI.config
     if not config then return end
-    
+
     local leftEnabled = config:Get("sideBarLeftEnabled")
     local rightEnabled = config:Get("sideBarRightEnabled")
-    local leftCount = config:Get("sideBarLeftButtons") or 3
-    local rightCount = config:Get("sideBarRightButtons") or 3
-    
-    -- Clamp counts
-    if leftCount < 1 then leftCount = 1 end
-    if leftCount > 5 then leftCount = 5 end
-    if rightCount < 1 then rightCount = 1 end
-    if rightCount > 5 then rightCount = 5 end
-    
-    -- Side bar action slot offsets
-    local LEFT_OFFSET = 40   -- Slots 41-45
-    local RIGHT_OFFSET = 45  -- Slots 46-50
-    
-    -- Create/update left side bar container in placement frame
+    local leftCount = self.ClampTouchCount(config:Get("sideBarLeftButtons") or 3)
+    local rightCount = self.ClampTouchCount(config:Get("sideBarRightButtons") or 3)
+
+    local LEFT_OFFSET = 40
+    local RIGHT_OFFSET = 45
+    local content = self.frame.content
+
     if not self.sideBarLeftFrame then
-        self.sideBarLeftFrame = CreateFrame("Frame", "ConsoleUIPlacementSideBarLeft", self.frame)
-        self.sideBarLeftFrame:SetFrameLevel(self.frame:GetFrameLevel() + 1)
-        
-        -- Label for left side bar
-        local label = self.sideBarLeftFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        label:SetPoint("TOP", self.sideBarLeftFrame, "TOP", 0, 15)
-        label:SetText("Left Touch")
-        self.sideBarLeftFrame.label = label
+        self.sideBarLeftFrame = self:MakeCard(content, L("Left touch"))
     end
-    
     if not self.sideBarRightFrame then
-        self.sideBarRightFrame = CreateFrame("Frame", "ConsoleUIPlacementSideBarRight", self.frame)
-        self.sideBarRightFrame:SetFrameLevel(self.frame:GetFrameLevel() + 1)
-        
-        -- Label for right side bar
-        local label = self.sideBarRightFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        label:SetPoint("TOP", self.sideBarRightFrame, "TOP", 0, 15)
-        label:SetText("Right Touch")
-        self.sideBarRightFrame.label = label
+        self.sideBarRightFrame = self:MakeCard(content, L("Right touch"))
     end
-    
-    -- Position side bar frames below the main grid
-    local NUM_PAGES = self.PAGE_INFO and table.getn(self.PAGE_INFO) or 4
-    local mainGridBottom = -70 - ((NUM_PAGES - 1) * (BUTTON_SIZE + BUTTON_SPACING)) - BUTTON_SIZE - 20
-    
-    -- Left side bar
-    if leftEnabled then
-        local totalWidth = (BUTTON_SIZE * leftCount) + (BUTTON_SPACING * (leftCount - 1))
-        self.sideBarLeftFrame:SetWidth(totalWidth)
-        self.sideBarLeftFrame:SetHeight(BUTTON_SIZE + 20)
-        self.sideBarLeftFrame:ClearAllPoints()
-        self.sideBarLeftFrame:SetPoint("TOPLEFT", self.frame, "TOPLEFT", FRAME_PADDING + 50, mainGridBottom)
-        self.sideBarLeftFrame:Show()
-        
-        -- Create/update buttons horizontally
-        for i = 1, 5 do
-            if i <= leftCount then
-                local actionSlot = LEFT_OFFSET + i
-                if not self.sideBarLeftButtons[i] then
-                    self.sideBarLeftButtons[i] = self:CreateSideBarPlacementButton(self.sideBarLeftFrame, actionSlot, i, "left")
-                end
-                local button = self.sideBarLeftButtons[i]
-                button.actionSlot = actionSlot
-                button:ClearAllPoints()
-                local xOffset = (i - 1) * (BUTTON_SIZE + BUTTON_SPACING)
-                button:SetPoint("TOPLEFT", self.sideBarLeftFrame, "TOPLEFT", xOffset, 0)
-                button:Show()
-                self:UpdateSideBarPlacementButton(button)
-            else
-                if self.sideBarLeftButtons[i] then
-                    self.sideBarLeftButtons[i]:Hide()
-                end
-            end
-        end
-    else
-        if self.sideBarLeftFrame then
-            self.sideBarLeftFrame:Hide()
-        end
-        for i = 1, 5 do
-            if self.sideBarLeftButtons[i] then
-                self.sideBarLeftButtons[i]:Hide()
-            end
-        end
-    end
-    
-    -- Right side bar
-    if rightEnabled then
-        local totalWidth = (BUTTON_SIZE * rightCount) + (BUTTON_SPACING * (rightCount - 1))
-        self.sideBarRightFrame:SetWidth(totalWidth)
-        self.sideBarRightFrame:SetHeight(BUTTON_SIZE + 20)
-        self.sideBarRightFrame:ClearAllPoints()
-        self.sideBarRightFrame:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -FRAME_PADDING, mainGridBottom)
-        self.sideBarRightFrame:Show()
-        
-        -- Create/update buttons horizontally
-        for i = 1, 5 do
-            if i <= rightCount then
-                local actionSlot = RIGHT_OFFSET + i
-                if not self.sideBarRightButtons[i] then
-                    self.sideBarRightButtons[i] = self:CreateSideBarPlacementButton(self.sideBarRightFrame, actionSlot, i, "right")
-                end
-                local button = self.sideBarRightButtons[i]
-                button.actionSlot = actionSlot
-                button:ClearAllPoints()
-                local xOffset = -((rightCount - i) * (BUTTON_SIZE + BUTTON_SPACING))
-                button:SetPoint("TOPRIGHT", self.sideBarRightFrame, "TOPRIGHT", xOffset, 0)
-                button:Show()
-                self:UpdateSideBarPlacementButton(button)
-            else
-                if self.sideBarRightButtons[i] then
-                    self.sideBarRightButtons[i]:Hide()
-                end
-            end
-        end
-    else
-        if self.sideBarRightFrame then
-            self.sideBarRightFrame:Hide()
-        end
-        for i = 1, 5 do
-            if self.sideBarRightButtons[i] then
-                self.sideBarRightButtons[i]:Hide()
-            end
-        end
-    end
-    
-    -- Adjust main frame height if side bars are enabled
-    local NUM_PAGES = self.PAGE_INFO and table.getn(self.PAGE_INFO) or 4
+
+    self:LayoutPages()
+    local pagesCard = self.frame.pagesCard
+    local gap = 10
+    local touchH = 0
+
     if leftEnabled or rightEnabled then
-        local baseHeight = (BUTTON_SIZE * NUM_PAGES) + (BUTTON_SPACING * (NUM_PAGES - 1)) + (FRAME_PADDING * 2) + 80
-        self.frame:SetHeight(baseHeight + BUTTON_SIZE + 40)  -- Extra space for side bar row
+        touchH = CARD_HEAD + BUTTON_SIZE + CARD_PAD
+        if leftEnabled then
+            self.sideBarLeftFrame:ClearAllPoints()
+            self.sideBarLeftFrame:SetPoint("TOPLEFT", pagesCard, "BOTTOMLEFT", 0, -gap)
+            if rightEnabled then
+                self.sideBarLeftFrame:SetPoint("RIGHT", content, "CENTER", -5, 0)
+            else
+                self.sideBarLeftFrame:SetPoint("TOPRIGHT", pagesCard, "BOTTOMRIGHT", 0, -gap)
+            end
+            self.sideBarLeftFrame:Show()
+            self:LayoutTouchCard(self.sideBarLeftFrame, self.sideBarLeftButtons, "left", leftCount, LEFT_OFFSET)
+        else
+            self.sideBarLeftFrame:Hide()
+            for i = 1, TOUCH_MAX do
+                if self.sideBarLeftButtons[i] then self.sideBarLeftButtons[i]:Hide() end
+            end
+        end
+        if rightEnabled then
+            self.sideBarRightFrame:ClearAllPoints()
+            self.sideBarRightFrame:SetPoint("TOPRIGHT", pagesCard, "BOTTOMRIGHT", 0, -gap)
+            if leftEnabled then
+                self.sideBarRightFrame:SetPoint("LEFT", content, "CENTER", 5, 0)
+            else
+                self.sideBarRightFrame:SetPoint("TOPLEFT", pagesCard, "BOTTOMLEFT", 0, -gap)
+            end
+            self.sideBarRightFrame:Show()
+            self:LayoutTouchCard(self.sideBarRightFrame, self.sideBarRightButtons, "right", rightCount, RIGHT_OFFSET)
+        else
+            self.sideBarRightFrame:Hide()
+            for i = 1, TOUCH_MAX do
+                if self.sideBarRightButtons[i] then self.sideBarRightButtons[i]:Hide() end
+            end
+        end
     else
-        local baseHeight = (BUTTON_SIZE * NUM_PAGES) + (BUTTON_SPACING * (NUM_PAGES - 1)) + (FRAME_PADDING * 2) + 80
-        self.frame:SetHeight(baseHeight)
+        self.sideBarLeftFrame:Hide()
+        self.sideBarRightFrame:Hide()
+        for i = 1, TOUCH_MAX do
+            if self.sideBarLeftButtons[i] then self.sideBarLeftButtons[i]:Hide() end
+            if self.sideBarRightButtons[i] then self.sideBarRightButtons[i]:Hide() end
+        end
     end
+
+    local pagesH = pagesCard:GetHeight() or 200
+    local extra = 0
+    if touchH > 0 then extra = gap + touchH end
+    self.frame:SetHeight(HEADER_H + FOOTER_H + FRAME_PADDING + pagesH + extra + 8)
 end
 
 -- ============================================================================
@@ -1089,6 +1073,11 @@ function Placement:Show()
         self.PAGE_INFO = nil
         self.buttons = nil
         self.buttonsByPage = nil
+        self.rowLabels = nil
+        self.sideBarLeftButtons = {}
+        self.sideBarRightButtons = {}
+        self.sideBarLeftFrame = nil
+        self.sideBarRightFrame = nil
         ConsoleUI_Debug("Placement: Rebuilding due to form count change")
     end
     

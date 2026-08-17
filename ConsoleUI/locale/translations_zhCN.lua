@@ -204,8 +204,8 @@ ConsoleUI_translation["zhCN"] = {
     
     -- Title
     ["Console Experience"] = "手柄设置",
-    ["CE Left Touch Bar"] = "CE 左侧触摸栏",
-    ["CE Right Touch Bar"] = "CE 右侧触摸栏",
+    ["CE Left Touch Bar"] = "ConsoleUI 左侧触摸栏",
+    ["CE Right Touch Bar"] = "ConsoleUI 右侧触摸栏",
     ["Left Touch Bar Button"] = "左侧触摸栏按钮",
     ["Right Touch Bar Button"] = "右侧触摸栏按钮",
     -- Warrior Stances
@@ -359,7 +359,8 @@ ConsoleUI_translation["zhCN"] = {
     ["ConsoleUI Options"] = "手柄设置",
 
     -- Fallback: target nearest enemy if Interact.dll is not loaded
-    ["Interact.dll not loaded - using TargetNearestEnemy()] as fallback."] = "Interact.dll 未加载 - 使用 TargetNearestEnemy() 作为备选方案。",
+    ["Interact.dll not loaded - using TargetNearestEnemy() as fallback"] = "Interact.dll 未加载 — 使用 TargetNearestEnemy() 作为备选方案。",
+    ["v%s loaded. Type /cui for settings."] = "v%s 已加载。输入 /cui 打开设置。",
     
     -- Profile
     ["Profile"] = "配置文件",

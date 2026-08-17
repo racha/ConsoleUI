@@ -150,13 +150,27 @@ function Config:InitializeDB()
     
 end
 
+function Config:ClampTouchCount(value)
+    local n = tonumber(value) or 3
+    if n < 1 then n = 1 end
+    if n > 5 then n = 5 end
+    return math.floor(n)
+end
+
 function Config:Get(key)
+    local value
     if ConsoleUIDB and ConsoleUIDB.config then
         if ConsoleUIDB.config[key] ~= nil then
-            return ConsoleUIDB.config[key]
+            value = ConsoleUIDB.config[key]
         end
     end
-    return self.DEFAULTS[key]
+    if value == nil then
+        value = self.DEFAULTS[key]
+    end
+    if key == "sideBarLeftButtons" or key == "sideBarRightButtons" then
+        return self:ClampTouchCount(value)
+    end
+    return value
 end
 
 function Config:Set(key, value)
@@ -165,6 +179,9 @@ function Config:Set(key, value)
     end
     if not ConsoleUIDB.config then
         ConsoleUIDB.config = {}
+    end
+    if key == "sideBarLeftButtons" or key == "sideBarRightButtons" then
+        value = self:ClampTouchCount(value)
     end
     ConsoleUIDB.config[key] = value
     
@@ -2142,7 +2159,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC1"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC2"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -3376,7 +3393,7 @@ SlashCmdList["CONSOLEUIHEALER"] = function(msg)
     else
         -- Show current state and usage
         ConsoleUI_Print("Healer mode is currently: " .. (currentValue and "ENABLED" or "DISABLED"))
-        ConsoleUI_Print("Usage: /cehealer [on|off|toggle]")
+        ConsoleUI_Print("Usage: /cuihealer [on|off|toggle]")
         return
     end
     

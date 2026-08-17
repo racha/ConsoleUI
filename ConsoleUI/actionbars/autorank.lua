@@ -283,7 +283,7 @@ function AutoRank:Initialize()
     -- Register slash commands
     self:RegisterSlashCommand()
     
-    ConsoleUI_Debug("Module loaded. Auto-update: " .. (config:Get("autoRankEnabled") and "ON" or "OFF") .. ". Type /cerank for commands.")
+    ConsoleUI_Debug("Module loaded. Auto-update: " .. (config:Get("autoRankEnabled") and "ON" or "OFF") .. ". Type /cuirank for commands.")
     ConsoleUI_Debug("AutoRank module initialized")
 end
 
@@ -348,17 +348,18 @@ end
 
 -- Register slash command
 function AutoRank:RegisterSlashCommand()
-    SLASH_CEAUTORANK1 = "/cerank"
-    SLASH_CEAUTORANK2 = "/autorank"
-    SlashCmdList["CEAUTORANK"] = function(msg)
+    SLASH_CUIAUTORANK1 = "/cuirank"
+    SLASH_CUIAUTORANK2 = "/autorank"
+    SLASH_CUIAUTORANK3 = "/cerank"
+    SlashCmdList["CUIAUTORANK"] = function(msg)
         if msg == "debug" then
             AutoRank:DebugScan()
         elseif msg == "update" then
             AutoRank:ManualUpdate()
         else
             ConsoleUI_Debug("Commands:")
-            ConsoleUI_Debug("  /cerank debug - Show all spells on action bars")
-            ConsoleUI_Debug("  /cerank update - Update outdated spells to highest rank")
+            ConsoleUI_Debug("  /cuirank debug - Show all spells on action bars")
+            ConsoleUI_Debug("  /cuirank update - Update outdated spells to highest rank")
         end
     end
 end

@@ -4,7 +4,7 @@
 
 ConsoleUI is a controller interface for the **original 1.12 Vanilla client**. It puts your spells on the face buttons, opens bags and menus from a stick wheel, and lets you type in chat without a keyboard.
 
-This release is **v1.0.0-RC1** — ready to try, still a release candidate.
+This release is **v1.0.0-RC2** — ready to try, still a release candidate.
 
 ---
 
@@ -29,6 +29,27 @@ Two folders. One download.
 | --- | --- |
 | **ConsoleUI** | Action bars, Quick Menu, your own Rings, touch bars, cursor, settings |
 | **ConsoleUI Keyboard** | On-screen chat keyboard. Turns on when a text box opens |
+
+---
+
+## Highly recommended: Interact
+
+ConsoleUI gives you the pad. **[Interact](https://github.com/vargv666/Interact)** gives you the world.
+
+Vanilla has no “press one button to loot” key. On a phone, Steam Deck, or the couch, that means fishing for herbs, veins, corpses, and NPCs with the right stick. Interact is a small 1.12 client mod that adds the same **Interact** key modern WoW has.
+
+**We strongly recommend installing it with ConsoleUI.** Press one spare button to:
+
+- loot a corpse (press again to take all)
+- pick a herb or mine a vein
+- skin
+- talk to an NPC next to you
+
+It is **not** inside the ConsoleUI zip. Get it from the author:
+
+**https://github.com/vargv666/Interact**
+
+Follow their install notes (it is a client mod, not only an AddOns folder). Then bind **Interact** in the game’s keybindings to a free pad button.
 
 ---
 
@@ -72,7 +93,7 @@ Point at a cluster, press a face button, type. **A** sends, **B** closes, **X** 
 
 ## Install
 
-1. Download **ConsoleUI-1.0.0-RC1.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
+1. Download **ConsoleUI-1.0.0-RC2.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
 2. Open the zip. You will see two folders: `ConsoleUI` and `ConsoleUIKeyboard`.
 3. Copy **both** into:
 
@@ -82,6 +103,8 @@ Point at a cluster, press a face button, type. **A** sends, **B** closes, **X** 
 5. Log in. Type `/cui` to open settings.
 
 Turn **off** ConsoleExperience Classic (or any other controller bar addon) while you use this. Two addons fighting over the same bars will make a mess.
+
+**Also install [Interact](https://github.com/vargv666/Interact).** Loot, herbs, veins, and NPCs become one button. We recommend it for every controller or phone setup.
 
 If you used an older name (`ConsolePortClassic`), delete that folder first. This one is **ConsoleUI**.
 
@@ -220,6 +243,8 @@ Then `/cui` → **Bindings** → **Touch bars** and give each slot a spell, a ju
 
 When a bag, vendor, or other window is open, the stick can move a cursor around the slots. **A** clicks, **B** closes. Turn pieces of this on or off under Bindings if it gets in the way.
 
+For corpses, herbs, veins, and talking to NPCs in the world, use **[Interact](https://github.com/vargv666/Interact)** — one key, no mouse aim. Highly recommended. See the section above.
+
 ### Chat keyboard
 
 Install **ConsoleUI Keyboard** next to ConsoleUI.
@@ -285,6 +310,7 @@ ConsoleUI stands on work a lot of people already did.
 - [ConsoleExperience Classic](https://github.com/pepordev/ConsoleExperienceClassic) — Pedro / pepordev
 - [ConsolePortLK](https://github.com/leoaviana/ConsolePortLK) — leoaviana
 - [ConsolePort](https://github.com/seblindfors/ConsolePort) — Sebastian Lindfors / MunkDev
+- [Interact](https://github.com/vargv666/Interact) — vargv666 (strongly recommended companion)
 
 Made by **HouseLegend**.
 

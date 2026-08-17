@@ -124,6 +124,13 @@ ConsoleUI_translation["enUS"] = {
     ["Reset Bindings"] = "Reset Bindings",
     ["Reset Default Bindings"] = "Reset Default Bindings",
     ["Resets all keybindings to default (1-0 keys)."] = "Resets all keybindings to default (1-0 keys).",
+    ["Spell"] = "Spell",
+    ["Placement"] = "Placement",
+    ["Action pages"] = "Action pages",
+    ["Left touch"] = "Left touch",
+    ["Right touch"] = "Right touch",
+    ["Drop a spell on a slot"] = "Drop a spell on a slot",
+    ["Drag a spell or item onto a slot. Right-click to pick up."] = "Drag a spell or item onto a slot. Right-click to pick up.",
     ["Spell Placement"] = "Spell Placement",
     ["Show Placement Frame"] = "Show Placement Frame",
     ["Opens the spell placement frame where you can drag and drop spells and items onto action bar slots."] = "Opens the spell placement frame where you can drag and drop spells and items onto action bar slots.",
@@ -216,8 +223,10 @@ ConsoleUI_translation["enUS"] = {
     
     -- Title
     ["Console Experience"] = "Console Experience",
-    ["CE Left Touch Bar"] = "CE Left Touch Bar",
-    ["CE Right Touch Bar"] = "CE Right Touch Bar",
+    ["CE Left Touch Bar"] = "ConsoleUI Left Touch Bar",
+    ["CE Right Touch Bar"] = "ConsoleUI Right Touch Bar",
+    ["ConsoleUI Left Touch Bar"] = "ConsoleUI Left Touch Bar",
+    ["ConsoleUI Right Touch Bar"] = "ConsoleUI Right Touch Bar",
     ["Left Touch Bar Button"] = "Left Touch Bar Button",
     ["Right Touch Bar Button"] = "Right Touch Bar Button",
     -- Warrior Stances
@@ -358,6 +367,7 @@ ConsoleUI_translation["enUS"] = {
 
     -- Interact header and binding name
     ["CE Interact"] = "Interact",
+    ["ConsoleUI Interact"] = "ConsoleUI Interact",
     ["Interact with Target"] = "Interact with Target",
 
     --ConsoleUI - Radial Menu Module
@@ -395,7 +405,8 @@ ConsoleUI_translation["enUS"] = {
     ["Close"] = "Close",
 
     -- Fallback: target nearest enemy if Interact.dll is not loaded
-    ["Interact.dll not loaded - using TargetNearestEnemy()] as fallback."] = "Interact.dll not loaded - using TargetNearestEnemy() as fallback.",
+    ["Interact.dll not loaded - using TargetNearestEnemy() as fallback"] = "Interact.dll not loaded — using TargetNearestEnemy() as fallback.",
+    ["v%s loaded. Type /cui for settings."] = "v%s loaded. Type /cui for settings.",
     
     -- Profile
     ["Profile"] = "Profile",

@@ -204,8 +204,8 @@ ConsoleUI_translation["esES"] = {
     
     -- Title
     ["Console Experience"] = "Experiencia de Consola",
-    ["CE Left Touch Bar"] = "CE Barra Táctil Izquierda",
-    ["CE Right Touch Bar"] = "CE Barra Táctil Derecha",
+    ["CE Left Touch Bar"] = "ConsoleUI Barra Táctil Izquierda",
+    ["CE Right Touch Bar"] = "ConsoleUI Barra Táctil Derecha",
     ["Left Touch Bar Button"] = "Botón Barra Táctil Izquierda",
     ["Right Touch Bar Button"] = "Botón Barra Táctil Derecha",
     -- Warrior Stances
@@ -359,7 +359,8 @@ ConsoleUI_translation["esES"] = {
     ["ConsoleUI Options"] = "ConsoleUI Opciones",
 
     -- Fallback: target nearest enemy if Interact.dll is not loaded
-    ["Interact.dll not loaded - using TargetNearestEnemy()] as fallback."] = "Interact.dll no cargado - usando TargetNearestEnemy() como respaldo.",
+    ["Interact.dll not loaded - using TargetNearestEnemy() as fallback"] = "Interact.dll no cargado — usando TargetNearestEnemy() como respaldo.",
+    ["v%s loaded. Type /cui for settings."] = "v%s cargado. Escribe /cui para ajustes.",
     
     -- Profile
     ["Profile"] = "Perfil",
