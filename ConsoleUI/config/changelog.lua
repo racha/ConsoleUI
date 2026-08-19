@@ -15,10 +15,15 @@ ConsoleUI.CHANGELOG = {
         lines = {
             "Welcome screen on first login.",
             "What's new after each update.",
+            "Bindings rework: 1-0, M, and Escape stay yours. Only LT/LB chords are written.",
+            "Login no longer wipes keybinds. Camera and Jump stay put.",
             "HUD border tint on diamonds, XP, and cast.",
             "XP, reputation, and cast bars restyled.",
             "Main bar scale no longer changes side touch bars.",
             "Jump and other system binds no longer stick white after LT or LB.",
+            "Bag drop (Y) asks Yes/No before destroying an item.",
+            "Esc menu no longer overlaps Shagu Tweaks Advanced Options.",
+            "D-pad casts work with Shagu Tweaks without opening chat first.",
         },
     },
     {

@@ -419,7 +419,40 @@ function Keyboard:RepairKeys()
             changed = true
         end
     end
+    -- Chat close already writes these via RecordedPrevious. Do the same on
+    -- login when 5-8 were wiped empty and ACTION_n has no other key.
+    if not ConsoleUI_BindingsReady or ConsoleUI_BindingsReady() then
+        local slot
+        for slot = 5, 8 do
+            local key = tostring(slot)
+            local current = GetBindingAction(key)
+            if not current or current == "" then
+                local action = "ConsoleUI_ACTION_" .. slot
+                if not GetBindingKey or not GetBindingKey(action) then
+                    SetBinding(key, action)
+                    changed = true
+                end
+            end
+        end
+    end
     return changed
+end
+
+function Keyboard:ReleaseIdleChatBox()
+    if self:IsShown() or self.Focus then
+        return
+    end
+    local box = ChatFrameEditBox
+    if not box or not box.IsShown or not box:IsShown() then
+        return
+    end
+    if box.HasFocus and box:HasFocus() then
+        return
+    end
+    if box.ClearFocus then
+        box:ClearFocus()
+    end
+    box:Hide()
 end
 
 function Keyboard:HookSaveBindings()
@@ -657,6 +690,7 @@ function Keyboard:OnEvent()
         if self.HookEditBoxes then
             self:HookEditBoxes()
         end
+        self:ReleaseIdleChatBox()
         self:RepairKeys()
     elseif event == "PLAYER_LOGOUT" then
         self:RestoreKeys()

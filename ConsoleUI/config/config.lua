@@ -3055,40 +3055,106 @@ end
 -- Game Menu Button
 -- ============================================================================
 
-function Config:CreateGameMenuButton()
-    -- Don't create if already exists
-    if GameMenuButtonConsoleUI then return end
-    
-    -- Create button using GameMenuButtonTemplate
-    local button = CreateFrame("Button", "GameMenuButtonConsoleUI", GameMenuFrame, "GameMenuButtonTemplate")
-    local Locale = ConsoleUI.locale
-    local T = Locale and Locale.T or function(key) return key end
-    button:SetText("ConsoleUI")
-    
-    -- Position after UIOptions (Interface Options) button
-    if GameMenuButtonUIOptions then
-        button:SetPoint("TOP", GameMenuButtonUIOptions, "BOTTOM", 0, -1)
-    elseif GameMenuButtonOptions then
-        button:SetPoint("TOP", GameMenuButtonOptions, "BOTTOM", 0, -1)
-    else
-        button:SetPoint("TOP", GameMenuFrame, "TOP", 0, -30)
+function Config:LayoutGameMenuButton()
+    local ours = GameMenuButtonConsoleUI
+    if not ours or not GameMenuFrame then
+        return
     end
-    
-    -- Click handler
+    local ui = GameMenuButtonUIOptions or GameMenuButtonOptions
+    local keys = GameMenuButtonKeybindings
+    if not ui then
+        return
+    end
+    local skip = {
+        GameMenuButtonContinue = true,
+        GameMenuButtonOptions = true,
+        GameMenuButtonSoundOptions = true,
+        GameMenuButtonUIOptions = true,
+        GameMenuButtonKeybindings = true,
+        GameMenuButtonMacros = true,
+        GameMenuButtonAddOns = true,
+        GameMenuButtonLogout = true,
+        GameMenuButtonExit = true,
+    }
+    local extras = {}
+    local children = {GameMenuFrame:GetChildren()}
+    local i
+    for i = 1, table.getn(children) do
+        local child = children[i]
+        if child and child.GetObjectType and child:GetObjectType() == "Button" and child:IsVisible() then
+            local name = child:GetName()
+            if name and not skip[name] then
+                extras[table.getn(extras) + 1] = child
+            end
+        end
+    end
+    if table.getn(extras) == 0 then
+        extras[1] = ours
+    end
+    table.sort(extras, function(a, b)
+        if a == ours then
+            return true
+        end
+        if b == ours then
+            return false
+        end
+        local an = (a.GetName and a:GetName()) or ""
+        local bn = (b.GetName and b:GetName()) or ""
+        return an < bn
+    end)
+    local prev = ui
+    for i = 1, table.getn(extras) do
+        extras[i]:ClearAllPoints()
+        extras[i]:SetPoint("TOP", prev, "BOTTOM", 0, -1)
+        prev = extras[i]
+    end
+    if keys then
+        keys:ClearAllPoints()
+        keys:SetPoint("TOP", prev, "BOTTOM", 0, -1)
+    end
+    local topBtn = GameMenuButtonContinue or ui
+    local botBtn = GameMenuButtonExit or keys
+    if topBtn and botBtn and topBtn.GetTop and botBtn.GetBottom then
+        local top, bot = topBtn:GetTop(), botBtn:GetBottom()
+        if top and bot then
+            GameMenuFrame:SetHeight((top - bot) + 28)
+        end
+    end
+end
+
+function Config:HookGameMenuLayout()
+    if self.gameMenuLayoutHooked or not GameMenuFrame then
+        return
+    end
+    self.gameMenuLayoutHooked = true
+    local wait = CreateFrame("Frame")
+    wait:Hide()
+    wait:SetScript("OnUpdate", function()
+        this:Hide()
+        Config:LayoutGameMenuButton()
+    end)
+    local previous = GameMenuFrame:GetScript("OnShow")
+    GameMenuFrame:SetScript("OnShow", function()
+        if previous then
+            previous()
+        end
+        wait:Show()
+    end)
+end
+
+function Config:CreateGameMenuButton()
+    if GameMenuButtonConsoleUI then
+        self:HookGameMenuLayout()
+        return
+    end
+    local button = CreateFrame("Button", "GameMenuButtonConsoleUI", GameMenuFrame, "GameMenuButtonTemplate")
+    button:SetText("ConsoleUI")
     button:SetScript("OnClick", function()
         ConsoleUI.config:Toggle()
         HideUIPanel(GameMenuFrame)
     end)
-    
-    -- Apply pfUI styling if pfUI is loaded (will be applied later via ApplyPfUIStyling)
-    
-    -- Move buttons below us down
-    if GameMenuButtonKeybindings then
-        GameMenuButtonKeybindings:SetPoint("TOP", button, "BOTTOM", 0, -1)
-    end
-    
-    -- Increase frame height
-    GameMenuFrame:SetHeight(GameMenuFrame:GetHeight() + 25)
+    self:HookGameMenuLayout()
+    self:LayoutGameMenuButton()
 end
 
 -- Helper function to recursively find all buttons and dropdowns in a frame

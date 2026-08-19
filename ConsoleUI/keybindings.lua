@@ -134,9 +134,35 @@ end
 -- Debug flag - set to true to see key press debug info
 ConsoleUI_DEBUG_KEYS = false
 
+-- Chat Tweaks (Shagu, default on) calls SetAltArrowKeyMode(false) and can
+-- leave ChatFrameEditBox shown with no focus. IsShown() then blocked every
+-- D-pad cast; cursor nav never hits this path, which is why bags still worked.
+-- Opening the radial keyboard and closing it Hide()s the box — the workaround.
+function ConsoleUI_ChatBlocksActions()
+    local kb = ConsoleUIKeyboard
+    if kb then
+        if kb.IsShown and kb:IsShown() then
+            return true
+        end
+        if kb.Focus then
+            return true
+        end
+    end
+    local box = ChatFrameEditBox
+    if not box or not box.IsShown or not box:IsShown() then
+        return false
+    end
+    if box.HasFocus and box:HasFocus() then
+        return true
+    end
+    if kb and kb.IsEnabled and kb:IsEnabled() then
+        return false
+    end
+    return true
+end
+
 function ConsoleUI_ActionButton(slot)
-    -- Don't trigger if chat is open
-    if ChatFrameEditBox and ChatFrameEditBox:IsShown() then return end
+    if ConsoleUI_ChatBlocksActions() then return end
     
     -- Only trigger on key down (keystate is set by WoW for runOnUp bindings)
     if keystate == "down" then

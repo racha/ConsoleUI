@@ -519,7 +519,42 @@ end
 -- Specific Actions
 -- ============================================================================
 
+function ConsoleUI_ConfirmDeleteCursorItem(itemName)
+    if not CursorHasItem() then
+        return
+    end
+    if not StaticPopupDialogs["DELETE_ITEM"] then
+        StaticPopupDialogs["DELETE_ITEM"] = {
+            text = DELETE_ITEM or "Do you want to destroy %s?",
+            button1 = YES or "Yes",
+            button2 = NO or "No",
+            OnAccept = function()
+                DeleteCursorItem()
+            end,
+            OnCancel = function()
+                ClearCursor()
+            end,
+            timeout = 0,
+            whileDead = 1,
+            exclusive = 1,
+            showAlert = 1,
+            hideOnEscape = 1,
+        }
+    end
+    StaticPopup_Show("DELETE_ITEM", itemName or "")
+    if ConsoleUI.placement and ConsoleUI.placement.Hide then
+        ConsoleUI.placement:Hide()
+    end
+    if ConsoleUI.cursor and ConsoleUI.cursor.RefreshFrame then
+        ConsoleUI.cursor:RefreshFrame()
+    end
+end
+
 function ConsoleUI_DeleteItem()
+    if CursorHasItem() then
+        ConsoleUI_ConfirmDeleteCursorItem("")
+        return
+    end
     local Cursor = ConsoleUI.cursor
     local button = Cursor.navigationState.currentButton
     
@@ -579,37 +614,22 @@ function ConsoleUI_DeleteItem()
             local texture, itemCount = GetContainerItemInfo(bagID, slotID)
             ConsoleUI_Debug("ConsoleUI_DeleteItem: Slot has item? texture=" .. tostring(texture) .. ", itemCount=" .. tostring(itemCount))
             
-            -- Pick up and delete the item
-            ConsoleUI_Debug("ConsoleUI_DeleteItem: Calling PickupContainerItem(" .. bagID .. ", " .. slotID .. ")")
+            if not texture then
+                return
+            end
+            local link = GetContainerItemLink and GetContainerItemLink(bagID, slotID)
+            local itemName = link
+            if GetItemInfo and link then
+                local name = GetItemInfo(link)
+                if name then
+                    itemName = name
+                end
+            end
             PickupContainerItem(bagID, slotID)
-            local hasItem = CursorHasItem()
-            ConsoleUI_Debug("ConsoleUI_DeleteItem: After PickupContainerItem, cursor has item? " .. tostring(hasItem))
-            if hasItem then
-                ConsoleUI_Debug("ConsoleUI_DeleteItem: Calling DeleteCursorItem()")
-                DeleteCursorItem()
+            if CursorHasItem() then
+                ConsoleUI_ConfirmDeleteCursorItem(itemName)
             else
-                ConsoleUI_Debug("ConsoleUI_DeleteItem: WARNING - No item on cursor after PickupContainerItem!")
-            end
-            
-            -- Clear cursor state after deletion (item is destroyed, not placed)
-            -- This prevents the placement frame from showing
-            if CursorHasItem() or CursorHasSpell() then
-                ClearCursor()
-            end
-            
-            -- Clear fake cursor texture if it exists
-            if Cursor and Cursor.ClearHeldItemTexture then
-                Cursor:ClearHeldItemTexture()
-            end
-            
-            -- Ensure placement frame is hidden since item was deleted
-            if ConsoleUI.placement and ConsoleUI.placement.Hide then
-                ConsoleUI.placement:Hide()
-            end
-            
-            -- Refresh frame state
-            if Cursor then
-                Cursor:RefreshFrame()
+                ConsoleUI_Debug("ConsoleUI_DeleteItem: No item on cursor after PickupContainerItem")
             end
         end
     end
