@@ -469,6 +469,9 @@ function XPBar:ReloadBarConfig(bar, barType)
     bar.text_show_key = prefix .. "BarTextShow"
     bar.text_off_y_key = prefix .. "BarTextOffsetY"
     bar.barType = barType
+    if ConsoleUI.config and ConsoleUI.config.PaintStatusBarChrome then
+        ConsoleUI.config:PaintStatusBarChrome(bar)
+    end
 end
 
 function XPBar:CreateBar(barType)
@@ -498,27 +501,12 @@ function XPBar:CreateBar(barType)
     b:SetHeight(b.height)
     b:SetFrameStrata("BACKGROUND")
     
-    -- Create backdrop with border (matching config content area)
-    b:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true,
-        tileSize = 16,
-        edgeSize = 12,  -- Match config content area
-        insets = { left = 3, right = 3, top = 3, bottom = 3 }  -- Match config content area
-    })
-    b:SetBackdropColor(0.015, 0.035, 0.06, 0.92)
-    b:SetBackdropBorderColor(0.18, 0.48, 0.68, 0.95)
-    
     -- Create status bar
     b.bar = b.bar or CreateFrame("StatusBar", nil, b)
-    -- Keep this one on Blizzard's 1.12-safe texture. The LK XP artwork is BLP2.
-    local texturePath = "Interface\\TargetingFrame\\UI-StatusBar"
-    b.bar:SetStatusBarTexture(texturePath)
+    local inset = (config.STATUS_BAR_INSET) or 3
     b.bar:ClearAllPoints()
-    -- Add padding inside border (matching backdrop insets)
-    b.bar:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
-    b.bar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
+    b.bar:SetPoint("TOPLEFT", b, "TOPLEFT", inset, -inset)
+    b.bar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -inset, inset)
     b.bar:SetFrameLevel(barLevel)
     
     -- Set bar color based on bar type
@@ -537,9 +525,27 @@ function XPBar:CreateBar(barType)
     b.bar:SetValue(50)  -- Set to 50% for testing visibility
     b.bar:Show()
     
-    -- Create text (on OVERLAY layer so it appears above background)
-    -- Text font size scales with bar height
-    b.bar.text = b.bar.text or b:CreateFontString(nil, "OVERLAY")
+    -- Create rested bar (for XP only) - uses same texture as main bar
+    if barType == "XP" then
+        b.restedbar = b.restedbar or CreateFrame("StatusBar", nil, b)
+        b.restedbar:ClearAllPoints()
+        b.restedbar:SetPoint("TOPLEFT", b, "TOPLEFT", inset, -inset)
+        b.restedbar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -inset, inset)
+        b.restedbar:SetFrameLevel(restedLevel)
+        local cr, cg, cb, ca = GetStringColor(rest_color)
+        b.restedbar:SetStatusBarColor(cr, cg, cb, ca)
+        b.restedbar:SetOrientation("HORIZONTAL")
+        b.restedbar:SetMinMaxValues(0, 100)
+        b.restedbar:SetValue(0)
+        b.restedbar:Hide()  -- Hidden by default until rested XP is available
+    end
+    if config.PaintStatusBarChrome then
+        config:PaintStatusBarChrome(b)
+    end
+
+    -- Text on the rim frame so the fill does not cover it
+    local textParent = b.cuiChrome or b
+    b.bar.text = b.bar.text or textParent:CreateFontString(nil, "OVERLAY")
     b.bar.text:SetPoint("CENTER", b, "CENTER", 0, b.text_off_y)
     b.bar.text:SetJustifyH("CENTER")
     b.bar.text:SetFont("Fonts\\FRIZQT__.TTF", b.font_size, "OUTLINE")
@@ -549,23 +555,6 @@ function XPBar:CreateBar(barType)
         b.bar.text:Show()
     else
         b.bar.text:Hide()
-    end
-    
-    -- Create rested bar (for XP only) - uses same texture as main bar
-    if barType == "XP" then
-        b.restedbar = b.restedbar or CreateFrame("StatusBar", nil, b)
-        b.restedbar:SetStatusBarTexture(texturePath)
-        b.restedbar:ClearAllPoints()
-        -- Match main bar padding (inside border)
-        b.restedbar:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
-        b.restedbar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
-        b.restedbar:SetFrameLevel(restedLevel)
-        local cr, cg, cb, ca = GetStringColor(rest_color)
-        b.restedbar:SetStatusBarColor(cr, cg, cb, ca)
-        b.restedbar:SetOrientation("HORIZONTAL")
-        b.restedbar:SetMinMaxValues(0, 100)
-        b.restedbar:SetValue(0)
-        b.restedbar:Hide()  -- Hidden by default until rested XP is available
     end
     
     -- Enable mouse for tooltip
@@ -636,17 +625,21 @@ function XPBar:UpdateBarPosition(bar)
     bar:SetHeight(barHeight)
     
     -- Update status bar size to match new height
+    local inset = (config.STATUS_BAR_INSET) or 3
     if bar.bar then
         bar.bar:ClearAllPoints()
-        bar.bar:SetPoint("TOPLEFT", bar, "TOPLEFT", 3, -3)
-        bar.bar:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -3, 3)
+        bar.bar:SetPoint("TOPLEFT", bar, "TOPLEFT", inset, -inset)
+        bar.bar:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -inset, inset)
     end
     
     -- Update rested bar size if it exists
     if bar.restedbar then
         bar.restedbar:ClearAllPoints()
-        bar.restedbar:SetPoint("TOPLEFT", bar, "TOPLEFT", 3, -3)
-        bar.restedbar:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -3, 3)
+        bar.restedbar:SetPoint("TOPLEFT", bar, "TOPLEFT", inset, -inset)
+        bar.restedbar:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -inset, inset)
+    end
+    if config.PaintStatusBarChrome then
+        config:PaintStatusBarChrome(bar)
     end
     
     -- Update text font size to match new height

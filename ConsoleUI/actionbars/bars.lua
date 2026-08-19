@@ -245,6 +245,36 @@ function ActionBars:EnsureDiamond(button)
     self:RaiseDiamondChrome(button)
 end
 
+function ActionBars:IsProxiedButton(button)
+    if button.isProxiedAction then
+        return true
+    end
+    if not (ConsoleUI.proxied and ConsoleUI.proxied.IsSlotProxied) then
+        return false
+    end
+    local slot = button.actionSlot
+    if not slot then
+        local id = button.GetID and button:GetID()
+        if id and id > 0 then
+            slot = (self:GetActionOffset() or 0) + id
+        end
+    end
+    return slot and ConsoleUI.proxied:IsSlotProxied(slot)
+end
+
+function ActionBars:IdleDiamond(button)
+    if button.SetButtonState then
+        button:SetButtonState("NORMAL")
+    end
+    button._diamondPushed = nil
+    if button.SetChecked then
+        button:SetChecked(0)
+    end
+    if self:HasPlate(button) then
+        self:PaintDiamond(button)
+    end
+end
+
 function ActionBars:DiamondActive(button)
     -- Touch bars use slots 41-50. GetActionID used to read the trailing
     -- "Button3" and treat that as main-bar slot 3, so a Y-cast painted
@@ -257,6 +287,12 @@ function ActionBars:DiamondActive(button)
     end
     if button.GetButtonState and button:GetButtonState() == "PUSHED" then
         return true
+    end
+    -- JUMP / INTERACT / etc. only replace the key. The old spell or Attack
+    -- can stay in the slot. IsCurrentAction on that slot painted the
+    -- proxied diamond white, especially after a modifier page refresh.
+    if self:IsProxiedButton(button) then
+        return false
     end
     local actionID = self:GetActionID(button)
     if actionID and IsCurrentAction and IsCurrentAction(actionID) then
@@ -311,8 +347,11 @@ function ActionBars:PaintDiamond(button)
     end
     if button.diamondRing then
         if gold then
-            local g = self.Layout and self.Layout.GOLD or { 1.00, 0.82, 0.18 }
-            PaintTex(button.diamondRing, g[1], g[2], g[3], 1)
+            local r, g, b = 1.00, 0.82, 0.18
+            if ConsoleUI.config and ConsoleUI.config.GetHudBorderColor then
+                r, g, b = ConsoleUI.config:GetHudBorderColor()
+            end
+            PaintTex(button.diamondRing, r, g, b, 1)
             button.diamondRing:Show()
         else
             button.diamondRing:Hide()
@@ -875,8 +914,10 @@ function ActionBars:CheckModifiers()
                     end
                 end
                 
-                -- Reset checked state
-                button:SetChecked(0)
+                -- Reset checked / pushed. Modifier release used to leave
+                -- JUMP (proxied) white because IsCurrentAction still saw
+                -- the leftover action in that slot.
+                self:IdleDiamond(button)
             end
         end
         
@@ -1186,7 +1227,7 @@ function ActionBars:UpdateButton(button)
         cooldown:Hide()
         -- Stop any flashing/glow effects since this is a proxied action, not an action slot
         self:StopFlash(button)
-        button:SetChecked(0)
+        self:IdleDiamond(button)
         self:UpdateButtonCount(button)
     elseif texture then
         icon:SetTexture(texture)
@@ -2645,7 +2686,6 @@ function ActionBars:UpdateSideBars()
     if self.Layout and self.Layout.SquareStep then
         squareStep = self.Layout.SquareStep(buttonSize, padding)
     end
-    local scale = config:Get("barScale") or 1.0
     local appearance = config:Get("barAppearance") or "classic"
     local leftEnabled = config:Get("sideBarLeftEnabled")
     local rightEnabled = config:Get("sideBarRightEnabled")
@@ -2655,7 +2695,7 @@ function ActionBars:UpdateSideBars()
     local rightEdgeOffset = config:Get("sideBarRightOffset") or 5
     local leftTouchScale = config:Get("sideBarLeftScale") or 1.0
     local rightTouchScale = config:Get("sideBarRightScale") or 1.0
-    local scaledButtonSize = buttonSize * scale  -- The actual space occupied by the scaled button
+    -- Side bars use their own scale sliders, not barScale.
     
     -- Clamp counts
     if leftCount < 1 then leftCount = 1 end
@@ -2702,7 +2742,7 @@ function ActionBars:UpdateSideBars()
     local function UpdateButtonAppearance(button, touchScale)
         button:SetWidth(buttonSize)
         button:SetHeight(buttonSize)
-        button:SetScale(scale * touchScale)
+        button:SetScale(touchScale)
         
         -- Update icon size
         if button.icon then
@@ -2751,7 +2791,7 @@ function ActionBars:UpdateSideBars()
     if leftEnabled then
         -- Use padding as center-to-center distance (same as main action bar)
         local totalHeight = (squareStep * leftTouchScale) * (leftCount - 1) + (buttonSize * leftTouchScale)
-        self.sideBarLeftFrame:SetWidth(scaledButtonSize * leftTouchScale)
+        self.sideBarLeftFrame:SetWidth(buttonSize * leftTouchScale)
         self.sideBarLeftFrame:SetHeight(totalHeight)
         self.sideBarLeftFrame:SetScale(1.0)
         self.sideBarLeftFrame:ClearAllPoints()
@@ -2791,7 +2831,7 @@ function ActionBars:UpdateSideBars()
     if rightEnabled then
         -- Use padding as center-to-center distance (same as main action bar)
         local totalHeight = (squareStep * rightTouchScale) * (rightCount - 1) + (buttonSize * rightTouchScale)
-        self.sideBarRightFrame:SetWidth(scaledButtonSize * rightTouchScale)
+        self.sideBarRightFrame:SetWidth(buttonSize * rightTouchScale)
         self.sideBarRightFrame:SetHeight(totalHeight)
         self.sideBarRightFrame:SetScale(1.0)
         self.sideBarRightFrame:ClearAllPoints()

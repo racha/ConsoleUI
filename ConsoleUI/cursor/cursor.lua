@@ -428,86 +428,58 @@ end
 -- Find the parent ScrollFrame of a button (if any)
 function Cursor:FindParentScrollFrame(button)
     if not button then return nil end
-    
+
     local parent = button:GetParent()
-    local maxDepth = 20  -- Prevent infinite loops
     local depth = 0
-    
-    while parent and depth < maxDepth do
-        -- Check if this parent is a ScrollFrame by looking for SetScrollChild method
-        -- or if it's named with "ScrollFrame" or "ScrollChild"
-        local parentName = parent:GetName() or ""
-        
-        -- If we found a scroll child, get its parent ScrollFrame
-        if string.find(parentName, "ScrollChild") then
-            local scrollFrameName = string.gsub(parentName, "ScrollChild", "ScrollFrame")
-            local scrollFrame = getglobal(scrollFrameName)
-            if scrollFrame then
-                return scrollFrame
-            end
-            -- Also try without "ScrollChild" suffix
-            scrollFrameName = string.gsub(parentName, "ScrollChild", "")
-            scrollFrame = getglobal(scrollFrameName)
-            if scrollFrame and scrollFrame.GetVerticalScroll then
-                return scrollFrame
-            end
-        end
-        
-        -- Check if this is a ScrollFrame directly
-        if string.find(parentName, "ScrollFrame") and parent.GetVerticalScroll then
+    while parent and depth < 20 do
+        if parent.GetScrollChild and parent.SetVerticalScroll and parent.GetVerticalScroll then
             return parent
         end
-        
         parent = parent:GetParent()
         depth = depth + 1
     end
-    
     return nil
 end
 
 -- Auto-scroll a ScrollFrame to make a button visible
 function Cursor:ScrollToShowButton(button, scrollFrame)
-    if not button or not scrollFrame then return end
-    
-    local scrollChild = scrollFrame:GetScrollChild()
-    if not scrollChild then return end
-    
-    -- Get scroll frame visible bounds
-    local scrollFrameBottom = scrollFrame:GetBottom()
-    local scrollFrameTop = scrollFrame:GetTop()
-    local scrollFrameHeight = scrollFrame:GetHeight()
-    
-    if not scrollFrameBottom or not scrollFrameTop or not scrollFrameHeight then return end
-    
-    -- Get button bounds
+    if not button or not scrollFrame or not scrollFrame.GetVerticalScroll then
+        return
+    end
+
+    local frameBottom = scrollFrame:GetBottom()
+    local frameTop = scrollFrame:GetTop()
     local buttonBottom = button:GetBottom()
     local buttonTop = button:GetTop()
-    local buttonHeight = button:GetHeight()
-    
-    if not buttonBottom or not buttonTop then return end
-    
-    -- Get the scroll bar
-    local scrollBarName = scrollFrame:GetName() and (scrollFrame:GetName() .. "ScrollBar")
-    local scrollBar = scrollBarName and getglobal(scrollBarName)
-    
-    if not scrollBar then return end
-    
-    local currentScroll = scrollBar:GetValue()
-    local minScroll, maxScroll = scrollBar:GetMinMaxValues()
-    
-    -- Calculate if button is outside visible area
-    -- Button is below visible area
-    if buttonBottom < scrollFrameBottom then
-        local scrollNeeded = scrollFrameBottom - buttonBottom + 10  -- 10px margin
-        local newScroll = currentScroll + scrollNeeded
-        if newScroll > maxScroll then newScroll = maxScroll end
-        scrollBar:SetValue(newScroll)
-    -- Button is above visible area
-    elseif buttonTop > scrollFrameTop then
-        local scrollNeeded = buttonTop - scrollFrameTop + 10  -- 10px margin
-        local newScroll = currentScroll - scrollNeeded
-        if newScroll < minScroll then newScroll = minScroll end
-        scrollBar:SetValue(newScroll)
+    if not frameBottom or not frameTop or not buttonBottom or not buttonTop then
+        return
+    end
+
+    local pad = 12
+    local current = scrollFrame:GetVerticalScroll()
+    local range = 0
+    if scrollFrame.GetVerticalScrollRange then
+        range = scrollFrame:GetVerticalScrollRange() or 0
+    end
+    local newScroll = current
+    if buttonBottom < frameBottom + pad then
+        newScroll = current + (frameBottom + pad - buttonBottom)
+    elseif buttonTop > frameTop - pad then
+        newScroll = current - (buttonTop - (frameTop - pad))
+    else
+        return
+    end
+    if newScroll < 0 then
+        newScroll = 0
+    end
+    if newScroll > range then
+        newScroll = range
+    end
+    scrollFrame:SetVerticalScroll(newScroll)
+    local barName = scrollFrame:GetName() and (scrollFrame:GetName() .. "ScrollBar")
+    local bar = barName and getglobal(barName)
+    if bar and bar.SetValue then
+        bar:SetValue(newScroll)
     end
 end
 

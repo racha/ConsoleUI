@@ -35,9 +35,12 @@ Config.DEFAULTS = {
     barScale = 1.0,
     -- Sidebars only. Main 1-10 are diamonds.
     barAppearance = "classic",
-    -- controller = split flanks. flat = minimal row.
+    -- controller = Controller Style. flat = Flat (one row).
     barLayout = "controller",
     barGoldBorder = false,
+    barGoldColorR = 1.00,
+    barGoldColorG = 0.82,
+    barGoldColorB = 0.18,
     barFlankGap = 50,
     autoRankEnabled = true,  -- Automatically update spells to highest rank
     druidStealth = false,  -- Use travel form bar when prowl/stealth is active in cat form
@@ -98,6 +101,8 @@ function Config:InitializeDB()
     if not ConsoleUIDB then
         ConsoleUIDB = {}
     end
+    -- Empty saved vars = first run. Existing config/profiles skip the guide.
+    local fresh = ConsoleUIDB.config == nil and ConsoleUIDB.profiles == nil
     
     -- Initialize profiles system first (handles migration from legacy config)
     if ConsoleUI.profiles and ConsoleUI.profiles.Initialize then
@@ -115,6 +120,12 @@ function Config:InitializeDB()
             ConsoleUIDB.config[key] = defaultValue
             ConsoleUI_Debug("Config: Added missing default '" .. key .. "' = " .. tostring(defaultValue))
         end
+    end
+    if ConsoleUIDB.config.onboardingSeen == nil then
+        ConsoleUIDB.config.onboardingSeen = not fresh
+    end
+    if fresh and ConsoleUI.changelog and ConsoleUI.changelog.StampIfEmpty then
+        ConsoleUI.changelog:StampIfEmpty()
     end
 
     if not ConsoleUIDB.config.barSizeV2 then
@@ -251,34 +262,201 @@ function Config:Paint(parent, layer, r, g, b, a)
     return tex
 end
 
+function Config:GetHudBorderColor()
+    local function clamp(v, fallback)
+        v = tonumber(v)
+        if not v then
+            return fallback
+        end
+        if v < 0 then
+            return 0
+        end
+        if v > 1 then
+            return 1
+        end
+        return v
+    end
+    return clamp(self:Get("barGoldColorR"), 1.00),
+           clamp(self:Get("barGoldColorG"), 0.82),
+           clamp(self:Get("barGoldColorB"), 0.18)
+end
+
+-- Thin HUD bars cannot use tooltip 9-slice (edgeSize 10 eats a 20px frame).
+-- Track + 2px rim on a higher child frame so the fill never covers the border.
+Config.STATUS_BAR_FILL = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\StatusFill.tga"
+Config.STATUS_BAR_SOLID = "Interface\\Tooltips\\UI-Tooltip-Background"
+Config.STATUS_BAR_INSET = 3
+Config.STATUS_BAR_RIM = 2
+
+function Config:EnsureStatusBarChrome(frame)
+    if not frame or frame.cuiChrome then
+        return
+    end
+    if frame.SetBackdrop then
+        frame:SetBackdrop({
+            bgFile = self.STATUS_BAR_SOLID,
+            tile = true,
+            tileSize = 16,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+    end
+    local solid = self.STATUS_BAR_SOLID
+    local track = frame:CreateTexture(nil, "BACKGROUND")
+    track:SetTexture(solid)
+    track:SetAllPoints(frame)
+    frame.cuiTrack = track
+
+    local chrome = CreateFrame("Frame", nil, frame)
+    chrome:SetAllPoints(frame)
+    frame.cuiChrome = chrome
+    local function edge()
+        local tex = chrome:CreateTexture(nil, "OVERLAY")
+        tex:SetTexture(solid)
+        return tex
+    end
+    local rim = self.STATUS_BAR_RIM
+    local top = edge()
+    top:SetPoint("TOPLEFT", chrome, "TOPLEFT", 0, 0)
+    top:SetPoint("TOPRIGHT", chrome, "TOPRIGHT", 0, 0)
+    top:SetHeight(rim)
+    local bot = edge()
+    bot:SetPoint("BOTTOMLEFT", chrome, "BOTTOMLEFT", 0, 0)
+    bot:SetPoint("BOTTOMRIGHT", chrome, "BOTTOMRIGHT", 0, 0)
+    bot:SetHeight(rim)
+    local left = edge()
+    left:SetPoint("TOPLEFT", chrome, "TOPLEFT", 0, -rim)
+    left:SetPoint("BOTTOMLEFT", chrome, "BOTTOMLEFT", 0, rim)
+    left:SetWidth(rim)
+    local right = edge()
+    right:SetPoint("TOPRIGHT", chrome, "TOPRIGHT", 0, -rim)
+    right:SetPoint("BOTTOMRIGHT", chrome, "BOTTOMRIGHT", 0, rim)
+    right:SetWidth(rim)
+    frame.cuiEdgeT = top
+    frame.cuiEdgeB = bot
+    frame.cuiEdgeL = left
+    frame.cuiEdgeR = right
+end
+
+function Config:PaintStatusBarFill(bar)
+    if not bar or not bar.SetStatusBarTexture then
+        return
+    end
+    bar:SetStatusBarTexture(self.STATUS_BAR_FILL)
+    if bar.GetStatusBarTexture then
+        local tex = bar:GetStatusBarTexture()
+        if tex and tex.SetTexCoord then
+            tex:SetTexCoord(0, 1, 0, 1)
+        end
+    end
+end
+
+function Config:PaintStatusBarChrome(frame)
+    if not frame then
+        return
+    end
+    self:EnsureStatusBarChrome(frame)
+    if frame.SetBackdropColor then
+        frame:SetBackdropColor(0.067, 0.071, 0.086, 0.96)
+    end
+    if frame.SetBackdropBorderColor then
+        frame:SetBackdropBorderColor(0, 0, 0, 0)
+    end
+    if frame.cuiTrack then
+        frame.cuiTrack:SetVertexColor(0.067, 0.071, 0.086, 0.96)
+    end
+    local r, g, b, a
+    if self:Get("barGoldBorder") then
+        r, g, b = self:GetHudBorderColor()
+        a = 0.90
+    else
+        r, g, b, a = 0.72, 0.73, 0.76, 0.90
+    end
+    local function paintEdge(tex)
+        if tex then
+            tex:SetVertexColor(r, g, b, a)
+            tex:Show()
+        end
+    end
+    paintEdge(frame.cuiEdgeT)
+    paintEdge(frame.cuiEdgeB)
+    paintEdge(frame.cuiEdgeL)
+    paintEdge(frame.cuiEdgeR)
+    if frame.cuiChrome then
+        local level = frame.GetFrameLevel and frame:GetFrameLevel() or 1
+        frame.cuiChrome:SetFrameLevel(level + 8)
+        frame.cuiChrome:Show()
+    end
+    self:PaintStatusBarFill(frame.bar)
+    self:PaintStatusBarFill(frame.restedbar)
+end
+
+function Config:ApplyHudBorderChrome()
+    local bars = ConsoleUI.actionbars
+    if bars and bars.PaintDiamond then
+        local i
+        for i = 1, bars.NUM_BUTTONS or 10 do
+            local button = getglobal("ConsoleActionButton" .. i)
+            if button then
+                bars:PaintDiamond(button)
+            end
+        end
+        local function paintSide(list)
+            if not list then
+                return
+            end
+            local n
+            for n = 1, table.getn(list) do
+                if list[n] then
+                    bars:PaintDiamond(list[n])
+                end
+            end
+        end
+        paintSide(bars.sideBarLeftButtons)
+        paintSide(bars.sideBarRightButtons)
+    end
+    if ConsoleUI.xpbar then
+        self:PaintStatusBarChrome(ConsoleUI.xpbar.xpBar)
+        self:PaintStatusBarChrome(ConsoleUI.xpbar.repBar)
+    end
+    if ConsoleUI.castbar then
+        self:PaintStatusBarChrome(ConsoleUI.castbar.castBar)
+    end
+end
+
 function Config:PaintButton(button, kind, hovered)
     local c = self.UI_COLORS
     kind = kind or button.kind or "default"
+    local function tint(r, g, b, a)
+        local label = button.label
+        if label and label.SetTextColor then
+            label:SetTextColor(r, g, b, a)
+        end
+    end
     if kind == "primary" then
         button:SetBackdropColor(1.00, 0.82, 0.18, hovered and 1 or 0.96)
         button:SetBackdropBorderColor(1.00, 0.82, 0.18, 1)
-        if button.label then button.label:SetTextColor(0.09, 0.08, 0.04) end
+        tint(0.09, 0.08, 0.04)
     elseif kind == "danger" then
         button:SetBackdropColor(0.16, 0.06, 0.07, hovered and 0.96 or 0.88)
         button:SetBackdropBorderColor(0.84, 0.30, 0.36, 0.35)
-        if button.label then button.label:SetTextColor(unpack(c.danger)) end
+        tint(unpack(c.danger))
     elseif kind == "ghost" then
         button:SetBackdropColor(0, 0, 0, 0)
         button:SetBackdropBorderColor(unpack(c.border))
-        if button.label then button.label:SetTextColor(unpack(c.muted)) end
+        tint(unpack(c.muted))
     elseif kind == "on" then
         button:SetBackdropColor(0.145, 0.122, 0.055, 0.96)
         button:SetBackdropBorderColor(1.00, 0.82, 0.18, 0.28)
-        if button.label then button.label:SetTextColor(unpack(c.gold)) end
+        tint(unpack(c.gold))
     else
         if hovered then
             button:SetBackdropColor(0.16, 0.17, 0.20, 1)
             button:SetBackdropBorderColor(1, 1, 1, 0.22)
-            if button.label then button.label:SetTextColor(1, 1, 1) end
+            tint(1, 1, 1)
         else
             button:SetBackdropColor(unpack(c.button))
             button:SetBackdropBorderColor(unpack(c.borderStrong))
-            if button.label then button.label:SetTextColor(0.87, 0.88, 0.90) end
+            tint(0.87, 0.88, 0.90)
         end
     end
 end
@@ -426,12 +604,34 @@ function Config:CreateMainFrame()
     rail:SetPoint("BOTTOMLEFT", sidebar, "BOTTOMRIGHT", 0, 0)
     rail:SetWidth(1)
     
-    local content = CreateFrame("Frame", nil, frame)
-    content:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 8, 0)
-    content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -8, footerH)
-    content:SetBackdrop(self.BACKDROP_FLAT)
-    content:SetBackdropColor(unpack(self.UI_COLORS.content))
-    frame.content = content
+    local contentHost = CreateFrame("Frame", nil, frame)
+    contentHost:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 8, 0)
+    contentHost:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -8, footerH)
+    contentHost:SetBackdrop(self.BACKDROP_FLAT)
+    contentHost:SetBackdropColor(unpack(self.UI_COLORS.content))
+
+    local scroll = CreateFrame("ScrollFrame", "ConsoleUIConfigContentScroll", contentHost)
+    scroll:SetPoint("TOPLEFT", contentHost, "TOPLEFT", 4, -4)
+    scroll:SetPoint("BOTTOMRIGHT", contentHost, "BOTTOMRIGHT", -4, 4)
+    scroll:EnableMouseWheel(1)
+    scroll:SetScript("OnMouseWheel", function()
+        local cur = this:GetVerticalScroll()
+        local range = this:GetVerticalScrollRange() or 0
+        local next = cur - (arg1 * 40)
+        if next < 0 then next = 0 end
+        if next > range then next = range end
+        this:SetVerticalScroll(next)
+    end)
+
+    local childW = self.FRAME_WIDTH - self.SIDEBAR_WIDTH - 24
+    local child = CreateFrame("Frame", "ConsoleUIConfigContentChild", scroll)
+    child:SetWidth(childW)
+    child:SetHeight(400)
+    scroll:SetScrollChild(child)
+
+    frame.contentHost = contentHost
+    frame.contentScroll = scroll
+    frame.content = child
 
     local footerFill = self:Paint(frame, "BORDER", 0.067, 0.071, 0.086, 0.98)
     footerFill:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 5, 5)
@@ -1064,22 +1264,22 @@ function Config:CreateBarsSection()
         local selectedValue = UIDropDownMenu_GetSelectedValue(layoutDropdown) or (Config:Get("barLayout") or "controller")
         local info
         info = {}
-        info.text = T("Split Flanks")
+        info.text = T("Controller Style")
         info.value = "controller"
         info.func = function()
             UIDropDownMenu_SetSelectedValue(layoutDropdown, "controller")
-            UIDropDownMenu_SetText(T("Split Flanks"), layoutDropdown)
+            UIDropDownMenu_SetText(T("Controller Style"), layoutDropdown)
             Config:Set("barLayout", "controller")
             Config:UpdateActionBarLayout()
         end
         if info.value == selectedValue then info.checked = 1 end
         UIDropDownMenu_AddButton(info)
         info = {}
-        info.text = T("Minimal")
+        info.text = T("Flat")
         info.value = "flat"
         info.func = function()
             UIDropDownMenu_SetSelectedValue(layoutDropdown, "flat")
-            UIDropDownMenu_SetText(T("Minimal"), layoutDropdown)
+            UIDropDownMenu_SetText(T("Flat"), layoutDropdown)
             Config:Set("barLayout", "flat")
             Config:UpdateActionBarLayout()
         end
@@ -1091,23 +1291,88 @@ function Config:CreateBarsSection()
     UIDropDownMenu_SetWidth(130, layoutDropdown)
     local currentLayout = Config:Get("barLayout") or "controller"
     UIDropDownMenu_SetSelectedValue(layoutDropdown, currentLayout)
-    UIDropDownMenu_SetText(currentLayout == "flat" and T("Minimal") or T("Split Flanks"), layoutDropdown)
+    UIDropDownMenu_SetText(currentLayout == "flat" and T("Flat") or T("Controller Style"), layoutDropdown)
 
     local goldLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     goldLabel:SetPoint("TOP", layoutLabel, "TOP", 0, 0)
     goldLabel:SetPoint("LEFT", layoutDropdown, "RIGHT", 8, 3)
-    goldLabel:SetText(T("Gold border"))
+    goldLabel:SetText(T("HUD border"))
     
     local goldCheck = CreateFrame("CheckButton", self:GetNextElementName("Check"), generalBox, "UICheckButtonTemplate")
     goldCheck:SetWidth(24)
     goldCheck:SetHeight(24)
     goldCheck:SetPoint("LEFT", goldLabel, "RIGHT", 5, 0)
-    goldCheck.label = T("Gold border")
-    goldCheck.tooltipText = T("Show a gold outline on action-bar diamonds.")
+    goldCheck.label = T("HUD border")
+    goldCheck.tooltipText = T("Show a colored outline on action-bar diamonds, XP, and cast bars.")
     goldCheck:SetChecked(Config:Get("barGoldBorder") and 1 or 0)
     goldCheck:SetScript("OnClick", function()
         Config:Set("barGoldBorder", this:GetChecked() == 1)
-        Config:UpdateActionBarLayout()
+        Config:ApplyHudBorderChrome()
+    end)
+
+    local goldColorBtn = CreateFrame("Button", self:GetNextElementName("ColorBtn"), generalBox)
+    goldColorBtn:SetWidth(24)
+    goldColorBtn:SetHeight(20)
+    goldColorBtn:SetPoint("LEFT", goldCheck, "RIGHT", 6, 0)
+    goldColorBtn.label = T("HUD border color")
+    goldColorBtn.tooltipText = T("Outline color for action-bar diamonds, XP, and cast bars. Default is gold.")
+
+    local goldColorPreview = goldColorBtn:CreateTexture(nil, "BACKGROUND")
+    goldColorPreview:SetAllPoints()
+
+    local function UpdateGoldColorPreview()
+        local r, g, b = Config:GetHudBorderColor()
+        goldColorPreview:SetTexture(r, g, b)
+    end
+    UpdateGoldColorPreview()
+
+    goldColorBtn:SetBackdrop({
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 8,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 }
+    })
+    goldColorBtn:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+
+    goldColorBtn:SetScript("OnClick", function()
+        local r, g, b = Config:GetHudBorderColor()
+        local prevR, prevG, prevB = r, g, b
+
+        ColorPickerFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+        ColorPickerFrame:SetFrameLevel(2000)
+        if ColorPickerOkayButton then
+            ColorPickerOkayButton:SetFrameStrata("FULLSCREEN_DIALOG")
+            ColorPickerOkayButton:SetFrameLevel(2001)
+        end
+        if ColorPickerCancelButton then
+            ColorPickerCancelButton:SetFrameStrata("FULLSCREEN_DIALOG")
+            ColorPickerCancelButton:SetFrameLevel(2001)
+        end
+
+        ColorPickerFrame.func = function()
+            local newR, newG, newB = ColorPickerFrame:GetColorRGB()
+            Config:Set("barGoldColorR", newR)
+            Config:Set("barGoldColorG", newG)
+            Config:Set("barGoldColorB", newB)
+            UpdateGoldColorPreview()
+            Config:ApplyHudBorderChrome()
+        end
+        ColorPickerFrame.cancelFunc = function()
+            Config:Set("barGoldColorR", prevR)
+            Config:Set("barGoldColorG", prevG)
+            Config:Set("barGoldColorB", prevB)
+            UpdateGoldColorPreview()
+            Config:ApplyHudBorderChrome()
+        end
+
+        ColorPickerFrame:SetColorRGB(r, g, b)
+        ColorPickerFrame.hasOpacity = false
+
+        local delayFrame = CreateFrame("Frame")
+        delayFrame:SetScript("OnUpdate", function()
+            delayFrame:Hide()
+            ColorPickerFrame:Show()
+        end)
+        delayFrame:Show()
     end)
     
     -- Druid stealth option (middle of row 1, only visible to druids)
@@ -1142,7 +1407,7 @@ function Config:CreateBarsSection()
     local autoRankCheck = CreateFrame("CheckButton", self:GetNextElementName("Check"), generalBox, "UICheckButtonTemplate")
     autoRankCheck:SetWidth(24)
     autoRankCheck:SetHeight(24)
-    autoRankCheck:SetPoint("LEFT", goldCheck, "RIGHT", 16, 0)
+    autoRankCheck:SetPoint("LEFT", goldColorBtn, "RIGHT", 16, 0)
     local autoRankLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     autoRankLabel:SetPoint("LEFT", autoRankCheck, "RIGHT", 4, 0)
     autoRankLabel:SetText(T("Auto-update spell ranks"))
@@ -1193,7 +1458,7 @@ function Config:CreateBarsSection()
             Config:UpdateActionBarLayout()
         end,
         T("Button Padding"),
-        T("Space between buttons in Minimal layout. Range: 0-100."))
+        T("Space between buttons in Flat layout. Range: 0-100."))
     paddingEditBox:SetPoint("LEFT", padLabel, "RIGHT", 5, 0)
     paddingEditBox:SetScript("OnTextChanged", function()
         local num = tonumber(this:GetText()) or 4
@@ -1281,6 +1546,9 @@ function Config:CreateBarsSection()
         Config:Set("barAppearance", Config.DEFAULTS.barAppearance)
         Config:Set("barLayout", Config.DEFAULTS.barLayout)
         Config:Set("barGoldBorder", Config.DEFAULTS.barGoldBorder)
+        Config:Set("barGoldColorR", Config.DEFAULTS.barGoldColorR)
+        Config:Set("barGoldColorG", Config.DEFAULTS.barGoldColorG)
+        Config:Set("barGoldColorB", Config.DEFAULTS.barGoldColorB)
         Config:Set("barFlankGap", Config.DEFAULTS.barFlankGap)
         Config:UpdateActionBarLayout()
         sizeEditBox:SetText(tostring(Config.DEFAULTS.barButtonSize))
@@ -1294,9 +1562,10 @@ function Config:CreateBarsSection()
             Config.scaleEditBoxes.right:SetText(tostring(Config.DEFAULTS.sideBarRightScale))
         end
         goldCheck:SetChecked(Config.DEFAULTS.barGoldBorder and 1 or 0)
+        UpdateGoldColorPreview()
         local defLayout = Config.DEFAULTS.barLayout or "controller"
         UIDropDownMenu_SetSelectedValue(layoutDropdown, defLayout)
-        UIDropDownMenu_SetText(defLayout == "flat" and T("Minimal") or T("Split Flanks"), layoutDropdown)
+        UIDropDownMenu_SetText(defLayout == "flat" and T("Flat") or T("Controller Style"), layoutDropdown)
         ConsoleUI_Debug("Action bar layout reset to defaults")
     end)
     
@@ -1319,7 +1588,7 @@ function Config:CreateBarsSection()
             layoutBtn:Enable()
             layoutBtn:Show()
             layoutBtn.label = T("Layout")
-            layoutBtn.tooltipText = T("Split Flanks is the d-pad / face clusters with RT and RB outside. Minimal is one row.")
+            layoutBtn.tooltipText = T("Controller Style is the d-pad / face clusters with RT and RB outside. Flat is one row.")
         end
         if ConsoleUI.cursor and ConsoleUI.cursor.RefreshFrame then
             ConsoleUI.cursor:RefreshFrame()
@@ -2129,6 +2398,8 @@ function Config:CreateRingsSection()
 end
 
 function Config:CreateAboutSection()
+    local Locale = ConsoleUI.locale
+    local T = Locale and Locale.T or function(key) return key end
     local content = self.frame.content
     local section = CreateFrame("Frame", nil, content)
     section:SetPoint("TOPLEFT", content, "TOPLEFT", 4, -4)
@@ -2159,7 +2430,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC2"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC3"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -2197,9 +2468,28 @@ function Config:CreateAboutSection()
         DEFAULT_CHAT_FRAME:AddMessage("|cffffd12eConsoleUI|r " .. url)
     end)
 
+    local showOnboard = self:MakePanelButton(section, "ConsoleUIAboutOnboard", 140, T("Show Welcome"), "primary")
+    showOnboard:SetPoint("TOPLEFT", link, "BOTTOMLEFT", 0, -10)
+    showOnboard:SetScript("OnClick", function()
+        PlaySound("igMainMenuOptionCheckBoxOn")
+        Config:Hide()
+        if ConsoleUI.onboarding and ConsoleUI.onboarding.Show then
+            ConsoleUI.onboarding:Show()
+        end
+    end)
+    local showChanges = self:MakePanelButton(section, "ConsoleUIAboutChangelog", 140, T("Show Changelog"), "ghost")
+    showChanges:SetPoint("LEFT", showOnboard, "RIGHT", 8, 0)
+    showChanges:SetScript("OnClick", function()
+        PlaySound("igMainMenuOptionCheckBoxOn")
+        Config:Hide()
+        if ConsoleUI.changelog and ConsoleUI.changelog.Show then
+            ConsoleUI.changelog:Show(true)
+        end
+    end)
+
     local credits = self:CreateSectionBox(section, "Credits")
     credits:ClearAllPoints()
-    credits:SetPoint("TOPLEFT", link, "BOTTOMLEFT", 0, -10)
+    credits:SetPoint("TOPLEFT", showOnboard, "BOTTOMLEFT", 0, -10)
     credits:SetPoint("TOPRIGHT", link, "BOTTOMRIGHT", 0, -10)
     credits:SetHeight(230)
     credits.heightCalculated = true
@@ -2606,6 +2896,37 @@ end
 -- Section Management
 -- ============================================================================
 
+function Config:FitContentScroll()
+    local scroll = self.frame and self.frame.contentScroll
+    local child = self.frame and self.frame.content
+    if not scroll or not child then
+        return
+    end
+    local viewH = scroll:GetHeight() or 400
+    local need = viewH
+    local section = self.currentSection and self.contentSections[self.currentSection]
+    if section and section.GetTop and section:GetTop() then
+        local top = section:GetTop()
+        local lowest = top
+        local kids = {section:GetChildren()}
+        local i
+        for i = 1, table.getn(kids) do
+            local bottom = kids[i].GetBottom and kids[i]:GetBottom()
+            if bottom and bottom < lowest then
+                lowest = bottom
+            end
+        end
+        need = (top - lowest) + 16
+    end
+    if need < viewH then
+        need = viewH
+    end
+    child:SetHeight(need)
+    if scroll.SetVerticalScroll then
+        scroll:SetVerticalScroll(0)
+    end
+end
+
 function Config:ShowSection(sectionId)
     -- Refresh profile dropdown if showing profiles section
     if sectionId == "profiles" then
@@ -2658,6 +2979,9 @@ function Config:ShowSection(sectionId)
                 if child.CalculateHeight then
                     child:CalculateHeight()
                 end
+            end
+            if Config.FitContentScroll then
+                Config:FitContentScroll()
             end
         end)
         calcFrame:Show()
@@ -3336,6 +3660,13 @@ function Config:UpdateActionBarLayout()
     -- Update side action bars to match new settings
     if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
         ConsoleUI.actionbars:UpdateSideBars()
+    end
+    if ConsoleUI.xpbar then
+        self:PaintStatusBarChrome(ConsoleUI.xpbar.xpBar)
+        self:PaintStatusBarChrome(ConsoleUI.xpbar.repBar)
+    end
+    if ConsoleUI.castbar then
+        self:PaintStatusBarChrome(ConsoleUI.castbar.castBar)
     end
 end
 

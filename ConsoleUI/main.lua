@@ -105,6 +105,12 @@ ConsoleUI:SetScript("OnEvent", function()
             ConsoleUI_SaveBindings()
         end
         ConsoleUI_Welcome()
+        if ConsoleUI.onboarding and ConsoleUI.onboarding.MaybeShowFirstRun then
+            ConsoleUI.onboarding:MaybeShowFirstRun()
+        end
+        if ConsoleUI.changelog and ConsoleUI.changelog.MaybeShow then
+            ConsoleUI.changelog:MaybeShow()
+        end
         
     elseif event == "PLAYER_LOGOUT" then
         -- Save configuration
@@ -154,6 +160,9 @@ end
 -- After the ConsoleUI rename, SetupDefaultBindings ran again and could
 -- SaveBindings before mouse keys were in memory, wiping both.
 function ConsoleUI_RepairCameraBindings()
+    if ConsoleUI_BindingsReady and not ConsoleUI_BindingsReady() then
+        return false
+    end
     local function missing(action)
         local key = GetBindingKey(action)
         return not key or key == ""
@@ -179,6 +188,10 @@ end
 -- Persist bindings to the set the player is actually using.
 -- TOC settings are per-character; SaveBindings(1) would leak JUMP/interact to alts.
 function ConsoleUI_SaveBindings()
+    if ConsoleUI_BindingsReady and not ConsoleUI_BindingsReady() then
+        ConsoleUI_Debug("Skipped SaveBindings; player bindings not loaded yet")
+        return false
+    end
     -- 1.12 only accepts 1 (account) or 2 (character). GetCurrentBindingSet()
     -- can return 0 before bindings are ready; Lua treats 0 as truthy.
     local set = 1
@@ -221,7 +234,7 @@ function ConsoleUI_WarnIfDualAddonLoaded()
     end
     if other then
         ConsoleUI.dualAddonWarned = true
-        ConsoleUI_Print("ConsoleExperienceClassic is also loaded. Disable it — both addons fight over bars, bindings, and the cursor.")
+        ConsoleUI_Print("Another controller addon is also loaded. Disable it — both fight over bars, bindings, and the cursor.")
     end
 end
 
@@ -244,7 +257,7 @@ end
 function ConsoleUI_Welcome()
     if ConsoleUI.welcomed then return end
     ConsoleUI.welcomed = true
-    local version = "1.0.0-RC2"
+    local version = "1.0.0-RC3"
     if GetAddOnMetadata then
         version = GetAddOnMetadata("ConsoleUI", "Version") or version
     end

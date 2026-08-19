@@ -203,7 +203,7 @@ ConsoleUI_translation["zhCN"] = {
     ["Clear"] = "清除",
     
     -- Title
-    ["Console Experience"] = "手柄设置",
+    ["Console Experience"] = "ConsoleUI",
     ["CE Left Touch Bar"] = "ConsoleUI 左侧触摸栏",
     ["CE Right Touch Bar"] = "ConsoleUI 右侧触摸栏",
     ["Left Touch Bar Button"] = "左侧触摸栏按钮",

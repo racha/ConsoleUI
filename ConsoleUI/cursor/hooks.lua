@@ -57,6 +57,8 @@ Hooks.frames = {
     {frame = "GroupLootFrame3", name = "Roll 3"},
     {frame = "GroupLootFrame4", name = "Roll 4"},
     {frame = "ConsoleUIConfigFrame", name = "ConsoleUI Config"},
+    {frame = "ConsoleUIOnboardFrame", name = "ConsoleUI Onboarding"},
+    {frame = "ConsoleUIChangelogFrame", name = "ConsoleUI Changelog"},
     {frame = "ConsoleUIPlacementFrame", name = "Spell Placement"},
     {frame = "MacroFrame", name = "Macros"},
     -- System Options Frames

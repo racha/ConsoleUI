@@ -203,7 +203,7 @@ ConsoleUI_translation["deDE"] = {
     ["Clear"] = "Löschen",
     
     -- Title
-    ["Console Experience"] = "Konsolen-Erlebnis",
+    ["Console Experience"] = "ConsoleUI",
     ["CE Left Touch Bar"] = "ConsoleUI Linke Touch-Leiste",
     ["CE Right Touch Bar"] = "ConsoleUI Rechte Touch-Leiste",
     ["Left Touch Bar Button"] = "Linke Touch-Leiste Taste",

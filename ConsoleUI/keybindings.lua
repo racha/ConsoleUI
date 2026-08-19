@@ -235,67 +235,99 @@ ConsoleUIKeybindings.DEFAULT_KEYS = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
 }
 
-function ConsoleUIKeybindings:SetupDefaultBindings()
-    -- Only setup bindings if they haven't been set before
-    -- This mimics how pfUI handles initial binding setup
-    
-    local keys = self.DEFAULT_KEYS
-    
-    -- Page 1: No modifier (actions 1-10)
-    for i = 1, 10 do
-        local currentKey = GetBindingKey("ConsoleUI_ACTION_" .. i)
-        if not currentKey then
-            SetBinding(keys[i], "ConsoleUI_ACTION_" .. i)
+-- GetCurrentBindingSet is 0 until the player's set is in memory.
+-- SetBinding + SaveBindings in that window writes an empty table over
+-- the real keyboard (often account-wide).
+function ConsoleUI_BindingsReady()
+    if GetCurrentBindingSet then
+        local set = GetCurrentBindingSet()
+        if set ~= 1 and set ~= 2 then
+            return false
         end
     end
-    
-    -- Page 2: Shift (actions 11-20)
-    for i = 1, 10 do
-        local actionNum = i + 10
-        local currentKey = GetBindingKey("ConsoleUI_ACTION_" .. actionNum)
-        if not currentKey then
-            SetBinding("SHIFT-" .. keys[i], "ConsoleUI_ACTION_" .. actionNum)
+    if GetBindingKey then
+        if GetBindingKey("MOVEFORWARD")
+            or GetBindingKey("CAMERAORSELECTORMOVE")
+            or GetBindingKey("ACTIONBUTTON1")
+            or GetBindingKey("JUMP") then
+            return true
         end
     end
-    
-    -- Page 3: Ctrl (actions 21-30)
-    for i = 1, 10 do
-        local actionNum = i + 20
-        local currentKey = GetBindingKey("ConsoleUI_ACTION_" .. actionNum)
-        if not currentKey then
-            SetBinding("CTRL-" .. keys[i], "ConsoleUI_ACTION_" .. actionNum)
+    if GetBindingAction then
+        local walk = GetBindingAction("W")
+        local one = GetBindingAction("1")
+        if (walk and walk ~= "") or (one and one ~= "") then
+            return true
         end
     end
-    
-    -- Page 4: Ctrl+Shift (actions 31-40)
-    for i = 1, 10 do
-        local actionNum = i + 30
-        local currentKey = GetBindingKey("ConsoleUI_ACTION_" .. actionNum)
-        if not currentKey then
-            SetBinding("CTRL-SHIFT-" .. keys[i], "ConsoleUI_ACTION_" .. actionNum)
-        end
-    end
-    
-    -- Radial menu: Shift+Escape only if that combo is free
-    local shiftEscapeAction = GetBindingAction("SHIFT-ESCAPE")
-    if not shiftEscapeAction or shiftEscapeAction == "" or shiftEscapeAction == "ConsoleUI_TOGGLE_RADIAL" then
-        SetBinding("SHIFT-ESCAPE", "ConsoleUI_TOGGLE_RADIAL")
-        ConsoleUI_Debug("Radial menu bound to SHIFT-ESCAPE")
-    else
-        ConsoleUI_Debug("SHIFT-ESCAPE already bound to " .. shiftEscapeAction .. ", leaving it")
-    end
-    
-    ConsoleUI_SaveBindings()
-    
-    ConsoleUI_Debug("Default keybindings set!")
+    return false
 end
 
-function ConsoleUIKeybindings:Initialize()
+-- Auto-setup may only take a free key or one already owned by ConsoleUI.
+-- Never used for bare 1-0 / M / ESCAPE. Those stay the player's.
+function ConsoleUI_CanClaimKey(key)
+    if not key or key == "" or not GetBindingAction then
+        return false
+    end
+    local current = GetBindingAction(key)
+    if not current or current == "" then
+        return true
+    end
+    return string.find(current, "^ConsoleUI_") ~= nil
+end
+
+function ConsoleUIKeybindings:SetupDefaultBindings()
+    if ConsoleUI_BindingsReady and not ConsoleUI_BindingsReady() then
+        return false
+    end
+
+    local keys = self.DEFAULT_KEYS
+    local changed = false
+
+    local function claim(key, action)
+        if GetBindingKey(action) then
+            return
+        end
+        if not ConsoleUI_CanClaimKey(key) then
+            return
+        end
+        if GetBindingAction(key) == action then
+            return
+        end
+        SetBinding(key, action)
+        changed = true
+    end
+
+    -- Steam layout: 1-0 / M / ESCAPE stay the player's keys.
+    -- Only LT (Shift), LB (Ctrl), LT+LB (Ctrl+Shift) chords are ours.
+    for i = 1, 10 do
+        claim("SHIFT-" .. keys[i], "ConsoleUI_ACTION_" .. (i + 10))
+        claim("CTRL-" .. keys[i], "ConsoleUI_ACTION_" .. (i + 20))
+        claim("CTRL-SHIFT-" .. keys[i], "ConsoleUI_ACTION_" .. (i + 30))
+    end
+
+    if changed then
+        ConsoleUI_SaveBindings()
+        ConsoleUI_Debug("Default keybindings set!")
+    end
+    return changed
+end
+
+function ConsoleUIKeybindings:InstallActionButtonHooks()
+    -- Override default action button handlers like pfUI does
+    -- This redirects default action bar keypresses to our buttons
+    _G.ActionButtonDown = function(id)
+        ConsoleUI_ActionButton(id)
+    end
+    _G.ActionButtonUp = function(id)
+        -- We use runOnUp, so this is handled by ConsoleUI_ActionButton
+    end
+end
+
+function ConsoleUIKeybindings:FinishInitialize()
     -- Check if any CE_ACTION binding already has a key assigned.
     -- We scan all 40 slots because some may be proxied to system actions (like JUMP),
     -- which replaces their ConsoleUI_ACTION_X key. On a fresh install, none will have keys.
-    -- This is more robust than a saved variable flag because it directly reflects
-    -- the actual WoW binding state and can't get out of sync.
     local hasExistingBindings = false
     for i = 1, 40 do
         if GetBindingKey("ConsoleUI_ACTION_" .. i) then
@@ -303,14 +335,14 @@ function ConsoleUIKeybindings:Initialize()
             break
         end
     end
-    
+
     if not hasExistingBindings then
         ConsoleUI_Debug("No ConsoleUI bindings found, setting up defaults...")
         self:SetupDefaultBindings()
     else
         ConsoleUI_Debug("Existing ConsoleUI bindings found, skipping default setup")
     end
-    
+
     -- Initialize and apply proxied actions (replaces old useAForJump system)
     if ConsoleUI.proxied and ConsoleUI.proxied.Initialize then
         ConsoleUI.proxied:Initialize()
@@ -323,17 +355,46 @@ function ConsoleUIKeybindings:Initialize()
     if ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings() then
         ConsoleUI_SaveBindings()
     end
-    
-    -- Override default action button handlers like pfUI does
-    -- This redirects default action bar keypresses to our buttons
-    _G.ActionButtonDown = function(id)
-        ConsoleUI_ActionButton(id)
-    end
-    _G.ActionButtonUp = function(id)
-        -- We use runOnUp, so this is handled by ConsoleUI_ActionButton
-    end
-    
+
     ConsoleUI_Debug("Keybindings module initialized!")
+end
+
+function ConsoleUIKeybindings:WatchForBindings()
+    if self.bindWatch then
+        return
+    end
+    local f = CreateFrame("Frame")
+    self.bindWatch = f
+    f.elapsed = 0
+    f.age = 0
+    f:SetScript("OnUpdate", function()
+        this.elapsed = this.elapsed + arg1
+        this.age = this.age + arg1
+        if this.elapsed < 0.25 then
+            return
+        end
+        this.elapsed = 0
+        local ready = ConsoleUI_BindingsReady and ConsoleUI_BindingsReady()
+        if ready or this.age > 8 then
+            this:SetScript("OnUpdate", nil)
+            ConsoleUI.keybindings.bindWatch = nil
+            if ready then
+                ConsoleUI.keybindings:FinishInitialize()
+            else
+                ConsoleUI_Debug("Bindings never loaded; skipped default key rewrite")
+            end
+        end
+    end)
+end
+
+function ConsoleUIKeybindings:Initialize()
+    self:InstallActionButtonHooks()
+    if ConsoleUI_BindingsReady and ConsoleUI_BindingsReady() then
+        self:FinishInitialize()
+        return
+    end
+    ConsoleUI_Debug("Player bindings not loaded yet; waiting before any SaveBindings")
+    self:WatchForBindings()
 end
 
 -- Attach to main addon
@@ -342,18 +403,14 @@ ConsoleUI.keybindings = ConsoleUIKeybindings
 -- Function to force reset all keybindings (called from config menu)
 function ConsoleUIKeybindings:ResetAllBindings()
     local keys = self.DEFAULT_KEYS
-    
-    -- Set all CE_ACTION bindings first (proxied module will override as needed)
+
+    -- Rebind modifier pages only. Leave 1-0 / M / ESCAPE alone.
     for i = 1, 10 do
-        SetBinding(keys[i], "ConsoleUI_ACTION_" .. i)
         SetBinding("SHIFT-" .. keys[i], "ConsoleUI_ACTION_" .. (i + 10))
         SetBinding("CTRL-" .. keys[i], "ConsoleUI_ACTION_" .. (i + 20))
         SetBinding("CTRL-SHIFT-" .. keys[i], "ConsoleUI_ACTION_" .. (i + 30))
     end
-    
-    -- Radial menu binding
-    SetBinding("SHIFT-ESCAPE", "ConsoleUI_TOGGLE_RADIAL")
-    
+
     ConsoleUI_SaveBindings()
     
     -- Now apply proxied actions (will override CE_ACTION bindings where needed)

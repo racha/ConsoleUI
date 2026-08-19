@@ -327,7 +327,7 @@ function Tooltip:Initialize()
             actions = {{icon = "a", prompt = L("Select")}},
             bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
         },
-        -- Console Experience config buttons
+        -- ConsoleUI config buttons
         {
             pattern = "ConsoleUI.*",
             actions = {{icon = "a", prompt = L("Select")}},

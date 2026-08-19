@@ -39,8 +39,8 @@ end
 -- Modifier page offsets (always the same)
 local MODIFIER_OFFSETS = {
     [1] = 10,   -- LT (Shift) - slots 11-20
-    [2] = 20,   -- RT (Ctrl) - slots 21-30
-    [3] = 30,   -- LT+RT (Shift+Ctrl) - slots 31-40
+    [2] = 20,   -- LB (Ctrl) - slots 21-30
+    [3] = 30,   -- LT+LB (Shift+Ctrl) - slots 31-40
 }
 
 -- Get localized text (with fallback)
@@ -208,10 +208,10 @@ function Placement:BuildPageInfo()
         })
     end
     
-    -- Add modifier pages (LT = Shift, RT = Ctrl — same as the Steam layout)
+    -- LT = Shift, LB = Ctrl — HouseLegend Steam layout
     table.insert(pages, { text = "LT", icons = {"lt"}, offset = MODIFIER_OFFSETS[1], isStance = false })
-    table.insert(pages, { text = "RT", icons = {"rt"}, offset = MODIFIER_OFFSETS[2], isStance = false })
-    table.insert(pages, { text = "LT+RT", icons = {"lt", "rt"}, offset = MODIFIER_OFFSETS[3], isStance = false })
+    table.insert(pages, { text = "LB", icons = {"lb"}, offset = MODIFIER_OFFSETS[2], isStance = false })
+    table.insert(pages, { text = "LT+LB", icons = {"lt", "lb"}, offset = MODIFIER_OFFSETS[3], isStance = false })
     
     return pages
 end

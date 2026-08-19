@@ -1,6 +1,6 @@
 --[[
     Action-bar diamond layout. Pure math. No frames.
-    controller = split flanks. flat = minimal row.
+    controller = Controller Style. flat = Flat (one row).
     Slot 10 = RT. Slot 9 = RB. LB is Ctrl, not a diamond.
 ]]
 

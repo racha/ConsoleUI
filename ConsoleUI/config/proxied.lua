@@ -203,7 +203,7 @@ end
 -- Key slot mapping (maps slot numbers to key combinations)
 -- Slot 1-10: No modifier (keys 1-0)
 -- Slot 11-20: Shift (LT) + keys 1-0
--- Slot 21-30: Ctrl (RT) + keys 1-0
+-- Slot 21-30: Ctrl (LB) + keys 1-0
 -- Slot 31-40: Shift+Ctrl (LT+LB) + keys 1-0
 Proxied.SLOT_KEYS = {
     -- No modifier
@@ -764,17 +764,13 @@ function Proxied:Initialize()
         end
     end
     
-    -- Set defaults ONLY for truly fresh installs (first time ever)
+    -- Fresh install: do not touch 1-0 / M / ESCAPE.
+    -- Interact on LB+RT (CTRL-0) is a modifier chord; claim only if free.
     if isFreshInstall then
-        -- Default: JUMP on slot 1 (A button)
-        ConsoleUIDB.proxiedActions[1] = "JUMP"
-        ConsoleUI_Debug("Proxied: Set default JUMP on slot 1")
-        
-        -- Default: ConsoleUI_INTERACT on slot 30 (RT+LB = Ctrl+0)
-        ConsoleUIDB.proxiedActions[30] = "ConsoleUI_INTERACT"
-        ConsoleUI_Debug("Proxied: Set default ConsoleUI_INTERACT on slot 30")
-        
-        -- Mark as initialized so we don't reset defaults on future logins
+        if ConsoleUI_CanClaimKey and ConsoleUI_CanClaimKey("CTRL-0") then
+            ConsoleUIDB.proxiedActions[30] = "ConsoleUI_INTERACT"
+            ConsoleUI_Debug("Proxied: Set default ConsoleUI_INTERACT on CTRL-0")
+        end
         ConsoleUIDB.proxiedActionsInitialized = true
     end
     

@@ -109,26 +109,12 @@ function CastBar:CreateBar()
     b:SetFrameStrata("MEDIUM")
     b:SetFrameLevel(10)
     
-    -- Create backdrop with border (matching XP bar style)
-    b:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true,
-        tileSize = 16,
-        edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 }
-    })
-    b:SetBackdropColor(0.015, 0.035, 0.06, 0.92)
-    b:SetBackdropBorderColor(0.18, 0.48, 0.68, 0.95)
-    
-    -- Create status bar (same texture as XP bar)
+    -- Create status bar. Fill + rim come from PaintStatusBarChrome.
     b.bar = b.bar or CreateFrame("StatusBar", nil, b)
-    -- LK-inspired artwork bundled locally; the StatusBar API is available in 1.12.
-    local texturePath = "Interface\\AddOns\\ConsoleUI\\textures\\lk\\bars\\CastBar.tga"
-    b.bar:SetStatusBarTexture(texturePath)
+    local inset = (config.STATUS_BAR_INSET) or 3
     b.bar:ClearAllPoints()
-    b.bar:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
-    b.bar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
+    b.bar:SetPoint("TOPLEFT", b, "TOPLEFT", inset, -inset)
+    b.bar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -inset, inset)
     
     -- Get color from config (blue by default)
     local colorR = config:Get("castbarColorR") or 0.0
@@ -140,32 +126,34 @@ function CastBar:CreateBar()
     b.bar:SetValue(0)
     b.bar:Show()
     
-    -- Create spark texture for cast progress indicator
-    -- Spark is a child of parent frame (b), not the status bar, like Blizzard does
-    b.spark = b.spark or b:CreateTexture(nil, "OVERLAY")
+    if config.PaintStatusBarChrome then
+        config:PaintStatusBarChrome(b)
+    end
+    local overlay = b.cuiChrome or b
+
+    -- Spark + text on the rim frame so they sit above the fill
+    b.spark = b.spark or overlay:CreateTexture(nil, "OVERLAY")
     b.spark:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
     b.spark:SetWidth(16)
     b.spark:SetHeight(barHeight * 2)
     b.spark:SetBlendMode("ADD")
     b.spark:Hide()
     
-    -- Create spell name text as child of StatusBar so it renders above the bar fill
     local fontSize = math.max(8, math.min(14, math.floor(barHeight * 0.5)))
-    b.text = b.text or b.bar:CreateFontString(nil, "OVERLAY")
+    b.text = b.text or overlay:CreateFontString(nil, "OVERLAY")
     b.text:SetPoint("CENTER", b.bar, "CENTER", 0, 0)
     b.text:SetJustifyH("CENTER")
     b.text:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "OUTLINE")
     b.text:SetTextColor(1, 1, 1, 1)
     b.text:SetText("")
     
-    -- Create timer text as child of StatusBar so it renders above the bar fill
-    b.timer = b.timer or b.bar:CreateFontString(nil, "OVERLAY")
+    b.timer = b.timer or overlay:CreateFontString(nil, "OVERLAY")
     b.timer:SetPoint("RIGHT", b.bar, "RIGHT", -5, 0)
     b.timer:SetJustifyH("RIGHT")
     b.timer:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "OUTLINE")
     b.timer:SetTextColor(1, 1, 1, 1)
     b.timer:SetText("")
-    
+
     -- Hide by default
     b:Hide()
     
@@ -460,10 +448,11 @@ function CastBar:UpdatePosition()
     bar.height = barHeight
     
     -- Update bar size
+    local inset = (config.STATUS_BAR_INSET) or 3
     if bar.bar then
         bar.bar:ClearAllPoints()
-        bar.bar:SetPoint("TOPLEFT", bar, "TOPLEFT", 3, -3)
-        bar.bar:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -3, 3)
+        bar.bar:SetPoint("TOPLEFT", bar, "TOPLEFT", inset, -inset)
+        bar.bar:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -inset, inset)
     end
     
     -- Update font size
@@ -530,6 +519,9 @@ function CastBar:ReloadConfig()
     -- Update position and color
     self:UpdatePosition()
     self:UpdateColor()
+    if config.PaintStatusBarChrome then
+        config:PaintStatusBarChrome(self.castBar)
+    end
     
     -- Re-register events if needed
     if self.castBar and not self.castBar.eventsRegistered then

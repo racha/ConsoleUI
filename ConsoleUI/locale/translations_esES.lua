@@ -203,7 +203,7 @@ ConsoleUI_translation["esES"] = {
     ["Clear"] = "Limpiar",
     
     -- Title
-    ["Console Experience"] = "Experiencia de Consola",
+    ["Console Experience"] = "ConsoleUI",
     ["CE Left Touch Bar"] = "ConsoleUI Barra Táctil Izquierda",
     ["CE Right Touch Bar"] = "ConsoleUI Barra Táctil Derecha",
     ["Left Touch Bar Button"] = "Botón Barra Táctil Izquierda",

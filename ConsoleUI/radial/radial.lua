@@ -544,6 +544,9 @@ function Radial:RestoreStickNavigation()
 end
 
 function Radial:RepairEscapeBinding()
+    if ConsoleUI_BindingsReady and not ConsoleUI_BindingsReady() then
+        return false
+    end
     local escape = GetBindingAction("ESCAPE")
     if escape and escape ~= "" and not IsTransientBinding(escape) then
         return false
@@ -596,6 +599,9 @@ function Radial:RepairMovementBindings()
         if frame and frame.IsShown and frame:IsShown() then
             frame:Hide()
         end
+    end
+    if ConsoleUI_BindingsReady and not ConsoleUI_BindingsReady() then
+        return
     end
     local changed = false
     if ConsoleUIKeyboard and ConsoleUIKeyboard.RepairKeys then

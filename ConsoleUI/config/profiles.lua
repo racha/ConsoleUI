@@ -389,9 +389,8 @@ function Profiles:CreateProfile(name, sourceProfile)
         -- Config will be populated with defaults when loaded
         -- Action bars start empty
         -- Set default proxied actions (same as proxied.lua Initialize)
-        newProfile.proxiedActions[1] = "JUMP"
         newProfile.proxiedActions[30] = "ConsoleUI_INTERACT"
-        ConsoleUI_Debug("Profiles: Created new profile with default proxied actions (JUMP on slot 1, ConsoleUI_INTERACT on slot 30)")
+        ConsoleUI_Debug("Profiles: Created new profile with default Interact on CTRL-0")
     end
     
     ConsoleUIDB.profiles[name] = newProfile
@@ -566,9 +565,8 @@ function Profiles:LoadProfile(profileName)
         -- (This shouldn't happen if CreateProfile sets defaults, but just in case)
         if not profile.config or next(profile.config) == nil then
             -- Looks like a new profile, set defaults
-            ConsoleUIDB.proxiedActions[1] = "JUMP"
             ConsoleUIDB.proxiedActions[30] = "ConsoleUI_INTERACT"
-            ConsoleUI_Debug("Profiles: Applied default proxied actions to new profile")
+            ConsoleUI_Debug("Profiles: Applied default Interact on CTRL-0")
         end
     end
     

@@ -4,7 +4,7 @@
 
 ConsoleUI is a controller interface for the **original 1.12 Vanilla client**. It puts your spells on the face buttons, opens bags and menus from a stick wheel, and lets you type in chat without a keyboard.
 
-This release is **v1.0.0-RC2** — ready to try, still a release candidate.
+This release is **v1.0.0-RC3** — ready to try, still a release candidate.
 
 ---
 
@@ -14,6 +14,7 @@ You are playing Vanilla on a **private server** and you do not want to sit at a 
 
 - **OctoWoW**
 - **TurtleWoW**
+- **RavenCraft**
 - **Capybara Paradise**
 - other 1.12 / Interface `11200` clients
 
@@ -93,7 +94,7 @@ Point at a cluster, press a face button, type. **A** sends, **B** closes, **X** 
 
 ## Install
 
-1. Download **ConsoleUI-1.0.0-RC2.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
+1. Download **ConsoleUI-1.0.0-RC3.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
 2. Open the zip. You will see two folders: `ConsoleUI` and `ConsoleUIKeyboard`.
 3. Copy **both** into:
 
@@ -102,7 +103,7 @@ Point at a cluster, press a face button, type. **A** sends, **B** closes, **X** 
 4. At character select, enable **ConsoleUI** and **ConsoleUI Keyboard**.
 5. Log in. Type `/cui` to open settings.
 
-Turn **off** ConsoleExperience Classic (or any other controller bar addon) while you use this. Two addons fighting over the same bars will make a mess.
+Turn **off** any other controller bar addon while you use this. Two addons fighting over the same bars will make a mess.
 
 **Also install [Interact](https://github.com/vargv666/Interact).** Loot, herbs, veins, and NPCs become one button. We recommend it for every controller or phone setup.
 
@@ -112,29 +113,27 @@ If you used an older name (`ConsolePortClassic`), delete that folder first. This
 
 ## First-time setup (Steam Link)
 
-Vanilla has no real gamepad support. Steam turns the pad into keyboard keys. ConsoleUI then reads those keys. This is the same Steam setup [Console Experience](https://github.com/pepordev/ConsoleExperienceClassic) tells people to use.
+Vanilla has no real gamepad support. Steam turns the pad into keyboard keys. ConsoleUI then reads those keys. Use the **ConsoleUI** community layout (HouseLegend).
 
 Do this on the **PC that runs the game**. The phone or TV only runs **Steam Link**.
 
-### 1. Add the game to Steam and name it TurtleWoW
+### 1. Add the game to Steam
 
-The community controller layout is filed under the name **TurtleWoW**. If Steam still calls the game `WoW` or `Wow.exe`, you will not find the layout.
+The community layout is attached to **TurtleWoW**, **OctoWoW**, **RavenCraft**, and **Cappy**. Name the library entry any of those four. `WoW` or `Wow.exe` will not find it.
 
 1. Open **Steam** on the PC.
 2. **Games** → **Add a Non-Steam Game to My Library**.
-3. **Browse** to the TurtleWoW (or Vanilla) `.exe` and add it.
+3. **Browse** to your Vanilla `.exe` and add it.
 4. In the library, right-click that game → **Properties**.
-5. Change the name to exactly **`TurtleWoW`**.
+5. If the name is not already one of **TurtleWoW**, **OctoWoW**, **RavenCraft**, or **Cappy**, set it to whichever server you play.
 6. Under **Controller**, turn **Enable Steam Input** on.
 
-### 2. Apply the Console Experience layout
+### 2. Apply the ConsoleUI layout
 
 1. Still in Properties, open **Controller Layout** (or start the game once, then use the Steam overlay → Controller).
 2. Open **Community** layouts.
-3. Search for: **`WoW Vanilla Console experience by p3p0 v1.2`**
-4. Apply it.
-
-That layout is the one pepordev recommends in the Console Experience README.
+3. Search for: **`ConsoleUI - WoW 1.12`** (author **HouseLegend**).
+4. Apply **ConsoleUI - WoW 1.12 - OctoWoW - TurtleWoW - RavenCraft - Cappy**.
 
 ### 3. Fix the right stick for your screen
 
@@ -148,37 +147,39 @@ The right stick is the mouse. TVs, phones, and Steam Link all need a different s
 
 1. On the phone / TV, open **Steam Link** and sign into the same Steam account.
 2. Connect to the PC.
-3. Start **TurtleWoW** from the Steam library — not a desktop shortcut.
+3. Start that game from the Steam library — not a desktop shortcut.
 
-If you start the game outside Steam, the pad will do nothing.
+If you start the game outside Steam, the pad will do nothing. Not using Steam? [WoWpadX](https://github.com/leoaviana/WoWpadX) can send the pad instead.
 
-### Suggested layout (same as Console Experience)
+### Official layout (HouseLegend ConsoleUI)
 
 This is what that community config sends. Copy it if you use Steam Deck, reWASD, or Octo instead.
 
+Steam owns the **base keys**. The addon only writes the **modifier chords**, so your keyboard `1–0`, map, and Escape stay yours.
+
 | Pad | Key | What it does |
 | --- | --- | --- |
-| A | `1` | Face button (often Jump) |
-| X | `2` | Face button |
-| Y | `3` | Face button |
-| B | `4` | Face button |
+| A X Y B | `1` `2` `3` `4` | Face buttons |
 | D-pad Down / Left / Up / Right | `5` `6` `7` `8` | Left cluster |
-| RB | `9` | Bumper |
-| LB | `0` | Other bumper |
+| RB | `9` | Right bumper |
+| RT | `0` | Right trigger (tenth diamond) |
 | **LT** | **Shift** | Page 2 (hold) |
-| **RT** | **Ctrl** | Page 3 (hold) |
-| Left stick | WASD | Walk |
+| **LB** | **Ctrl** | Page 3 (hold) |
+| Back | `M` | Map (WoW bind, not ours) |
+| Start | `Escape` | Game menu (WoW bind, not ours) |
+| Left stick | WASD | Walk / strafe (see below) |
 | Right stick | Mouse | Move the cursor |
 | **L3** (click left stick) | **Left mouse** | Hold to move the camera |
 | **R3** (click right stick) | **Right mouse** | Hold to turn the character |
-| Start | your menu key | Quick Menu if you bind it |
+
+**Rebind A and D to strafe.** Vanilla defaults are Turn Left / Turn Right. On a pad that feels wrong: the right stick already turns the camera. In WoW keybinds, set **A = Strafe Left** and **D = Strafe Right**. Leave W / S as forward / back. The left stick then moves like a normal controller.
 
 Four pages of ten buttons:
 
-- nothing held — base page
-- hold **LT** — page 2
-- hold **RT** — page 3
-- hold **LT + RT** — page 4
+- nothing held — base page (your existing `1–0` binds)
+- hold **LT** — page 2 (`SHIFT-1`…`SHIFT-0`)
+- hold **LB** — page 3 (`CTRL-1`…`CTRL-0`)
+- hold **LT + LB** — page 4 (`CTRL-SHIFT-1`…`CTRL-SHIFT-0`)
 
 Put spells on the bars like a normal action bar, or use `/cui` → **Bindings** → **Spell Placement**.
 
@@ -192,7 +193,7 @@ Open `/cui` → **Interface** and pick **Xbox** or **PlayStation** so the on-scr
 
 Ten diamonds on the screen: D-pad + RT on the left, Y / X / A / B + RB on the right.
 
-Press the matching pad button to use that slot. Hold **LT** or **RT** to change page (same as Console Experience).
+Press the matching pad button to use that slot. Hold **LT** or **LB** to change page.
 
 `/cui` → **Bars** if you want them bigger, gold-edged, or moved.
 
@@ -278,7 +279,7 @@ Also send:
 
 - the **first red error** on screen, if there is one
 - a **screenshot**
-- which client you are on (OctoWoW, Turtle, Capybara…)
+- which client you are on (OctoWoW, Turtle, RavenCraft, Capybara…)
 
 Useful extras:
 
