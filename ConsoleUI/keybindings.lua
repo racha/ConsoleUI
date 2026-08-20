@@ -134,41 +134,41 @@ end
 -- Debug flag - set to true to see key press debug info
 ConsoleUI_DEBUG_KEYS = false
 
--- Chat Tweaks (Shagu, default on) calls SetAltArrowKeyMode(false) and can
--- leave ChatFrameEditBox shown with no focus. IsShown() then blocked every
--- D-pad cast; cursor nav never hits this path, which is why bags still worked.
--- Opening the radial keyboard and closing it Hide()s the box — the workaround.
+-- Block casts only while the radial keyboard is actually on screen.
+-- Shagu Chat Tweaks / an idle ChatFrameEditBox can stay shown or focused
+-- without the OSK. That used to eat 1-4 and D-pad until chat was toggled.
+-- Stale Keyboard.Focus with the OSK hidden is the same leak.
 function ConsoleUI_ChatBlocksActions()
     local kb = ConsoleUIKeyboard
-    if kb then
-        if kb.IsShown and kb:IsShown() then
-            return true
-        end
-        if kb.Focus then
-            return true
-        end
+    if kb and kb.IsShown and kb:IsShown() then
+        return true
     end
-    local box = ChatFrameEditBox
-    if not box or not box.IsShown or not box:IsShown() then
-        return false
+    if kb and kb.ReleaseIdleChatBox then
+        kb:ReleaseIdleChatBox()
     end
-    if box.HasFocus and box:HasFocus() then
+    if kb and kb.IsShown and kb:IsShown() then
         return true
     end
     if kb and kb.IsEnabled and kb:IsEnabled() then
         return false
     end
-    return true
+    local box = ChatFrameEditBox
+    if box and box.HasFocus and box:HasFocus() then
+        return true
+    end
+    return false
 end
 
 function ConsoleUI_ActionButton(slot)
     if ConsoleUI_ChatBlocksActions() then return end
-    
-    -- Only trigger on key down (keystate is set by WoW for runOnUp bindings)
-    if keystate == "down" then
-        -- Calculate actual slot using the same logic as ActionBars:GetActionOffset()
-        -- This ensures keybindings use the same slots as the displayed buttons
-        local actualSlot = slot
+
+    -- ACTION bindings and ActionButtonDown do not set keystate.
+    -- runOnUp leftovers (chat / radial) stay "up" and used to skip every cast
+    -- until a later "down" leaked in. Skip only an explicit release.
+    if keystate == "up" then
+        return
+    end
+    local actualSlot = slot
         local ActionBars = ConsoleUI.actionbars
         
         -- For slots 1-10 (base bar without modifiers), use GetActionOffset logic
@@ -247,7 +247,6 @@ function ConsoleUI_ActionButton(slot)
         if button and ConsoleUI.actionbars then
             ConsoleUI.actionbars:UpdateButtonState(button)
         end
-    end
 end
 
 -- ============================================================================

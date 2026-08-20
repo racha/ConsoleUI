@@ -21,6 +21,7 @@ ConsoleUI.CHANGELOG = {
             "Esc menu: ConsoleUI sits at the bottom. Shop, Options, and Quit stay put.",
             "AddOn list title now reads ConsoleUI by HouseLegend.",
             "What's new text wraps instead of clipping.",
+            "D-pad and 1-4 cast without opening and closing chat first.",
         },
     },
     {

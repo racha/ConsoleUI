@@ -404,12 +404,15 @@ end
 
 function Keyboard:RepairKeys()
     if self:IsShown() then return false end
+    local leaveRadial = OverlayOwnsStick()
     local changed = false
     local i
     for i = 1, table.getn(STEAL) do
         local row = STEAL[i]
         local current = GetBindingAction(row.key)
-        if IsTransientBinding(current) then
+        if leaveRadial and current and string.find(current, "^ConsoleUI_RADIAL") then
+            -- pie / ring still owns this key
+        elseif IsTransientBinding(current) then
             local action = RepairActionFor(row.key)
             if action then
                 SetBinding(row.key, action)
@@ -439,20 +442,56 @@ function Keyboard:RepairKeys()
 end
 
 function Keyboard:ReleaseIdleChatBox()
-    if self:IsShown() or self.Focus then
+    if self:IsShown() or self.settingFocus then
+        return
+    end
+    -- OSK hidden. Leftover Focus / a shown chat box ate 1-4 and D-pad
+    -- until the player opened and closed chat.
+    local dirty = false
+    if self.Focus then
+        local live = self.Focus
+        if live ~= ChatFrameEditBox and live.IsVisible and live:IsVisible() then
+            self:SetFocus(live)
+            return
+        end
+        self.Focus = nil
+        dirty = true
+    end
+    if not self:IsEnabled() then
+        if dirty then
+            if self.stolen then
+                self:RestoreKeys()
+            end
+            self:RepairKeys()
+        end
         return
     end
     local box = ChatFrameEditBox
-    if not box or not box.IsShown or not box:IsShown() then
-        return
+    if box then
+        local focused = box.HasFocus and box:HasFocus()
+        if focused then
+            local now = GetTime and GetTime() or 0
+            if self.chatWanted and (now - self.chatWanted) < 1 then
+                self:SetFocus(box)
+                return
+            end
+            if box.ClearFocus then
+                box:ClearFocus()
+            end
+            dirty = true
+        end
+        if box.IsShown and box:IsShown() then
+            box:Hide()
+            dirty = true
+        end
     end
-    if box.HasFocus and box:HasFocus() then
-        return
+    if self.stolen then
+        self:RestoreKeys()
+        dirty = true
     end
-    if box.ClearFocus then
-        box:ClearFocus()
+    if dirty then
+        self:RepairKeys()
     end
-    box:Hide()
 end
 
 function Keyboard:HookSaveBindings()
@@ -667,6 +706,9 @@ function Keyboard:OnHide()
     self.KEY.RIGHT = false
     if self.Focus then
         self:RestoreBox(self.Focus)
+        if not self.closing then
+            self.Focus = nil
+        end
     end
     if self.stolen then
         self:RestoreKeys()

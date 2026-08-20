@@ -44,9 +44,12 @@ local function ToggleChatBox()
     if not ChatFrameEditBox then return end
     if ChatFrameEditBox:IsVisible() then
         ChatFrameEditBox:Hide()
-    else
-        ChatFrameEditBox:Show()
-        ChatFrameEditBox:Raise()
+        return
+    end
+    ChatFrameEditBox:Show()
+    ChatFrameEditBox:Raise()
+    if ChatFrameEditBox.SetFocus then
+        ChatFrameEditBox:SetFocus()
     end
 end
 
