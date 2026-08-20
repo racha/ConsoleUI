@@ -140,7 +140,7 @@ function OB:Create()
     brand:SetText("UI")
     brand:SetTextColor(unpack(cfg.UI_COLORS.gold))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC3.1"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4"
     local pill = CreateFrame("Frame", nil, frame)
     pill:SetWidth(118)
     pill:SetHeight(22)

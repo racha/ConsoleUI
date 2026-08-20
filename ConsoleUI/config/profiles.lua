@@ -601,6 +601,10 @@ function Profiles:LoadProfile(profileName)
         if ConsoleUI.castbar and ConsoleUI.castbar.ReloadConfig then
             ConsoleUI.castbar:ReloadConfig()
         end
+
+        if ConsoleUI.config.ApplyUnitFrameScales then
+            ConsoleUI.config:ApplyUnitFrameScales()
+        end
         
         -- Update sidebar binding visibility in config UI
         if ConsoleUI.config.UpdateSidebarBindingVisibility then

@@ -175,7 +175,7 @@ function ActionBars:BarLayoutKind()
 end
 
 function ActionBars:UsesDiamondChrome(button)
-    return self:IsMainBarButton(button) and self:BarLayoutKind() ~= "flat"
+    return self:IsMainBarButton(button) and self:BarLayoutKind() == "controller"
 end
 
 function ActionBars:HideDiamond(button)
@@ -471,7 +471,11 @@ function ActionBars:PlaceControllerPip(button, buttonSize, kind)
     local pip = 22
     local point, px, py = "BOTTOM", 0, 2
     if Layout then
-        pip = Layout.PIP_SIZE or 22
+        if Layout.PipSize then
+            pip = Layout.PipSize(buttonSize, kind)
+        else
+            pip = Layout.PIP_SIZE or 22
+        end
         point, px, py = Layout.PipAnchor(button:GetID(), buttonSize, kind)
     end
     controllerIcon:SetWidth(pip)
@@ -588,7 +592,9 @@ function ActionBars:ApplySquareAppearance(button)
         end
     end
 
-    if self:IsMainBarButton(button) then
+    if self:BarLayoutKind() == "full" then
+        self:PlaceControllerPip(button, buttonSize, "full")
+    elseif self:IsMainBarButton(button) then
         self:PlaceControllerPip(button, buttonSize, "flat")
     end
 end
@@ -618,6 +624,7 @@ end
 function ActionBars:Initialize()
     self:ApplyDefaultBarVisibility()
     self:CreateModifierFrame()
+    self:EnsureFullButtons()
     self:UpdateAllButtons()
     self:CreateSideBars()
     self:InitializeBagBar()
@@ -817,6 +824,81 @@ end
 -- Modifier Key Checking (Page Switching)
 -- ============================================================================
 
+-- ============================================================================
+-- Full layout: two extra controller copies (LB left, LT right)
+-- ============================================================================
+
+function ActionBars:EnsureFullButtons()
+    if self.fullLeft then
+        return
+    end
+    self.fullLeft = {}
+    self.fullRight = {}
+    local i
+    for i = 1, 10 do
+        local left = CreateFrame("CheckButton", "ConsoleActionButtonFullL" .. i, UIParent, "ConsoleActionButtonTemplate")
+        left:SetID(i)
+        left.actionSlot = 20 + i
+        left.fullColumn = "left"
+        left:Hide()
+        self.fullLeft[i] = left
+        local right = CreateFrame("CheckButton", "ConsoleActionButtonFullR" .. i, UIParent, "ConsoleActionButtonTemplate")
+        right:SetID(i)
+        right.actionSlot = 10 + i
+        right.fullColumn = "right"
+        right:Hide()
+        self.fullRight[i] = right
+    end
+end
+
+function ActionBars:IdleFullClone(i)
+    local left = self.fullLeft and self.fullLeft[i]
+    local right = self.fullRight and self.fullRight[i]
+    if left then
+        self:IdleDiamond(left)
+    end
+    if right then
+        self:IdleDiamond(right)
+    end
+end
+
+function ActionBars:ApplyFullAlpha()
+    local kind = self:BarLayoutKind()
+    local i
+    if kind ~= "full" then
+        for i = 1, 10 do
+            local button = getglobal("ConsoleActionButton" .. i)
+            if button then
+                button:SetAlpha(1)
+            end
+        end
+        return
+    end
+    local page = self.currentPage or 1
+    local midA = 0.5
+    local leftA = 0.5
+    local rightA = 0.5
+    if page == 1 or page == 4 then
+        midA = 1
+    elseif page == 3 then
+        leftA = 1
+    elseif page == 2 then
+        rightA = 1
+    end
+    for i = 1, 10 do
+        local mid = getglobal("ConsoleActionButton" .. i)
+        if mid then
+            mid:SetAlpha(midA)
+        end
+        if self.fullLeft and self.fullLeft[i] then
+            self.fullLeft[i]:SetAlpha(leftA)
+        end
+        if self.fullRight and self.fullRight[i] then
+            self.fullRight[i]:SetAlpha(rightA)
+        end
+    end
+end
+
 function ActionBars:CreateModifierFrame()
     -- Create a frame to check modifier keys on update
     if self.modifierFrame then return end
@@ -919,6 +1001,7 @@ function ActionBars:CheckModifiers()
                 -- the leftover action in that slot.
                 self:IdleDiamond(button)
             end
+            self:IdleFullClone(i)
         end
         
         self.currentPage = newPage
@@ -930,12 +1013,7 @@ function ActionBars:CheckModifiers()
     end
 end
 
-function ActionBars:GetActionOffset()
-    -- If using modifier keys (pages 2-4), use those offsets
-    if self.currentPage > 1 then
-        return self.PAGE_OFFSETS[self.currentPage] or self.PAGE_OFFSETS[1]
-    end
-    
+function ActionBars:GetPage1Offset()
     -- For page 1 (no modifier), check for bonus bar (stances/forms)
     -- Warriors: Battle=1, Defensive=2, Berserker=3
     -- Druids: Cat=1, Bear=3, Travel=4, Moonkin=5 (Aquatic uses regular bar)
@@ -982,6 +1060,14 @@ function ActionBars:GetActionOffset()
     
     -- No bonus bar active, use page 1 (slots 1-10)
     return self.PAGE_OFFSETS[1]
+end
+
+function ActionBars:GetActionOffset()
+    -- If using modifier keys (pages 2-4), use those offsets
+    if self.currentPage > 1 then
+        return self.PAGE_OFFSETS[self.currentPage] or self.PAGE_OFFSETS[1]
+    end
+    return self:GetPage1Offset()
 end
 
 -- ============================================================================
@@ -1059,6 +1145,12 @@ function ActionBars:GetActionID(button)
         local name = button:GetName() or ""
         local _, _, num = string.find(name, "(%d+)$")
         id = tonumber(num) or 0
+    end
+    if self:BarLayoutKind() == "full" then
+        if self.currentPage == 4 then
+            return (self.PAGE_OFFSETS[4] or 30) + id
+        end
+        return self:GetPage1Offset() + id
     end
     return self:GetActionOffset() + id
 end
@@ -1163,7 +1255,7 @@ function ActionBars:UpdateButton(button)
     -- Only hide base D-pad buttons on page 1 (no modifiers), and only when in party/raid
     -- Modified D-pad buttons (Shift/Ctrl) should remain visible
     local shouldHideDPad = false
-    if buttonID >= 5 and buttonID <= 8 then
+    if self:IsMainBarButton(button) and buttonID >= 5 and buttonID <= 8 then
         -- Only hide on page 1 (no modifiers)
         local currentPage = self.currentPage or 1
         if currentPage == 1 then
@@ -1198,7 +1290,7 @@ function ActionBars:UpdateButton(button)
     -- Check for proxied actions (like JUMP, AUTORUN, etc.)
     -- These are WoW bindings assigned to controller buttons instead of action bar slots
     local proxiedAction = nil
-    local actionSlot = self:GetActionOffset() + buttonID
+    local actionSlot = self:GetActionID(button)
     
     if ConsoleUI.proxied and ConsoleUI.proxied.IsSlotProxied then
         if ConsoleUI.proxied:IsSlotProxied(actionSlot) then
@@ -2060,7 +2152,14 @@ function ActionBars:UpdateAllButtons()
         if button then
             self:UpdateButton(button)
         end
+        if self.fullLeft and self.fullLeft[i] then
+            self:UpdateButton(self.fullLeft[i])
+        end
+        if self.fullRight and self.fullRight[i] then
+            self:UpdateButton(self.fullRight[i])
+        end
     end
+    self:ApplyFullAlpha()
 end
 
 -- ============================================================================
@@ -2682,10 +2781,6 @@ function ActionBars:UpdateSideBars()
     
     local buttonSize = config:Get("barButtonSize") or 60
     local padding = config:Get("barPadding") or 65
-    local squareStep = padding
-    if self.Layout and self.Layout.SquareStep then
-        squareStep = self.Layout.SquareStep(buttonSize, padding)
-    end
     local appearance = config:Get("barAppearance") or "classic"
     local leftEnabled = config:Get("sideBarLeftEnabled")
     local rightEnabled = config:Get("sideBarRightEnabled")
@@ -2738,46 +2833,46 @@ function ActionBars:UpdateSideBars()
         self.sideBarRightFrame:SetFrameStrata("MEDIUM")
     end
     
-    -- Helper function to update button appearance
-    local function UpdateButtonAppearance(button, touchScale)
-        button:SetWidth(buttonSize)
-        button:SetHeight(buttonSize)
-        button:SetScale(touchScale)
+    -- Helper: scale is baked into pixel size so spacing matches chrome.
+    local function UpdateButtonAppearance(button, size)
+        button:SetWidth(size)
+        button:SetHeight(size)
+        button:SetScale(1)
         
         -- Update icon size
         if button.icon then
             if appearance == "modern" then
-                button.icon:SetWidth(buttonSize - 2)
-                button.icon:SetHeight(buttonSize - 2)
+                button.icon:SetWidth(size - 2)
+                button.icon:SetHeight(size - 2)
             else
-                button.icon:SetWidth(buttonSize - 4)
-                button.icon:SetHeight(buttonSize - 4)
+                button.icon:SetWidth(size - 4)
+                button.icon:SetHeight(size - 4)
             end
         end
         
         -- Update background size
         if button.background then
-            button.background:SetWidth(buttonSize * 1.6)
-            button.background:SetHeight(buttonSize * 1.6)
+            button.background:SetWidth(size * 1.6)
+            button.background:SetHeight(size * 1.6)
         end
         
         -- Update normal texture size
         local normalTex = getglobal(button:GetName() .. "NormalTexture")
         if normalTex then
-            normalTex:SetWidth(buttonSize * 1.6)
-            normalTex:SetHeight(buttonSize * 1.6)
+            normalTex:SetWidth(size * 1.6)
+            normalTex:SetHeight(size * 1.6)
         end
         
         -- Update flash size
         if button.flash then
-            button.flash:SetWidth(buttonSize - 4)
-            button.flash:SetHeight(buttonSize - 4)
+            button.flash:SetWidth(size - 4)
+            button.flash:SetHeight(size - 4)
         end
         
         -- Update cooldown size
         if button.cooldown then
             local defaultCooldownSize = 36
-            local scaleFactor = buttonSize / defaultCooldownSize
+            local scaleFactor = size / defaultCooldownSize
             button.cooldown:SetScale(scaleFactor)
         end
         
@@ -2786,12 +2881,21 @@ function ActionBars:UpdateSideBars()
             self:ApplyButtonAppearance(button)
         end
     end
+
+    local function SideStep(size, scale)
+        local pad = padding * scale
+        if self.Layout and self.Layout.SquareStep then
+            return self.Layout.SquareStep(size, pad)
+        end
+        return pad
+    end
     
     -- Update left side bar
     if leftEnabled then
-        -- Use padding as center-to-center distance (same as main action bar)
-        local totalHeight = (squareStep * leftTouchScale) * (leftCount - 1) + (buttonSize * leftTouchScale)
-        self.sideBarLeftFrame:SetWidth(buttonSize * leftTouchScale)
+        local leftSize = buttonSize * leftTouchScale
+        local leftStep = SideStep(leftSize, leftTouchScale)
+        local totalHeight = leftStep * (leftCount - 1) + leftSize
+        self.sideBarLeftFrame:SetWidth(leftSize)
         self.sideBarLeftFrame:SetHeight(totalHeight)
         self.sideBarLeftFrame:SetScale(1.0)
         self.sideBarLeftFrame:ClearAllPoints()
@@ -2805,10 +2909,9 @@ function ActionBars:UpdateSideBars()
                     self.sideBarLeftButtons[i] = self:CreateSideBarButton(self.sideBarLeftFrame, i, "left")
                 end
                 local button = self.sideBarLeftButtons[i]
-                UpdateButtonAppearance(button, leftTouchScale)
+                UpdateButtonAppearance(button, leftSize)
                 button:ClearAllPoints()
-                -- Position using padding as center-to-center distance, vertically centered
-                local yOffset = -((i - 1) * squareStep * leftTouchScale)
+                local yOffset = -((i - 1) * leftStep)
                 button:SetPoint("TOP", self.sideBarLeftFrame, "TOP", 0, yOffset)
                 button:Show()
                 self:UpdateSideBarButton(button)
@@ -2829,9 +2932,10 @@ function ActionBars:UpdateSideBars()
     
     -- Update right side bar
     if rightEnabled then
-        -- Use padding as center-to-center distance (same as main action bar)
-        local totalHeight = (squareStep * rightTouchScale) * (rightCount - 1) + (buttonSize * rightTouchScale)
-        self.sideBarRightFrame:SetWidth(buttonSize * rightTouchScale)
+        local rightSize = buttonSize * rightTouchScale
+        local rightStep = SideStep(rightSize, rightTouchScale)
+        local totalHeight = rightStep * (rightCount - 1) + rightSize
+        self.sideBarRightFrame:SetWidth(rightSize)
         self.sideBarRightFrame:SetHeight(totalHeight)
         self.sideBarRightFrame:SetScale(1.0)
         self.sideBarRightFrame:ClearAllPoints()
@@ -2845,10 +2949,9 @@ function ActionBars:UpdateSideBars()
                     self.sideBarRightButtons[i] = self:CreateSideBarButton(self.sideBarRightFrame, i, "right")
                 end
                 local button = self.sideBarRightButtons[i]
-                UpdateButtonAppearance(button, rightTouchScale)
+                UpdateButtonAppearance(button, rightSize)
                 button:ClearAllPoints()
-                -- Position using padding as center-to-center distance, vertically centered
-                local yOffset = -((i - 1) * squareStep * rightTouchScale)
+                local yOffset = -((i - 1) * rightStep)
                 button:SetPoint("TOP", self.sideBarRightFrame, "TOP", 0, yOffset)
                 button:Show()
                 self:UpdateSideBarButton(button)

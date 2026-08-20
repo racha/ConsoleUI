@@ -23,7 +23,20 @@ local LABEL_W = 72
 local TOUCH_MAX = 5
 local COL_HEAD_H = 22
 
--- Bonus bar base offset (6 pages * 12 buttons = 72, minus 12 = 60)
+local function GlyphPx()
+    if ConsoleUI.config and ConsoleUI.config.GetGlyphSize then
+        return ConsoleUI.config:GetGlyphSize("ui")
+    end
+    return ICON_SIZE
+end
+
+local function GlyphHeadH()
+    local h = GlyphPx() + 6
+    if h < COL_HEAD_H then
+        return COL_HEAD_H
+    end
+    return h
+end
 local BONUS_BAR_BASE = 60
 
 -- Calculate offset for a given bonus bar number
@@ -447,8 +460,8 @@ function Placement:CreateFrame()
         local btnInfo = self.BUTTON_INFO[btn]
         if btnInfo then
             local headerIcon = pagesCard:CreateTexture(nil, "OVERLAY")
-            headerIcon:SetWidth(ICON_SIZE)
-            headerIcon:SetHeight(ICON_SIZE)
+            headerIcon:SetWidth(GlyphPx())
+            headerIcon:SetHeight(GlyphPx())
             headerIcon:SetTexCoord(0, 1, 0, 1)
             headerIcon:SetTexture(GetIconPath(btnInfo.icon))
             frame.headerIcons[btn] = headerIcon
@@ -508,18 +521,19 @@ function Placement:CreateFrame()
 
         labelContainer.modIcons = {}
         if pageInfo.icons and table.getn(pageInfo.icons) > 0 then
-            local xPos = 0
-            for i = 1, table.getn(pageInfo.icons) do
-                local iconName = pageInfo.icons[i]
-                local modIcon = labelContainer:CreateTexture(nil, "OVERLAY")
-                modIcon:SetWidth(ICON_SIZE)
-                modIcon:SetHeight(ICON_SIZE)
-                modIcon:SetTexCoord(0, 1, 0, 1)
-                modIcon:SetTexture(GetIconPath(iconName))
-                modIcon:SetPoint("LEFT", labelContainer, "LEFT", xPos, 0)
-                labelContainer.modIcons[i] = modIcon
-                xPos = xPos + ICON_SIZE + 2
-            end
+                local glyph = GlyphPx()
+                local xPos = 0
+                for i = 1, table.getn(pageInfo.icons) do
+                    local iconName = pageInfo.icons[i]
+                    local modIcon = labelContainer:CreateTexture(nil, "OVERLAY")
+                    modIcon:SetWidth(glyph)
+                    modIcon:SetHeight(glyph)
+                    modIcon:SetTexCoord(0, 1, 0, 1)
+                    modIcon:SetTexture(GetIconPath(iconName))
+                    modIcon:SetPoint("LEFT", labelContainer, "LEFT", xPos, 0)
+                    labelContainer.modIcons[i] = modIcon
+                    xPos = xPos + glyph + 2
+                end
         end
         self.rowLabels[page] = labelContainer
     end
@@ -576,16 +590,20 @@ function Placement:LayoutPages()
     local gridTop = -CARD_HEAD
     local x0 = CARD_PAD + LABEL_W
 
+    local headH = GlyphHeadH()
+    local glyph = GlyphPx()
     for btn = 1, NUM_BUTTONS do
         local headerIcon = self.frame.headerIcons and self.frame.headerIcons[btn]
         if headerIcon then
+            headerIcon:SetWidth(glyph)
+            headerIcon:SetHeight(glyph)
             local x = x0 + ((btn - 1) * (BUTTON_SIZE + BUTTON_SPACING)) + (BUTTON_SIZE / 2)
             headerIcon:ClearAllPoints()
             headerIcon:SetPoint("TOP", pagesCard, "TOPLEFT", x, gridTop)
         end
     end
 
-    local rowsTop = gridTop - COL_HEAD_H
+    local rowsTop = gridTop - headH
     for page = 1, NUM_PAGES do
         local y = rowsTop - ((page - 1) * (BUTTON_SIZE + BUTTON_SPACING))
         if self.rowLabels and self.rowLabels[page] then
@@ -604,7 +622,7 @@ function Placement:LayoutPages()
         end
     end
 
-    local pagesH = CARD_HEAD + COL_HEAD_H + (BUTTON_SIZE * NUM_PAGES) + (BUTTON_SPACING * math.max(NUM_PAGES - 1, 0)) + CARD_PAD
+    local pagesH = CARD_HEAD + headH + (BUTTON_SIZE * NUM_PAGES) + (BUTTON_SPACING * math.max(NUM_PAGES - 1, 0)) + CARD_PAD
     pagesCard:SetHeight(pagesH)
 end
 
@@ -777,6 +795,7 @@ function Placement:RefreshIcons()
     if not self.PAGE_INFO then return end
     
     local NUM_PAGES = table.getn(self.PAGE_INFO)
+    local glyph = GlyphPx()
     
     -- Update header icons (stored in frame.headerIcons table)
     if self.frame.headerIcons then
@@ -787,6 +806,8 @@ function Placement:RefreshIcons()
                 if btnInfo then
                     headerIcon:SetTexture(GetIconPath(btnInfo.icon))
                 end
+                headerIcon:SetWidth(glyph)
+                headerIcon:SetHeight(glyph)
             end
         end
     end
@@ -796,15 +817,23 @@ function Placement:RefreshIcons()
         if labelContainer and labelContainer.modIcons then
             local pageInfo = self.PAGE_INFO[page]
             if pageInfo and pageInfo.icons then
+                local xPos = 0
                 for i = 1, table.getn(pageInfo.icons) do
                     local iconName = pageInfo.icons[i]
-                    if labelContainer.modIcons[i] then
-                        labelContainer.modIcons[i]:SetTexture(GetIconPath(iconName))
+                    local modIcon = labelContainer.modIcons[i]
+                    if modIcon then
+                        modIcon:SetTexture(GetIconPath(iconName))
+                        modIcon:SetWidth(glyph)
+                        modIcon:SetHeight(glyph)
+                        modIcon:ClearAllPoints()
+                        modIcon:SetPoint("LEFT", labelContainer, "LEFT", xPos, 0)
+                        xPos = xPos + glyph + 2
                     end
                 end
             end
         end
     end
+    self:LayoutPages()
 end
 
 -- ============================================================================

@@ -4,7 +4,7 @@
 
 ConsoleUI is a controller interface for the **original 1.12 Vanilla client**. It puts your spells on the face buttons, opens bags and menus from a stick wheel, and lets you type in chat without a keyboard.
 
-This release is **v1.0.0-RC3.1** — ready to try, still a release candidate.
+This release is **v1.0.0-RC4** — ready to try, still a release candidate.
 
 ---
 
@@ -58,7 +58,7 @@ Follow their install notes (it is a client mod, not only an AddOns folder). Then
 
 ### Settings
 
-Open with `/cui`. Interface, Bars, Bindings, Rings, Profiles, About, Debug.
+Open with `/cui`. Interface, Unit Frames, Bars, Bindings, Rings, Profiles, About, Debug.
 
 ![Settings](screenshots/settings.png)
 
@@ -94,7 +94,7 @@ Point at a cluster, press a face button, type. **A** sends, **B** closes, **X** 
 
 ## Install
 
-1. Download **ConsoleUI-1.0.0-RC3.1.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
+1. Download **ConsoleUI-1.0.0-RC4.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
 2. Open the zip. You will see two folders: `ConsoleUI` and `ConsoleUIKeyboard`.
 3. Copy **both** into:
 
@@ -191,11 +191,15 @@ Open `/cui` → **Interface** and pick **Xbox** or **PlayStation** so the on-scr
 
 ### Action bars
 
-Ten diamonds on the screen: D-pad + RT on the left, Y / X / A / B + RB on the right.
+Ten face / D-pad slots. Hold **LT** or **LB** to change page.
 
-Press the matching pad button to use that slot. Hold **LT** or **LB** to change page.
+`/cui` → **Bars** → **Layout**:
 
-`/cui` → **Bars** if you want them bigger, gold-edged, or moved.
+- **Controller Style** — diamond clusters like the pad
+- **Flat** — one row of squares, active page only
+- **Full** — three square clusters at once (LB | default or LB+LT | LT). The live page is solid; the others fade
+
+`/cui` → **Bars** if you want them bigger, gold-edged, or moved. `/cui` → **Unit Frames** to scale player, target, party, and pets.
 
 ### Quick Menu (the Radial Menu)
 

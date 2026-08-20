@@ -42,6 +42,13 @@ end
 local textPadding = "        "
 
 -- Create button icon textures on GameTooltip
+local function TipGlyph()
+    if ConsoleUI.config and ConsoleUI.config.GetGlyphSize then
+        return ConsoleUI.config:GetGlyphSize("tip")
+    end
+    return 16
+end
+
 local aIcon = GameTooltip:CreateTexture(nil, "OVERLAY")
 aIcon:SetWidth(16)
 aIcon:SetHeight(16)
@@ -82,9 +89,6 @@ local function UpdateIconTextures()
     rbIcon:SetTexture(GetIconPath("rb"))
 end
 
--- Initialize textures on load
-UpdateIconTextures()
-
 -- Map icon names to textures
 local tooltipIcons = {
     ["a"] = aIcon,
@@ -94,6 +98,25 @@ local tooltipIcons = {
     ["lb"] = lbIcon,
     ["rb"] = rbIcon,
 }
+
+function Tooltip:ApplyGlyphSize()
+    local size = TipGlyph()
+    local name, icon
+    for name, icon in pairs(tooltipIcons) do
+        icon:SetWidth(size)
+        icon:SetHeight(size)
+    end
+    if size <= 16 then
+        textPadding = "        "
+    elseif size <= 22 then
+        textPadding = "          "
+    else
+        textPadding = "            "
+    end
+end
+
+UpdateIconTextures()
+Tooltip:ApplyGlyphSize()
 
 -- Hide all tooltip icons
 local function HideAllIcons()
@@ -108,6 +131,7 @@ local function AddPrompts(prompts)
     
     -- Hide all icons first
     HideAllIcons()
+    Tooltip:ApplyGlyphSize()
     
     -- Add separator line
     GameTooltip:AddLine(" ")

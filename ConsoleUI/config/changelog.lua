@@ -11,6 +11,19 @@ local CL = ConsoleUI.changelog
 -- Newest first. version must match the TOC Version string.
 ConsoleUI.CHANGELOG = {
     {
+        version = "1.0.0-RC4",
+        lines = {
+            "Full layout: three square clusters at once (LB, default, LT). Live page is solid, the others fade.",
+            "Full clusters pack 1-2-1 so squares do not overlap.",
+            "Unit Frames page: scale Player, Pet, Target, ToT, party, and party pets.",
+            "Glyph size: Small, Medium, or Large for the on-screen pad icons.",
+            "XP bar uses your class color. Rested stays blue.",
+            "Bar scale grows the whole cluster, not just the icons.",
+            "Esc menu: ConsoleUI sits at the bottom. Shop, Options, and Quit stay put.",
+            "AddOn list title now reads ConsoleUI by HouseLegend.",
+        },
+    },
+    {
         version = "1.0.0-RC3.1",
         lines = {
             "Esc menu no longer errors with Turtle Shop / Donation Rewards.",
@@ -62,9 +75,9 @@ end
 
 function CL.CurrentVersion()
     if GetAddOnMetadata then
-        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC3.1"
+        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4"
     end
-    return "1.0.0-RC3.1"
+    return "1.0.0-RC4"
 end
 
 function CL.EntriesSince(last, all)

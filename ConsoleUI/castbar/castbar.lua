@@ -518,10 +518,10 @@ function CastBar:ReloadConfig()
     
     -- Update position and color
     self:UpdatePosition()
-    self:UpdateColor()
     if config.PaintStatusBarChrome then
         config:PaintStatusBarChrome(self.castBar)
     end
+    self:UpdateColor()
     
     -- Re-register events if needed
     if self.castBar and not self.castBar.eventsRegistered then

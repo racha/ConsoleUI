@@ -28,6 +28,15 @@ local function round(num)
     return math.floor(num + 0.5)
 end
 
+local function GetPlayerClassColor()
+    local _, class = UnitClass("player")
+    local c = RAID_CLASS_COLORS and class and RAID_CLASS_COLORS[class]
+    if c then
+        return c.r, c.g, c.b
+    end
+    return 0.0, 1.0, 0.0
+end
+
 local function GetStringColor(colorString)
     -- Parse color string like "1.0,1.0,1.0,1.0" or "r,g,b,a"
     -- Manual split for WoW 1.12 compatibility (strsplit not available)
@@ -283,24 +292,19 @@ local function OnEvent()
         -- Set bar values
         self.bar:SetMinMaxValues(0, xpmax)
         self.bar:SetValue(xp)
+        local cr, cg, cb = GetPlayerClassColor()
+        self.bar:SetStatusBarColor(cr, cg, cb, 1.0)
         
-        -- Set rested bar and XP bar color based on rested status
         if ex and ex > 0 then
-            -- Has rested XP - show rested bar and use blue color
             if self.restedbar then
                 self.restedbar:Show()
                 self.restedbar:SetMinMaxValues(0, xpmax)
                 self.restedbar:SetValue(xp + ex)
             end
-            -- Blue color when rested
-            self.bar:SetStatusBarColor(0.0, 0.5, 1.0, 1.0)
         else
-            -- No rested XP - hide rested bar and use purple color
             if self.restedbar then
                 self.restedbar:Hide()
             end
-            -- Purple color when not rested
-            self.bar:SetStatusBarColor(0.6, 0.0, 0.8, 1.0)
         end
         
         -- Set text
@@ -333,6 +337,8 @@ local function OnEvent()
         local currXP, nextXP = GetPetExperience()
         self.bar:SetMinMaxValues(math.min(0, currXP), nextXP)
         self.bar:SetValue(currXP)
+        local cr, cg, cb = GetPlayerClassColor()
+        self.bar:SetStatusBarColor(cr, cg, cb, 1.0)
         
         local text = "%s: %s%%"
         local xpperc = nextXP and nextXP ~= 0 and round(currXP / nextXP * 100) or 0
@@ -487,7 +493,6 @@ function XPBar:CreateBar(barType)
     self:ReloadBarConfig(b, barType)
     
     -- Get colors (WoW default colors)
-    local xp_color = config:Get("xpBarColor") or "0.0,1.0,0.0,1.0"
     local rest_color = config:Get("xpBarRestColor") or "0.0,0.5,1.0,1.0"
     
     local barLevel, restedLevel = 0, 1
@@ -511,8 +516,8 @@ function XPBar:CreateBar(barType)
     
     -- Set bar color based on bar type
     if barType == "XP" then
-        -- Default to purple (not rested) - will be updated dynamically based on rested status
-        b.bar:SetStatusBarColor(0.6, 0.0, 0.8, 1.0)
+        local cr, cg, cb = GetPlayerClassColor()
+        b.bar:SetStatusBarColor(cr, cg, cb, 1.0)
     else
         -- REP bar default color (green, matching WoW default UI)
         -- Will be overridden dynamically based on faction standing
@@ -680,6 +685,31 @@ function XPBar:UpdateAllBars()
     if ConsoleUI.castbar and ConsoleUI.castbar.UpdatePosition then
         ConsoleUI.castbar:UpdatePosition()
     end
+    self:RefreshFills()
+end
+
+function XPBar:RefreshFills()
+    if self._refreshing then
+        return
+    end
+    self._refreshing = true
+    local prev = event
+    if self.xpBar and self.xpBar.GetScript then
+        local fn = self.xpBar:GetScript("OnEvent")
+        if fn then
+            event = "PLAYER_XP_UPDATE"
+            fn(self.xpBar)
+        end
+    end
+    if self.repBar and self.repBar.GetScript then
+        local fn = self.repBar:GetScript("OnEvent")
+        if fn then
+            event = "UPDATE_FACTION"
+            fn(self.repBar)
+        end
+    end
+    event = prev
+    self._refreshing = nil
 end
 
 -- ============================================================================

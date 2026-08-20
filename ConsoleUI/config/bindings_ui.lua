@@ -128,12 +128,22 @@ end
 
 function Config:RefreshBindingIcons()
     if not self.bindingInputRows then return end
+    local size = 18
+    if self.GetGlyphSize then
+        size = self:GetGlyphSize("ui")
+    end
     local i
     for i = 1, table.getn(self.bindingInputRows) do
         local row = self.bindingInputRows[i]
         if row and row.iconName and row.icon then
             row.icon:SetTexture(self:GetControllerIconPath(row.iconName))
+            row.icon:SetWidth(size)
+            row.icon:SetHeight(size)
         end
+    end
+    if self.selectedBindIcon then
+        self.selectedBindIcon:SetWidth(size)
+        self.selectedBindIcon:SetHeight(size)
     end
     if self.selectedBindSlot then
         local row = self.bindingInputBySlot and self.bindingInputBySlot[self.selectedBindSlot]
@@ -336,8 +346,12 @@ function Config:CreateBindingsSection()
     selected:SetBackdropBorderColor(unpack(self.UI_COLORS.border))
 
     local selectedIcon = selected:CreateTexture(nil, "ARTWORK")
-    selectedIcon:SetWidth(20)
-    selectedIcon:SetHeight(20)
+    local selectedSize = 20
+    if self.GetGlyphSize then
+        selectedSize = self:GetGlyphSize("ui")
+    end
+    selectedIcon:SetWidth(selectedSize)
+    selectedIcon:SetHeight(selectedSize)
     selectedIcon:SetPoint("LEFT", selected, "LEFT", 8, 0)
     self.selectedBindIcon = selectedIcon
 
@@ -379,8 +393,12 @@ function Config:CreateBindingsSection()
             row.inputName = spec.name
             row.iconName = spec.iconName
             local icon = row:CreateTexture(nil, "ARTWORK")
-            icon:SetWidth(18)
-            icon:SetHeight(18)
+            local iconSize = 18
+            if self.GetGlyphSize then
+                iconSize = self:GetGlyphSize("ui")
+            end
+            icon:SetWidth(iconSize)
+            icon:SetHeight(iconSize)
             icon:SetPoint("LEFT", row, "LEFT", 6, 0)
             if spec.iconName then
                 icon:SetTexture(self:GetControllerIconPath(spec.iconName))

@@ -25,6 +25,7 @@ Config.DEFAULTS = {
     crosshairColorB = 1.0,    -- Blue component (0-1)
     crosshairColorA = 0.8,    -- Alpha component (0-1)
     controllerType = "xbox",  -- "xbox" or "ps"
+    controllerGlyphSize = "small",  -- "small" | "medium" | "large"
     healerMode = false,  -- Healer mode (affects targeting and gameplay)
     -- Action Bar settings
     barButtonSize = 82,
@@ -35,7 +36,7 @@ Config.DEFAULTS = {
     barScale = 1.0,
     -- Sidebars only. Main 1-10 are diamonds.
     barAppearance = "classic",
-    -- controller = Controller Style. flat = Flat (one row).
+    -- controller = diamonds. flat = one row of squares. full = three square clusters.
     barLayout = "controller",
     barGoldBorder = false,
     barGoldColorR = 1.00,
@@ -158,6 +159,10 @@ function Config:InitializeDB()
     if ConsoleUI.castbar and ConsoleUI.castbar.ReloadConfig then
         ConsoleUI.castbar:ReloadConfig()
     end
+
+    if self.InitializeUnitFrameScales then
+        self:InitializeUnitFrameScales()
+    end
     
 end
 
@@ -255,6 +260,41 @@ Config.BACKDROP_FLAT = {
     insets = { left = 2, right = 2, top = 2, bottom = 2 },
 }
 
+-- Xbox/PS/D-pad glyphs. small = current 22px HUD pip.
+Config.GLYPH_PX = {
+    small = { hud = 22, ui = 18, tip = 16 },
+    medium = { hud = 32, ui = 24, tip = 22 },
+    large = { hud = 44, ui = 28, tip = 28 },
+}
+
+function Config:GetGlyphSize(kind)
+    kind = kind or "hud"
+    local key = "small"
+    if self.Get then
+        key = self:Get("controllerGlyphSize") or "small"
+    end
+    local row = self.GLYPH_PX[key] or self.GLYPH_PX.small
+    return row[kind] or row.hud
+end
+
+function Config:ApplyControllerGlyphs()
+    if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
+        ConsoleUI.actionbars:UpdateAllButtons()
+    end
+    if self.UpdateActionBarLayout then
+        self:UpdateActionBarLayout()
+    end
+    if ConsoleUI.placement and ConsoleUI.placement.RefreshIcons then
+        ConsoleUI.placement:RefreshIcons()
+    end
+    if self.RefreshBindingIcons then
+        self:RefreshBindingIcons()
+    end
+    if ConsoleUI.cursor and ConsoleUI.cursor.tooltip and ConsoleUI.cursor.tooltip.ApplyGlyphSize then
+        ConsoleUI.cursor.tooltip:ApplyGlyphSize()
+    end
+end
+
 function Config:Paint(parent, layer, r, g, b, a)
     local tex = parent:CreateTexture(nil, layer)
     tex:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
@@ -283,7 +323,8 @@ end
 
 -- Thin HUD bars cannot use tooltip 9-slice (edgeSize 10 eats a 20px frame).
 -- Track + 2px rim on a higher child frame so the fill never covers the border.
-Config.STATUS_BAR_FILL = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\StatusFill.tga"
+-- 1.12 crops this by texture width. Custom TGA + SetTexCoord shows full white.
+Config.STATUS_BAR_FILL = "Interface\\TargetingFrame\\UI-StatusBar"
 Config.STATUS_BAR_SOLID = "Interface\\Tooltips\\UI-Tooltip-Background"
 Config.STATUS_BAR_INSET = 3
 Config.STATUS_BAR_RIM = 2
@@ -341,12 +382,13 @@ function Config:PaintStatusBarFill(bar)
     if not bar or not bar.SetStatusBarTexture then
         return
     end
+    local r, g, b, a = 1, 1, 1, 1
+    if bar.GetStatusBarColor then
+        r, g, b, a = bar:GetStatusBarColor()
+    end
     bar:SetStatusBarTexture(self.STATUS_BAR_FILL)
-    if bar.GetStatusBarTexture then
-        local tex = bar:GetStatusBarTexture()
-        if tex and tex.SetTexCoord then
-            tex:SetTexCoord(0, 1, 0, 1)
-        end
+    if bar.SetStatusBarColor then
+        bar:SetStatusBarColor(r or 1, g or 1, b or 1, a or 1)
     end
 end
 
@@ -511,6 +553,7 @@ end
 -- Section definitions
 Config.SECTIONS = {
     { id = "interface", name = "Interface" },
+    { id = "unitframes", name = "Unit Frames" },
     { id = "bars", name = "Bars" },
     { id = "bindings", name = "Bindings" },
     { id = "rings", name = "Rings" },
@@ -774,6 +817,10 @@ function Config:CreateContentSections()
     
     -- Create Interface section
     self:CreateInterfaceSection()
+
+    if self.CreateUnitFramesSection then
+        self:CreateUnitFramesSection()
+    end
     
     -- Create Bars section
     self:CreateBarsSection()
@@ -805,7 +852,7 @@ function Config:CreateInterfaceSection()
     -- ==================== General Settings Box ====================
     local generalBox = self:CreateSectionBox(section, T("General"))
     generalBox:SetPoint("TOP", section, "TOP", 0, -6)
-    generalBox:SetHeight(136)
+    generalBox:SetHeight(180)
     generalBox.heightCalculated = true
 
     local controllerTypeLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -828,15 +875,7 @@ function Config:CreateInterfaceSection()
             UIDropDownMenu_SetSelectedValue(controllerTypeDropdown, "xbox")
             UIDropDownMenu_SetText("Xbox", controllerTypeDropdown)
             Config:Set("controllerType", "xbox")
-            if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
-                ConsoleUI.actionbars:UpdateAllButtons()
-            end
-            if ConsoleUI.placement and ConsoleUI.placement.RefreshIcons then
-                ConsoleUI.placement:RefreshIcons()
-            end
-            if Config.RefreshBindingIcons then
-                Config:RefreshBindingIcons()
-            end
+            Config:ApplyControllerGlyphs()
         end
         if info.value == selectedValue then
             info.checked = 1
@@ -850,15 +889,7 @@ function Config:CreateInterfaceSection()
             UIDropDownMenu_SetSelectedValue(controllerTypeDropdown, "ps")
             UIDropDownMenu_SetText("PlayStation", controllerTypeDropdown)
             Config:Set("controllerType", "ps")
-            if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
-                ConsoleUI.actionbars:UpdateAllButtons()
-            end
-            if ConsoleUI.placement and ConsoleUI.placement.RefreshIcons then
-                ConsoleUI.placement:RefreshIcons()
-            end
-            if Config.RefreshBindingIcons then
-                Config:RefreshBindingIcons()
-            end
+            Config:ApplyControllerGlyphs()
         end
         if info.value == selectedValue then
             info.checked = 1
@@ -871,6 +902,56 @@ function Config:CreateInterfaceSection()
     local currentControllerType = Config:Get("controllerType") or "xbox"
     UIDropDownMenu_SetSelectedValue(controllerTypeDropdown, currentControllerType)
     UIDropDownMenu_SetText(currentControllerType == "xbox" and "Xbox" or "PlayStation", controllerTypeDropdown)
+
+    local glyphLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    glyphLabel:SetPoint("TOPLEFT", controllerTypeDropdown, "BOTTOMLEFT", 16, -4)
+    glyphLabel:SetText(T("Glyph size"))
+    glyphLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+
+    local glyphDropdown = CreateFrame("Frame", "ConsoleUIConfigGlyphSizeDropdown", generalBox, "UIDropDownMenuTemplate")
+    glyphDropdown:SetPoint("TOPLEFT", glyphLabel, "BOTTOMLEFT", -16, -2)
+
+    local function GlyphSizeLabel(value)
+        if value == "medium" then
+            return T("Medium")
+        end
+        if value == "large" then
+            return T("Large")
+        end
+        return T("Small")
+    end
+
+    local function MakeGlyphFunc(value)
+        return function()
+            UIDropDownMenu_SetSelectedValue(glyphDropdown, value)
+            UIDropDownMenu_SetText(GlyphSizeLabel(value), glyphDropdown)
+            Config:Set("controllerGlyphSize", value)
+            Config:ApplyControllerGlyphs()
+        end
+    end
+
+    local function InitializeGlyphSizeDropdown()
+        local selectedValue = UIDropDownMenu_GetSelectedValue(glyphDropdown) or (Config:Get("controllerGlyphSize") or "small")
+        local keys = { "small", "medium", "large" }
+        local i
+        for i = 1, table.getn(keys) do
+            local value = keys[i]
+            local info = {}
+            info.text = GlyphSizeLabel(value)
+            info.value = value
+            info.func = MakeGlyphFunc(value)
+            if info.value == selectedValue then
+                info.checked = 1
+            end
+            UIDropDownMenu_AddButton(info)
+        end
+    end
+
+    UIDropDownMenu_Initialize(glyphDropdown, InitializeGlyphSizeDropdown)
+    UIDropDownMenu_SetWidth(120, glyphDropdown)
+    local currentGlyph = Config:Get("controllerGlyphSize") or "small"
+    UIDropDownMenu_SetSelectedValue(glyphDropdown, currentGlyph)
+    UIDropDownMenu_SetText(GlyphSizeLabel(currentGlyph), glyphDropdown)
     
     local healerModeCheck = self:CreateCheckbox(generalBox, T("Healer Mode"),
         function() return Config:Get("healerMode") end,
@@ -913,7 +994,7 @@ function Config:CreateInterfaceSection()
     hideBarsCheck:SetPoint("TOPLEFT", dropdownNavCheck, "BOTTOMLEFT", 0, 2)
     
     local langLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    langLabel:SetPoint("TOPLEFT", controllerTypeDropdown, "BOTTOMLEFT", 16, -4)
+    langLabel:SetPoint("TOPLEFT", glyphDropdown, "BOTTOMLEFT", 16, -4)
     langLabel:SetText(T("Language"))
     langLabel:SetTextColor(unpack(self.UI_COLORS.muted))
     
@@ -1260,6 +1341,16 @@ function Config:CreateBarsSection()
     local layoutDropdown = CreateFrame("Frame", "ConsoleUIConfigBarLayoutDropdown", generalBox, "UIDropDownMenuTemplate")
     layoutDropdown:SetPoint("LEFT", layoutLabel, "RIGHT", -15, -3)
     
+    local function LayoutLabel(value)
+        if value == "flat" then
+            return T("Flat")
+        end
+        if value == "full" then
+            return T("Full")
+        end
+        return T("Controller Style")
+    end
+
     local function InitializeLayoutDropdown()
         local selectedValue = UIDropDownMenu_GetSelectedValue(layoutDropdown) or (Config:Get("barLayout") or "controller")
         local info
@@ -1285,13 +1376,24 @@ function Config:CreateBarsSection()
         end
         if info.value == selectedValue then info.checked = 1 end
         UIDropDownMenu_AddButton(info)
+        info = {}
+        info.text = T("Full")
+        info.value = "full"
+        info.func = function()
+            UIDropDownMenu_SetSelectedValue(layoutDropdown, "full")
+            UIDropDownMenu_SetText(T("Full"), layoutDropdown)
+            Config:Set("barLayout", "full")
+            Config:UpdateActionBarLayout()
+        end
+        if info.value == selectedValue then info.checked = 1 end
+        UIDropDownMenu_AddButton(info)
     end
     
     UIDropDownMenu_Initialize(layoutDropdown, InitializeLayoutDropdown)
     UIDropDownMenu_SetWidth(130, layoutDropdown)
     local currentLayout = Config:Get("barLayout") or "controller"
     UIDropDownMenu_SetSelectedValue(layoutDropdown, currentLayout)
-    UIDropDownMenu_SetText(currentLayout == "flat" and T("Flat") or T("Controller Style"), layoutDropdown)
+    UIDropDownMenu_SetText(LayoutLabel(currentLayout), layoutDropdown)
 
     local goldLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     goldLabel:SetPoint("TOP", layoutLabel, "TOP", 0, 0)
@@ -1565,7 +1667,7 @@ function Config:CreateBarsSection()
         UpdateGoldColorPreview()
         local defLayout = Config.DEFAULTS.barLayout or "controller"
         UIDropDownMenu_SetSelectedValue(layoutDropdown, defLayout)
-        UIDropDownMenu_SetText(defLayout == "flat" and T("Flat") or T("Controller Style"), layoutDropdown)
+        UIDropDownMenu_SetText(LayoutLabel(defLayout), layoutDropdown)
         ConsoleUI_Debug("Action bar layout reset to defaults")
     end)
     
@@ -1588,7 +1690,7 @@ function Config:CreateBarsSection()
             layoutBtn:Enable()
             layoutBtn:Show()
             layoutBtn.label = T("Layout")
-            layoutBtn.tooltipText = T("Controller Style is the d-pad / face clusters with RT and RB outside. Flat is one row.")
+            layoutBtn.tooltipText = T("Controller Style is diamonds. Flat is one row of squares. Full shows LB, default, and LT clusters at once.")
         end
         if ConsoleUI.cursor and ConsoleUI.cursor.RefreshFrame then
             ConsoleUI.cursor:RefreshFrame()
@@ -2430,7 +2532,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC3.1"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -3060,94 +3162,38 @@ function Config:LayoutGameMenuButton()
     if not ours or not GameMenuFrame then
         return
     end
-    local ui = GameMenuButtonUIOptions or GameMenuButtonOptions
-    if not ui then
-        return
-    end
-    -- Stock chain. Do not treat Quit/Exit as extras — Turtle Shop sits
-    -- above Quit, and SetPoint(Shop, Quit) errors if Quit still points at Shop.
-    local skip = {
-        GameMenuButtonContinue = true,
-        GameMenuButtonOptions = true,
-        GameMenuButtonSoundOptions = true,
-        GameMenuButtonUIOptions = true,
-        GameMenuButtonKeybindings = true,
-        GameMenuButtonMacros = true,
-        GameMenuButtonAddOns = true,
-        GameMenuButtonLogout = true,
-        GameMenuButtonQuit = true,
-        GameMenuButtonExit = true,
-    }
-    local extras = {}
+    -- Do not ClearAllPoints / SetPoint any other menu button. Turtle Shop,
+    -- Shagu Advanced Options, and stock Continue/Quit stay where they are.
     local children = {GameMenuFrame:GetChildren()}
+    local bottom, bottomY
     local i
     for i = 1, table.getn(children) do
         local child = children[i]
-        if child and child.GetObjectType and child:GetObjectType() == "Button" and child:IsVisible() then
-            local name = child:GetName()
-            if name and not skip[name] then
-                extras[table.getn(extras) + 1] = child
+        if child and child ~= ours and child.GetObjectType and child:GetObjectType() == "Button" then
+            local visible = true
+            if child.IsShown then
+                visible = child:IsShown()
+            end
+            if visible and child.GetBottom then
+                local y = child:GetBottom()
+                if y and (not bottomY or y < bottomY) then
+                    bottomY = y
+                    bottom = child
+                end
             end
         end
     end
-    local hasOurs = false
-    for i = 1, table.getn(extras) do
-        if extras[i] == ours then
-            hasOurs = true
-            break
-        end
+    if not bottom then
+        bottom = GameMenuButtonContinue or GameMenuButtonExit or GameMenuButtonQuit or GameMenuButtonShop or GameMenuButtonOptions
     end
-    if not hasOurs then
-        extras[table.getn(extras) + 1] = ours
+    if not bottom then
+        return
     end
-    table.sort(extras, function(a, b)
-        if a == b then
-            return false
-        end
-        if a == ours then
-            return true
-        end
-        if b == ours then
-            return false
-        end
-        local an = (a.GetName and a:GetName()) or ""
-        local bn = (b.GetName and b:GetName()) or ""
-        return an < bn
-    end)
-    local tail = {
-        GameMenuButtonKeybindings,
-        GameMenuButtonMacros,
-        GameMenuButtonAddOns,
-        GameMenuButtonLogout,
-        GameMenuButtonQuit,
-        GameMenuButtonExit,
-    }
-    for i = 1, table.getn(extras) do
-        extras[i]:ClearAllPoints()
-    end
-    for i = 1, table.getn(tail) do
-        if tail[i] then
-            tail[i]:ClearAllPoints()
-        end
-    end
-    local prev = ui
-    for i = 1, table.getn(extras) do
-        extras[i]:SetPoint("TOP", prev, "BOTTOM", 0, -1)
-        prev = extras[i]
-    end
-    for i = 1, table.getn(tail) do
-        local btn = tail[i]
-        if btn and (not btn.IsVisible or btn:IsVisible()) then
-            btn:SetPoint("TOP", prev, "BOTTOM", 0, -1)
-            prev = btn
-        end
-    end
-    local topBtn = GameMenuButtonContinue or ui
-    if topBtn and prev and topBtn.GetTop and prev.GetBottom then
-        local top, bot = topBtn:GetTop(), prev:GetBottom()
-        if top and bot then
-            GameMenuFrame:SetHeight((top - bot) + 28)
-        end
+    ours:ClearAllPoints()
+    ours:SetPoint("TOP", bottom, "BOTTOM", 0, -1)
+    if not self.gameMenuGrew then
+        GameMenuFrame:SetHeight(GameMenuFrame:GetHeight() + 22)
+        self.gameMenuGrew = true
     end
 end
 
@@ -3160,7 +3206,9 @@ function Config:HookGameMenuLayout()
     wait:Hide()
     wait:SetScript("OnUpdate", function()
         this:Hide()
-        Config:LayoutGameMenuButton()
+        pcall(function()
+            Config:LayoutGameMenuButton()
+        end)
     end)
     local previous = GameMenuFrame:GetScript("OnShow")
     GameMenuFrame:SetScript("OnShow", function()
@@ -3183,7 +3231,9 @@ function Config:CreateGameMenuButton()
         HideUIPanel(GameMenuFrame)
     end)
     self:HookGameMenuLayout()
-    self:LayoutGameMenuButton()
+    pcall(function()
+        self:LayoutGameMenuButton()
+    end)
 end
 
 -- Helper function to recursively find all buttons and dropdowns in a frame
@@ -3323,9 +3373,6 @@ function Config:ApplyPfUIStylingToMainMenuButton()
         end)
     end
 end
-
--- Create the game menu button when the addon loads
-Config:CreateGameMenuButton()
 
 -- Apply pfUI styling after pfUI loads (check periodically)
 local pfUICheckFrame = CreateFrame("Frame")
@@ -3664,15 +3711,35 @@ Config.FLAT_LAYOUT = {
 }
 
 function Config:UpdateActionBarLayout()
+    local scale = self:Get("barScale") or 1.0
     local buttonSize = self:Get("barButtonSize") or 82
     local padding = self:Get("barPadding") or 65
     local starPadding = self:Get("barStarPadding") or 200
+    local flankGap = self:Get("barFlankGap") or 50
     local xOffset = self:Get("barXOffset") or 0
     local yOffset = self:Get("barYOffset") or 70
-    local scale = self:Get("barScale") or 1.0
     local layout = self:Get("barLayout") or "controller"
-    local flankGap = self:Get("barFlankGap") or 50
     local Layout = ConsoleUI.actionbars and ConsoleUI.actionbars.Layout
+    if Layout and Layout.ApplyScale then
+        buttonSize, padding, starPadding, flankGap = Layout.ApplyScale(
+            buttonSize, padding, starPadding, flankGap, scale)
+    else
+        buttonSize = buttonSize * scale
+        padding = padding * scale
+        starPadding = starPadding * scale
+        flankGap = flankGap * scale
+    end
+    if layout == "full" and Layout and Layout.FullFit then
+        local uiW = 1920
+        if UIParent and UIParent.GetWidth then
+            uiW = UIParent:GetWidth() or uiW
+        end
+        local fitted, fittedGap = Layout.FullFit(buttonSize, flankGap, uiW)
+        buttonSize = fitted
+        if fittedGap then
+            flankGap = fittedGap
+        end
+    end
     local metrics = nil
     if Layout then
         metrics = Layout.Metrics(buttonSize, flankGap)
@@ -3684,70 +3751,88 @@ function Config:UpdateActionBarLayout()
     self.starYOffset = yOffset
 
     local id
-    for id = 1, 10 do
-        local button = getglobal("ConsoleActionButton" .. id)
-        if button and button:IsVisible() ~= nil then
-            local world
-            if Layout then
-                world = Layout.World(id, layout, metrics, padding, starPadding, xOffset, yOffset)
+    local bars = ConsoleUI.actionbars
+    local function place(button, btnId, col)
+        if not button then
+            return
+        end
+        local world
+        if Layout then
+            world = Layout.World(btnId, layout, metrics, padding, starPadding, xOffset, yOffset, col)
+        else
+            world = { x = 0, y = yOffset }
+        end
+        button:ClearAllPoints()
+        button:SetPoint("BOTTOM", UIParent, "BOTTOM", world.x, world.y)
+        button:SetWidth(buttonSize)
+        button:SetHeight(buttonSize)
+        button:SetScale(1)
+        local icon = getglobal(button:GetName() .. "Icon")
+        if icon then
+            local appearance = self:Get("barAppearance") or "classic"
+            if appearance == "modern" then
+                icon:SetWidth(buttonSize - 2)
+                icon:SetHeight(buttonSize - 2)
             else
-                world = { x = 0, y = yOffset }
+                icon:SetWidth(buttonSize - 4)
+                icon:SetHeight(buttonSize - 4)
             end
-            local buttonX = world.x
-            local buttonY = world.y
-            
-            button:ClearAllPoints()
-            button:SetPoint("BOTTOM", UIParent, "BOTTOM", buttonX, buttonY)
-            button:SetWidth(buttonSize)
-            button:SetHeight(buttonSize)
-            button:SetScale(scale)
-            
-            -- Update child elements to match new size
-            local icon = getglobal(button:GetName() .. "Icon")
-            if icon then
-                -- For modern appearance, icon size will be adjusted below
-                -- For classic, use full size minus padding
-                local appearance = self:Get("barAppearance") or "classic"
-                if appearance == "modern" then
-                    icon:SetWidth(buttonSize - 2)
-                    icon:SetHeight(buttonSize - 2)
-                else
-                    icon:SetWidth(buttonSize - 4)
-                    icon:SetHeight(buttonSize - 4)
+        end
+        local bg = getglobal(button:GetName() .. "Background")
+        if bg then
+            bg:SetWidth(buttonSize * 1.6)
+            bg:SetHeight(buttonSize * 1.6)
+        end
+        local normalTex = getglobal(button:GetName() .. "NormalTexture")
+        if normalTex then
+            normalTex:SetWidth(buttonSize * 1.6)
+            normalTex:SetHeight(buttonSize * 1.6)
+        end
+        if bars and bars.ApplyButtonAppearance then
+            bars:ApplyButtonAppearance(button)
+        end
+        local cooldown = getglobal(button:GetName() .. "Cooldown")
+        if cooldown then
+            local defaultCooldownSize = 36
+            local scaleFactor = buttonSize / defaultCooldownSize
+            cooldown:SetScale(scaleFactor)
+            cooldown:ClearAllPoints()
+            cooldown:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
+            cooldown:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
+        end
+        button:Show()
+    end
+
+    if layout == "full" then
+        if bars and bars.EnsureFullButtons then
+            bars:EnsureFullButtons()
+        end
+        for id = 1, 10 do
+            place(getglobal("ConsoleActionButton" .. id), id, 0)
+            if bars and bars.fullLeft then
+                place(bars.fullLeft[id], id, -1)
+                place(bars.fullRight[id], id, 1)
+            end
+        end
+        if bars and bars.ApplyFullAlpha then
+            bars:ApplyFullAlpha()
+        end
+    else
+        if bars and bars.fullLeft then
+            for id = 1, 10 do
+                if bars.fullLeft[id] then
+                    bars.fullLeft[id]:Hide()
+                end
+                if bars.fullRight[id] then
+                    bars.fullRight[id]:Hide()
                 end
             end
-            
-            local bg = getglobal(button:GetName() .. "Background")
-            if bg then
-                bg:SetWidth(buttonSize * 1.6)
-                bg:SetHeight(buttonSize * 1.6)
-            end
-            
-            local normalTex = getglobal(button:GetName() .. "NormalTexture")
-            if normalTex then
-                normalTex:SetWidth(buttonSize * 1.6)
-                normalTex:SetHeight(buttonSize * 1.6)
-            end
-            
-            -- Apply button appearance styling (delegated to actionbars module)
-            if ConsoleUI.actionbars and ConsoleUI.actionbars.ApplyButtonAppearance then
-                ConsoleUI.actionbars:ApplyButtonAppearance(button)
-            end
-            
-            -- Update cooldown to match button size using scale
-            -- Default cooldown size in WoW is typically 36 pixels
-            -- Scale it to match buttonSize, then anchor it to fill the button
-            local cooldown = getglobal(button:GetName() .. "Cooldown")
-            if cooldown then
-                local defaultCooldownSize = 36
-                local scaleFactor = buttonSize / defaultCooldownSize
-                
-                -- Scale the cooldown to match button size
-                cooldown:SetScale(scaleFactor)
-                cooldown:ClearAllPoints()
-                -- Use TOPLEFT/BOTTOMRIGHT to fill the button area
-                cooldown:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
-                cooldown:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
+        end
+        for id = 1, 10 do
+            local button = getglobal("ConsoleActionButton" .. id)
+            place(button, id)
+            if button then
+                button:SetAlpha(1)
             end
         end
     end
@@ -3756,12 +3841,16 @@ function Config:UpdateActionBarLayout()
     if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
         ConsoleUI.actionbars:UpdateSideBars()
     end
-    if ConsoleUI.xpbar then
-        self:PaintStatusBarChrome(ConsoleUI.xpbar.xpBar)
-        self:PaintStatusBarChrome(ConsoleUI.xpbar.repBar)
+    if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
+        ConsoleUI.xpbar:UpdateAllBars()
     end
     if ConsoleUI.castbar then
-        self:PaintStatusBarChrome(ConsoleUI.castbar.castBar)
+        if ConsoleUI.castbar.castBar then
+            self:PaintStatusBarChrome(ConsoleUI.castbar.castBar)
+        end
+        if ConsoleUI.castbar.UpdateColor then
+            ConsoleUI.castbar:UpdateColor()
+        end
     end
 end
 
@@ -3844,3 +3933,7 @@ SlashCmdList["CONSOLEUIHEALER"] = function(msg)
         ConsoleUI_Print("Healer mode is already: " .. (currentValue and "ENABLED" or "DISABLED"))
     end
 end
+
+-- After UpdateActionBarLayout / UpdateCrosshair exist. A SetPoint error
+-- here must not abort the rest of this file.
+Config:CreateGameMenuButton()
