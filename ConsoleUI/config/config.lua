@@ -36,7 +36,7 @@ Config.DEFAULTS = {
     barScale = 1.0,
     -- Sidebars only. Main 1-10 are diamonds.
     barAppearance = "classic",
-    -- controller = diamonds. flat = one row of squares. full = three square clusters.
+    -- controller = diamonds. flat = one row of squares. full = three diamond controller sets.
     barLayout = "controller",
     barGoldBorder = false,
     barGoldColorR = 1.00,
@@ -382,14 +382,9 @@ function Config:PaintStatusBarFill(bar)
     if not bar or not bar.SetStatusBarTexture then
         return
     end
-    local r, g, b, a = 1, 1, 1, 1
-    if bar.GetStatusBarColor then
-        r, g, b, a = bar:GetStatusBarColor()
-    end
+    -- 1.12 SetStatusBarTexture resets color to white. Do not paint a
+    -- fallback white here. Callers re-apply fill color after chrome.
     bar:SetStatusBarTexture(self.STATUS_BAR_FILL)
-    if bar.SetStatusBarColor then
-        bar:SetStatusBarColor(r or 1, g or 1, b or 1, a or 1)
-    end
 end
 
 function Config:PaintStatusBarChrome(frame)
@@ -457,8 +452,13 @@ function Config:ApplyHudBorderChrome()
         paintSide(bars.sideBarRightButtons)
     end
     if ConsoleUI.xpbar then
-        self:PaintStatusBarChrome(ConsoleUI.xpbar.xpBar)
-        self:PaintStatusBarChrome(ConsoleUI.xpbar.repBar)
+        if ConsoleUI.xpbar.PaintChrome then
+            ConsoleUI.xpbar:PaintChrome(ConsoleUI.xpbar.xpBar)
+            ConsoleUI.xpbar:PaintChrome(ConsoleUI.xpbar.repBar)
+        else
+            self:PaintStatusBarChrome(ConsoleUI.xpbar.xpBar)
+            self:PaintStatusBarChrome(ConsoleUI.xpbar.repBar)
+        end
     end
     if ConsoleUI.castbar then
         self:PaintStatusBarChrome(ConsoleUI.castbar.castBar)
@@ -553,10 +553,10 @@ end
 -- Section definitions
 Config.SECTIONS = {
     { id = "interface", name = "Interface" },
-    { id = "unitframes", name = "Unit Frames" },
     { id = "bars", name = "Bars" },
     { id = "bindings", name = "Bindings" },
     { id = "rings", name = "Rings" },
+    { id = "unitframes", name = "Unit Frames" },
     { id = "profiles", name = "Profiles" },
     { id = "about", name = "About" },
     { id = "debug", name = "Debug" },
@@ -1690,7 +1690,7 @@ function Config:CreateBarsSection()
             layoutBtn:Enable()
             layoutBtn:Show()
             layoutBtn.label = T("Layout")
-            layoutBtn.tooltipText = T("Controller Style is diamonds. Flat is one row of squares. Full shows LB, default, and LT clusters at once.")
+            layoutBtn.tooltipText = T("Controller Style is diamonds. Flat is one row of squares. Full shows three controller sets at once (LB, default, LT).")
         end
         if ConsoleUI.cursor and ConsoleUI.cursor.RefreshFrame then
             ConsoleUI.cursor:RefreshFrame()

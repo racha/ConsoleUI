@@ -28,11 +28,27 @@ local function round(num)
     return math.floor(num + 0.5)
 end
 
+local CLASS_RGB = {
+    WARRIOR = { 0.78, 0.61, 0.43 },
+    PALADIN = { 0.96, 0.55, 0.73 },
+    HUNTER  = { 0.67, 0.83, 0.45 },
+    ROGUE   = { 1.00, 0.96, 0.41 },
+    PRIEST  = { 1.00, 1.00, 1.00 },
+    SHAMAN  = { 0.96, 0.55, 0.73 },
+    MAGE    = { 0.41, 0.80, 0.94 },
+    WARLOCK = { 0.58, 0.51, 0.79 },
+    DRUID   = { 1.00, 0.49, 0.04 },
+}
+
 local function GetPlayerClassColor()
     local _, class = UnitClass("player")
     local c = RAID_CLASS_COLORS and class and RAID_CLASS_COLORS[class]
-    if c then
+    if c and c.r then
         return c.r, c.g, c.b
+    end
+    local rgb = class and CLASS_RGB[class]
+    if rgb then
+        return rgb[1], rgb[2], rgb[3]
     end
     return 0.0, 1.0, 0.0
 end
@@ -66,9 +82,37 @@ local function GetStringColor(colorString)
     return r, g, b, a
 end
 
--- ============================================================================
--- Data Tracking Frame
--- ============================================================================
+local function GetRestColor()
+    local config = ConsoleUI.config
+    local rest_color = "0.0,0.5,1.0,1.0"
+    if config and config.Get then
+        rest_color = config:Get("xpBarRestColor") or rest_color
+    end
+    return GetStringColor(rest_color)
+end
+
+function XPBar:ApplyFillColors(bar)
+    if not bar or not bar.bar then
+        return
+    end
+    if bar.barType == "XP" then
+        local cr, cg, cb = GetPlayerClassColor()
+        bar.bar:SetStatusBarColor(cr, cg, cb, 1.0)
+        if bar.restedbar then
+            local rr, rg, rb, ra = GetRestColor()
+            bar.restedbar:SetStatusBarColor(rr, rg, rb, ra)
+            bar.restedbar:SetFrameLevel(1)
+            bar.bar:SetFrameLevel(2)
+        end
+    end
+end
+
+function XPBar:PaintChrome(bar)
+    if ConsoleUI.config and ConsoleUI.config.PaintStatusBarChrome then
+        ConsoleUI.config:PaintStatusBarChrome(bar)
+    end
+    self:ApplyFillColors(bar)
+end
 
 local function CreateDataFrame()
     local data = CreateFrame("Frame", "ConsoleUIXPBarData", UIParent)
@@ -294,6 +338,7 @@ local function OnEvent()
         self.bar:SetValue(xp)
         local cr, cg, cb = GetPlayerClassColor()
         self.bar:SetStatusBarColor(cr, cg, cb, 1.0)
+        XPBar:ApplyFillColors(self)
         
         if ex and ex > 0 then
             if self.restedbar then
@@ -475,9 +520,7 @@ function XPBar:ReloadBarConfig(bar, barType)
     bar.text_show_key = prefix .. "BarTextShow"
     bar.text_off_y_key = prefix .. "BarTextOffsetY"
     bar.barType = barType
-    if ConsoleUI.config and ConsoleUI.config.PaintStatusBarChrome then
-        ConsoleUI.config:PaintStatusBarChrome(bar)
-    end
+    self:PaintChrome(bar)
 end
 
 function XPBar:CreateBar(barType)
@@ -495,10 +538,8 @@ function XPBar:CreateBar(barType)
     -- Get colors (WoW default colors)
     local rest_color = config:Get("xpBarRestColor") or "0.0,0.5,1.0,1.0"
     
-    local barLevel, restedLevel = 0, 1
-    if config:Get("xpBarDontOverlap") == true then
-        barLevel, restedLevel = 1, 0
-    end
+    -- XP fill sits on top of rested so class color is visible.
+    local barLevel, restedLevel = 2, 1
     
     -- Ensure minimum height
     b.height = math.max(XPBar.MIN_HEIGHT, b.height)
@@ -545,7 +586,7 @@ function XPBar:CreateBar(barType)
         b.restedbar:Hide()  -- Hidden by default until rested XP is available
     end
     if config.PaintStatusBarChrome then
-        config:PaintStatusBarChrome(b)
+        self:PaintChrome(b)
     end
 
     -- Text on the rim frame so the fill does not cover it
@@ -644,7 +685,7 @@ function XPBar:UpdateBarPosition(bar)
         bar.restedbar:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -inset, inset)
     end
     if config.PaintStatusBarChrome then
-        config:PaintStatusBarChrome(bar)
+        self:PaintChrome(bar)
     end
     
     -- Update text font size to match new height

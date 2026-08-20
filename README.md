@@ -58,7 +58,7 @@ Follow their install notes (it is a client mod, not only an AddOns folder). Then
 
 ### Settings
 
-Open with `/cui`. Interface, Unit Frames, Bars, Bindings, Rings, Profiles, About, Debug.
+Open with `/cui`. Interface, Bars, Bindings, Rings, Unit Frames, Profiles, About, Debug.
 
 ![Settings](screenshots/settings.png)
 
@@ -197,7 +197,7 @@ Ten face / D-pad slots. Hold **LT** or **LB** to change page.
 
 - **Controller Style** — diamond clusters like the pad
 - **Flat** — one row of squares, active page only
-- **Full** — three square clusters at once (LB | default or LB+LT | LT). The live page is solid; the others fade
+- **Full** — three controller diamond sets at once (LB | default or LB+LT | LT). The live page is solid; the others fade
 
 `/cui` → **Bars** if you want them bigger, gold-edged, or moved. `/cui` → **Unit Frames** to scale player, target, party, and pets.
 

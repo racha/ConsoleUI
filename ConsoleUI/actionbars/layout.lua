@@ -1,7 +1,7 @@
 --[[
     Action-bar diamond layout. Pure math. No frames.
     controller = diamonds. flat = one row of squares. full = three
-    controller clusters in Flat square chrome.
+    cloned controller sets (LB | default | LT).
     Slot 10 = RT. Slot 9 = RB. LB is Ctrl, not a diamond.
 ]]
 
@@ -151,7 +151,7 @@ function Layout.PipAnchor(id, buttonSize, kind)
     local v = Layout.PIP_IN[id] or { 0, -1 }
     local dist = (buttonSize or 60) * 0.28
     if kind == "full" then
-        dist = (buttonSize or 60) * 0.18
+        dist = (buttonSize or 60) * 0.22
     end
     return "CENTER", v[1] * dist, v[2] * dist
 end
@@ -162,22 +162,18 @@ function Layout.PipSize(buttonSize, kind)
         px = ConsoleUI.config:GetGlyphSize("hud")
     end
     if kind == "full" then
-        px = math.floor(px * 0.45 + 0.5)
-        local cap = 16
+        px = math.floor(px * 0.7 + 0.5)
+        if px < 10 then
+            px = 10
+        end
         if buttonSize and buttonSize > 0 then
-            local frac = math.floor(buttonSize * 0.36 + 0.5)
-            if frac < 12 then
-                frac = 12
+            local cap = math.floor(buttonSize * 0.5 + 0.5)
+            if cap < 10 then
+                cap = 10
             end
-            if cap > frac then
-                cap = frac
+            if px > cap then
+                px = cap
             end
-        end
-        if px > cap then
-            px = cap
-        end
-        if px < 12 then
-            px = 12
         end
         return px
     end
@@ -196,9 +192,6 @@ end
 function Layout.Dir(id, kind)
     if kind == "flat" then
         return "O"
-    end
-    if kind == "full" then
-        return "Q"
     end
     local spec = SPLIT[id]
     if spec then
@@ -276,19 +269,12 @@ end
 
 Layout.FULL_AIR = 96
 Layout.FULL_GLOW = 16
-Layout.FULL_SCALE = 0.5
+Layout.FULL_SCALE = 0.75
 Layout.FULL_MIN = 24
 
--- Full plus is 1-2-1 columns: left 1, middle up+down, right 1.
--- Opposite chrome (up/down, left/right) must not touch. Diagonal
--- neighbors (up vs left) keep icon boxes apart; KeySq corners may kiss.
-function Layout.SquareArm(metrics)
-    local chromeArm = (metrics.size + Layout.GOLD_OUT * 2 + Layout.SQUARE_GAP) / 2
-    local iconArm = Layout.SquareIconSize(metrics.size) + Layout.SQUARE_GAP
-    if iconArm > chromeArm then
-        return iconArm
-    end
-    return chromeArm
+function Layout.DiamondStep(buttonSize)
+    buttonSize = buttonSize or Layout.HIT
+    return buttonSize + Layout.PLATE * 2 + Layout.SQUARE_GAP
 end
 
 function Layout.FullChrome(metrics)
@@ -311,23 +297,18 @@ function Layout.BoxesOverlap(ax, ay, bx, by, half)
     return dx < half * 2 and dy < half * 2
 end
 
--- Squares need more center distance than diamonds. Rebuild inner + RT/RB.
+-- Same diamond metrics as Controller Style. RT/RB stay outside the plus.
 function Layout.FullMetrics(buttonSize, flankGap)
     local m = Layout.Metrics(buttonSize, flankGap)
-    local inner = m.inner
-    local arm = Layout.SquareArm(m)
-    if inner < arm then
-        inner = arm
-    end
-    local step = Layout.SquareStep(m.size)
+    local step = Layout.DiamondStep(m.size)
     local flankOut = m.flankOut
-    local needFlank = inner + step
+    local needFlank = m.inner + step
     if flankOut < needFlank then
         flankOut = needFlank
     end
     return {
         size = m.size,
-        inner = inner,
+        inner = m.inner,
         half = m.half,
         flankGap = m.flankGap,
         flankOut = flankOut,
@@ -339,7 +320,7 @@ function Layout.FullPack(metrics, air)
     metrics = Layout.FullMetrics(metrics and metrics.size, metrics and metrics.flankGap)
     air = air or Layout.FULL_AIR
     local chrome = Layout.FullChrome(metrics)
-    local step = Layout.SquareStep(metrics.size)
+    local step = Layout.DiamondStep(metrics.size)
     local pack = metrics.inner * 2 + step
     local minX, maxX
     local i
@@ -436,7 +417,7 @@ function Layout.World(id, kind, metrics, padding, starPad, xOff, yOff, col)
         return {
             x = col * colGap + starX + loc.x + (xOff or 0),
             y = (yOff or 0) + loc.y,
-            dir = "Q",
+            dir = loc.dir,
             star = loc.star,
         }
     end

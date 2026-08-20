@@ -175,7 +175,22 @@ function ActionBars:BarLayoutKind()
 end
 
 function ActionBars:UsesDiamondChrome(button)
-    return self:IsMainBarButton(button) and self:BarLayoutKind() == "controller"
+    local kind = self:BarLayoutKind()
+    if kind == "flat" then
+        return false
+    end
+    if kind == "controller" then
+        return self:IsMainBarButton(button)
+    end
+    if kind == "full" then
+        if self:IsMainBarButton(button) then
+            return true
+        end
+        if button and button.fullColumn then
+            return true
+        end
+    end
+    return false
 end
 
 function ActionBars:HideDiamond(button)
@@ -592,9 +607,7 @@ function ActionBars:ApplySquareAppearance(button)
         end
     end
 
-    if self:BarLayoutKind() == "full" then
-        self:PlaceControllerPip(button, buttonSize, "full")
-    elseif self:IsMainBarButton(button) then
+    if self:IsMainBarButton(button) then
         self:PlaceControllerPip(button, buttonSize, "flat")
     end
 end
@@ -625,6 +638,9 @@ function ActionBars:Initialize()
     self:ApplyDefaultBarVisibility()
     self:CreateModifierFrame()
     self:EnsureFullButtons()
+    if ConsoleUI.config and ConsoleUI.config.UpdateActionBarLayout then
+        ConsoleUI.config:UpdateActionBarLayout()
+    end
     self:UpdateAllButtons()
     self:CreateSideBars()
     self:InitializeBagBar()
@@ -817,6 +833,9 @@ end
 
 function ActionBars:OnPlayerEnteringWorld()
     self:ApplyDefaultBarVisibility()
+    if ConsoleUI.config and ConsoleUI.config.UpdateActionBarLayout then
+        ConsoleUI.config:UpdateActionBarLayout()
+    end
     self:UpdateAllButtons()
 end
 
@@ -870,6 +889,12 @@ function ActionBars:ApplyFullAlpha()
             local button = getglobal("ConsoleActionButton" .. i)
             if button then
                 button:SetAlpha(1)
+            end
+            if self.fullLeft and self.fullLeft[i] then
+                self.fullLeft[i]:Hide()
+            end
+            if self.fullRight and self.fullRight[i] then
+                self.fullRight[i]:Hide()
             end
         end
         return
@@ -1245,6 +1270,10 @@ function ActionBars:ButtonOnLoad(button)
 end
 
 function ActionBars:UpdateButton(button)
+    if button.fullColumn and self:BarLayoutKind() ~= "full" then
+        button:Hide()
+        return
+    end
     local actionID = self:GetActionID(button)
     local buttonID = button:GetID()
     local icon = getglobal(button:GetName().."Icon")

@@ -13,14 +13,14 @@ ConsoleUI.CHANGELOG = {
     {
         version = "1.0.0-RC4",
         lines = {
-            "Full layout: three square clusters at once (LB, default, LT). Live page is solid, the others fade.",
-            "Full clusters pack 1-2-1 so squares do not overlap.",
-            "Unit Frames page: scale Player, Pet, Target, ToT, party, and party pets.",
-            "Glyph size: Small, Medium, or Large for the on-screen pad icons.",
-            "XP bar uses your class color. Rested stays blue.",
+            "Full layout: three diamond controller sets (LB, default, LT). Live page is solid, the others fade.",
+            "Glyph size Small / Medium / Large for pad icons, including Full view.",
+            "Unit Frames page: scale Player, Pet, Target, ToT, party, and party pets. Sits under Rings.",
+            "XP bar uses your class color. Rested stays blue under the fill.",
             "Bar scale grows the whole cluster, not just the icons.",
             "Esc menu: ConsoleUI sits at the bottom. Shop, Options, and Quit stay put.",
             "AddOn list title now reads ConsoleUI by HouseLegend.",
+            "What's new text wraps instead of clipping.",
         },
     },
     {
@@ -71,6 +71,26 @@ local function Count(t)
         n = n + 1
     end
     return n
+end
+
+function CL.UsedHeight(fs, minH)
+    minH = minH or 16
+    local h = minH
+    if not fs then
+        return h
+    end
+    if fs.GetStringHeight then
+        local sh = fs:GetStringHeight()
+        if sh and sh > h then
+            h = sh
+        end
+    elseif fs.GetHeight then
+        local gh = fs:GetHeight()
+        if gh and gh > h then
+            h = gh
+        end
+    end
+    return h
 end
 
 function CL.CurrentVersion()
@@ -218,10 +238,20 @@ function CL:Fill(all)
         used = used + 1
         if not self.bits[used] then
             self.bits[used] = self.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-            self.bits[used]:SetJustifyH("LEFT")
-            self.bits[used]:SetWidth(408)
         end
-        return self.bits[used]
+        local fs = self.bits[used]
+        fs:SetJustifyH("LEFT")
+        if fs.SetJustifyV then
+            fs:SetJustifyV("TOP")
+        end
+        fs:SetWidth(408)
+        if fs.SetNonSpaceWrap then
+            fs:SetNonSpaceWrap(1)
+        end
+        return fs
+    end
+    local function drop(fs, minH, gap)
+        y = y - CL.UsedHeight(fs, minH) - (gap or 4)
     end
     local i
     if Count(entries) == 0 then
@@ -231,7 +261,7 @@ function CL:Fill(all)
         empty:SetText(T("No notes for this version yet."))
         empty:SetTextColor(0.545, 0.561, 0.596)
         empty:Show()
-        y = y - 20
+        drop(empty, 16, 4)
     end
     for i = 1, Count(entries) do
         local e = entries[i]
@@ -242,7 +272,7 @@ function CL:Fill(all)
         head:SetText(e.version)
         head:SetTextColor(1.00, 0.82, 0.18)
         head:Show()
-        y = y - 18
+        drop(head, 18, 4)
         local n
         for n = 1, Count(e.lines) do
             local line = take()
@@ -252,7 +282,7 @@ function CL:Fill(all)
             line:SetText("• " .. e.lines[n])
             line:SetTextColor(0.78, 0.79, 0.81)
             line:Show()
-            y = y - 16
+            drop(line, 16, 4)
         end
         y = y - 8
     end
@@ -376,6 +406,10 @@ if not CreateFrame then
     if not Fail(Count(mid) == 1 and mid[1].version == "2.0", "since 1.0", Count(mid)) then ok = false end
     local none = CL.EntriesSince("2.0")
     if not Fail(Count(none) == 0, "current", Count(none)) then ok = false end
+    local wrap = CL.UsedHeight({ GetStringHeight = function() return 32 end }, 16)
+    if not Fail(wrap == 32, "wrap height", wrap) then ok = false end
+    local short = CL.UsedHeight({ GetHeight = function() return 10 end }, 16)
+    if not Fail(short == 16, "min height", short) then ok = false end
     if ok then
         print("Changelog check OK")
     end
