@@ -257,7 +257,7 @@ end
 function ConsoleUI_Welcome()
     if ConsoleUI.welcomed then return end
     ConsoleUI.welcomed = true
-    local version = "1.0.0-RC3"
+    local version = "1.0.0-RC3.1"
     if GetAddOnMetadata then
         version = GetAddOnMetadata("ConsoleUI", "Version") or version
     end

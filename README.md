@@ -4,7 +4,7 @@
 
 ConsoleUI is a controller interface for the **original 1.12 Vanilla client**. It puts your spells on the face buttons, opens bags and menus from a stick wheel, and lets you type in chat without a keyboard.
 
-This release is **v1.0.0-RC3** — ready to try, still a release candidate.
+This release is **v1.0.0-RC3.1** — ready to try, still a release candidate.
 
 ---
 
@@ -94,7 +94,7 @@ Point at a cluster, press a face button, type. **A** sends, **B** closes, **X** 
 
 ## Install
 
-1. Download **ConsoleUI-1.0.0-RC3.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
+1. Download **ConsoleUI-1.0.0-RC3.1.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
 2. Open the zip. You will see two folders: `ConsoleUI` and `ConsoleUIKeyboard`.
 3. Copy **both** into:
 

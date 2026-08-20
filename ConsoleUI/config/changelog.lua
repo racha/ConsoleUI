@@ -11,6 +11,12 @@ local CL = ConsoleUI.changelog
 -- Newest first. version must match the TOC Version string.
 ConsoleUI.CHANGELOG = {
     {
+        version = "1.0.0-RC3.1",
+        lines = {
+            "Esc menu no longer errors with Turtle Shop / Donation Rewards.",
+        },
+    },
+    {
         version = "1.0.0-RC3",
         lines = {
             "Welcome screen on first login.",
@@ -56,9 +62,9 @@ end
 
 function CL.CurrentVersion()
     if GetAddOnMetadata then
-        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC3"
+        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC3.1"
     end
-    return "1.0.0-RC3"
+    return "1.0.0-RC3.1"
 end
 
 function CL.EntriesSince(last, all)

@@ -2430,7 +2430,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC3"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC3.1"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -3061,10 +3061,11 @@ function Config:LayoutGameMenuButton()
         return
     end
     local ui = GameMenuButtonUIOptions or GameMenuButtonOptions
-    local keys = GameMenuButtonKeybindings
     if not ui then
         return
     end
+    -- Stock chain. Do not treat Quit/Exit as extras — Turtle Shop sits
+    -- above Quit, and SetPoint(Shop, Quit) errors if Quit still points at Shop.
     local skip = {
         GameMenuButtonContinue = true,
         GameMenuButtonOptions = true,
@@ -3074,6 +3075,7 @@ function Config:LayoutGameMenuButton()
         GameMenuButtonMacros = true,
         GameMenuButtonAddOns = true,
         GameMenuButtonLogout = true,
+        GameMenuButtonQuit = true,
         GameMenuButtonExit = true,
     }
     local extras = {}
@@ -3088,10 +3090,20 @@ function Config:LayoutGameMenuButton()
             end
         end
     end
-    if table.getn(extras) == 0 then
-        extras[1] = ours
+    local hasOurs = false
+    for i = 1, table.getn(extras) do
+        if extras[i] == ours then
+            hasOurs = true
+            break
+        end
+    end
+    if not hasOurs then
+        extras[table.getn(extras) + 1] = ours
     end
     table.sort(extras, function(a, b)
+        if a == b then
+            return false
+        end
         if a == ours then
             return true
         end
@@ -3102,20 +3114,37 @@ function Config:LayoutGameMenuButton()
         local bn = (b.GetName and b:GetName()) or ""
         return an < bn
     end)
-    local prev = ui
+    local tail = {
+        GameMenuButtonKeybindings,
+        GameMenuButtonMacros,
+        GameMenuButtonAddOns,
+        GameMenuButtonLogout,
+        GameMenuButtonQuit,
+        GameMenuButtonExit,
+    }
     for i = 1, table.getn(extras) do
         extras[i]:ClearAllPoints()
+    end
+    for i = 1, table.getn(tail) do
+        if tail[i] then
+            tail[i]:ClearAllPoints()
+        end
+    end
+    local prev = ui
+    for i = 1, table.getn(extras) do
         extras[i]:SetPoint("TOP", prev, "BOTTOM", 0, -1)
         prev = extras[i]
     end
-    if keys then
-        keys:ClearAllPoints()
-        keys:SetPoint("TOP", prev, "BOTTOM", 0, -1)
+    for i = 1, table.getn(tail) do
+        local btn = tail[i]
+        if btn and (not btn.IsVisible or btn:IsVisible()) then
+            btn:SetPoint("TOP", prev, "BOTTOM", 0, -1)
+            prev = btn
+        end
     end
     local topBtn = GameMenuButtonContinue or ui
-    local botBtn = GameMenuButtonExit or keys
-    if topBtn and botBtn and topBtn.GetTop and botBtn.GetBottom then
-        local top, bot = topBtn:GetTop(), botBtn:GetBottom()
+    if topBtn and prev and topBtn.GetTop and prev.GetBottom then
+        local top, bot = topBtn:GetTop(), prev:GetBottom()
         if top and bot then
             GameMenuFrame:SetHeight((top - bot) + 28)
         end
