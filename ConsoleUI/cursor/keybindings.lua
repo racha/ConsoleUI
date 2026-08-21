@@ -232,6 +232,9 @@ function CursorKeys:RestoreOriginalBindings()
     else
         ConsoleUI_SaveBindings()
     end
+    if ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then
+        ConsoleUI.keybindings:RepairPadGameplay()
+    end
     
     ConsoleUI_Debug("Cursor bindings deactivated")
 end

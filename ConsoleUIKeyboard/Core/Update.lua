@@ -124,10 +124,7 @@ function Keyboard:HookEditBoxes()
     if not ChatFrameEditBox then return end
     if ChatFrameEditBox.cuikShowHooked then return end
     ChatFrameEditBox.cuikShowHooked = true
-
-    -- Do not SetFocus on OnShow. Shagu / default chat can Show() the box
-    -- without the player typing. That stole 1-4 and D-pad. Enter still
-    -- fires OnEditFocusGained below.
+    Keyboard:GuardChatBox()
 
     local oldHide = ChatFrameEditBox:GetScript("OnHide")
     ChatFrameEditBox:SetScript("OnHide", function()
@@ -142,12 +139,26 @@ end
 local scan = CreateFrame("Frame")
 scan.elapsed = 0
 scan:SetScript("OnUpdate", function()
-    if not Keyboard:IsShown() then
-        Keyboard:ReleaseIdleChatBox()
+    if Keyboard.settingFocus and not Keyboard:IsShown() then
+        Keyboard.settingFocus = nil
+    end
+    if Keyboard.pendingChatShow and not Keyboard:IsShown() then
+        Keyboard.pendingChatShow = nil
+        local box = ChatFrameEditBox
+        if box and box.HasFocus and box:HasFocus() and Keyboard:IsEnabled() then
+            Keyboard.chatWanted = GetTime and GetTime() or 0
+            Keyboard:SetFocus(box)
+        elseif box and box.IsShown and box:IsShown() and not Keyboard:ChatBoxAllowsKeys() then
+            box:Hide()
+        end
     end
     this.elapsed = this.elapsed + arg1
     if this.elapsed < 2 then return end
     this.elapsed = 0
     Keyboard:HookNamedBoxes()
     Keyboard:HookMacroPopup()
+    Keyboard:GuardChatBox()
+    if not Keyboard:IsShown() and ConsoleUI and ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then
+        ConsoleUI.keybindings:RepairPadGameplay()
+    end
 end)

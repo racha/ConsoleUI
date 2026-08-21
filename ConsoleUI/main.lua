@@ -257,7 +257,7 @@ end
 function ConsoleUI_Welcome()
     if ConsoleUI.welcomed then return end
     ConsoleUI.welcomed = true
-    local version = "1.0.0-RC4"
+    local version = "1.0.0-RC4.1"
     if GetAddOnMetadata then
         version = GetAddOnMetadata("ConsoleUI", "Version") or version
     end
@@ -283,6 +283,11 @@ function ConsoleUI:ReportDiagnostics()
     local radial = self.radial
     ConsoleUI_Print("ConsoleUI-DIAG|radial=vis:" .. tostring(radial and radial:IsVisible()) .. ",dir:" .. tostring(radial and radial.GetSelectedDirectionID and radial:GetSelectedDirectionID() or "none"))
     ConsoleUI_Print("ConsoleUI-DIAG|bind W=" .. tostring(GetBindingAction("W")) .. "|A=" .. tostring(GetBindingAction("A")) .. "|S=" .. tostring(GetBindingAction("S")) .. "|D=" .. tostring(GetBindingAction("D")) .. "|1=" .. tostring(GetBindingAction("1")))
+    ConsoleUI_Print("ConsoleUI-DIAG|pad 5=" .. tostring(GetBindingAction("5")) .. "|6=" .. tostring(GetBindingAction("6")) .. "|7=" .. tostring(GetBindingAction("7")) .. "|8=" .. tostring(GetBindingAction("8")))
+    local box = ChatFrameEditBox
+    if box then
+        ConsoleUI_Print("ConsoleUI-DIAG|chat shown=" .. tostring(box:IsShown()) .. "|focus=" .. tostring(box.HasFocus and box:HasFocus()) .. "|shagu=" .. tostring(ShaguTweaks ~= nil))
+    end
     ConsoleUI_Print("ConsoleUI-DIAG|mouse BUTTON1=" .. tostring(GetBindingAction("BUTTON1")) .. "|BUTTON2=" .. tostring(GetBindingAction("BUTTON2")) .. "|cam=" .. tostring(GetBindingKey("CAMERAORSELECTORMOVE")) .. "|turn=" .. tostring(GetBindingKey("TURNORACTION")))
     local overlay = radial and radial.overlay
     local ringOverlay = self.rings and self.rings.overlay

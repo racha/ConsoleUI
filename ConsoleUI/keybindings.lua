@@ -288,6 +288,75 @@ function ConsoleUI_BindingsReady()
     return false
 end
 
+-- D-pad is 5-8. Chat steal leftover, ACTIONBUTTON, and cursor leaks
+-- on those keys are why casts die until chat is toggled (restore writes
+-- ConsoleUI_ACTION_5-8). Face 1-4 stay the player's. JUMP etc. stay.
+function ConsoleUI_PadWantedAction(slot)
+    if ConsoleUI.proxied and ConsoleUI.proxied.GetSlotBinding then
+        local proxied = ConsoleUI.proxied:GetSlotBinding(slot)
+        if proxied and proxied ~= "" then
+            return proxied
+        end
+    end
+    return "ConsoleUI_ACTION_" .. slot
+end
+
+function ConsoleUI_ShouldOwnPadKey(current, want, cursorOn, overlayOn)
+    if cursorOn or overlayOn then
+        return false
+    end
+    if not current or current == "" then
+        return true
+    end
+    if current == want then
+        return false
+    end
+    if string.find(current, "^ACTIONBUTTON") then
+        return true
+    end
+    if string.find(current, "^CONSOLEUIK_") then
+        return true
+    end
+    if string.find(current, "^ConsoleUI_CURSOR") then
+        return true
+    end
+    if string.find(current, "^ConsoleUI_RADIAL") then
+        return true
+    end
+    if string.find(current, "^ConsoleUI_ACTION_") then
+        return true
+    end
+    if current == "ConsoleUI_RING_CANCEL" then
+        return true
+    end
+    return false
+end
+
+function ConsoleUIKeybindings:RepairPadGameplay()
+    local cursorOn = ConsoleUI.cursor and ConsoleUI.cursor.keybindings
+        and ConsoleUI.cursor.keybindings.IsCursorModeActive
+        and ConsoleUI.cursor.keybindings:IsCursorModeActive()
+    local overlayOn = false
+    if ConsoleUI.radial and ConsoleUI.radial.IsOpen and ConsoleUI.radial:IsOpen() then
+        overlayOn = true
+    end
+    if ConsoleUI.rings and ConsoleUI.rings.IsVisible and ConsoleUI.rings:IsVisible() then
+        overlayOn = true
+    end
+    if ConsoleUIKeyboard and ConsoleUIKeyboard.IsShown and ConsoleUIKeyboard:IsShown() then
+        overlayOn = true
+    end
+    local slot
+    for slot = 5, 8 do
+        local key = tostring(slot)
+        local want = ConsoleUI_PadWantedAction(slot)
+        local current = GetBindingAction and GetBindingAction(key) or ""
+        if ConsoleUI_ShouldOwnPadKey(current, want, cursorOn, overlayOn) then
+            SetBinding(key, want)
+        end
+    end
+end
+
 -- Auto-setup may only take a free key or one already owned by ConsoleUI.
 -- Never used for bare 1-0 / M / ESCAPE. Those stay the player's.
 function ConsoleUI_CanClaimKey(key)
@@ -376,6 +445,7 @@ function ConsoleUIKeybindings:FinishInitialize()
     if ConsoleUI.radial and ConsoleUI.radial.RepairMovementBindings then
         ConsoleUI.radial:RepairMovementBindings()
     end
+    self:RepairPadGameplay()
 
     if ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings() then
         ConsoleUI_SaveBindings()

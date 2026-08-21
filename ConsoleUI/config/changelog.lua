@@ -11,6 +11,13 @@ local CL = ConsoleUI.changelog
 -- Newest first. version must match the TOC Version string.
 ConsoleUI.CHANGELOG = {
     {
+        version = "1.0.0-RC4.1",
+        lines = {
+            "Controller Gap: space between left and right clusters. Screen pixels — scale does not move them. Default 600. Arrows step 20.",
+            "D-pad and 1-4 stay on actions with Shagu Tweaks without opening chat first.",
+        },
+    },
+    {
         version = "1.0.0-RC4",
         lines = {
             "Full layout: three diamond controller sets (LB, default, LT). Live page is solid, the others fade.",
@@ -96,9 +103,9 @@ end
 
 function CL.CurrentVersion()
     if GetAddOnMetadata then
-        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4"
+        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4.1"
     end
-    return "1.0.0-RC4"
+    return "1.0.0-RC4.1"
 end
 
 function CL.EntriesSince(last, all)

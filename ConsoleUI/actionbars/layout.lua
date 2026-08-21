@@ -123,11 +123,13 @@ end
 
 -- Scale is a layout multiplier, not Frame:SetScale. SetScale leaves
 -- SetPoint gaps in unscaled pixels so buttons overlap or float.
+-- starPad is screen pixels between cluster centers. Scale must not
+-- move the groups — only the diamonds grow.
 function Layout.ApplyScale(size, padding, starPad, flankGap, scale)
     scale = scale or 1
     return (size or Layout.HIT) * scale,
         (padding or 0) * scale,
-        (starPad or 0) * scale,
+        starPad or 0,
         (flankGap or Layout.FLANK_GAP) * scale
 end
 

@@ -422,29 +422,91 @@ function Keyboard:RepairKeys()
             changed = true
         end
     end
-    -- Chat close already writes these via RecordedPrevious. Do the same on
-    -- login when 5-8 were wiped empty and ACTION_n has no other key.
-    if not ConsoleUI_BindingsReady or ConsoleUI_BindingsReady() then
-        local slot
-        for slot = 5, 8 do
-            local key = tostring(slot)
-            local current = GetBindingAction(key)
-            if not current or current == "" then
-                local action = "ConsoleUI_ACTION_" .. slot
-                if not GetBindingKey or not GetBindingKey(action) then
-                    SetBinding(key, action)
-                    changed = true
-                end
-            end
-        end
+    if ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then
+        ConsoleUI.keybindings:RepairPadGameplay()
     end
     return changed
 end
 
+function Keyboard:ChatBoxAllowsKeys()
+    if self:IsShown() then
+        return true
+    end
+    if self.settingFocus then
+        return true
+    end
+    return false
+end
+
+function Keyboard:ApplyChatBoxGameplay()
+    local box = ChatFrameEditBox
+    if not box then
+        return
+    end
+    if self:ChatBoxAllowsKeys() then
+        return
+    end
+    -- Shagu Chat Tweaks sets SetAltArrowKeyMode(false). A shown box then
+    -- eats D-pad / arrows until chat is toggled. Force gameplay mode.
+    if box.cuikRawAltArrow then
+        box.cuikRawAltArrow(box, 1)
+    elseif box.SetAltArrowKeyMode then
+        box:SetAltArrowKeyMode(1)
+    end
+    if box.cuikRawEnableKeyboard then
+        box.cuikRawEnableKeyboard(box, false)
+    elseif box.EnableKeyboard then
+        box:EnableKeyboard(false)
+    end
+end
+
+function Keyboard:GuardChatBox()
+    local box = ChatFrameEditBox
+    if not box then
+        return
+    end
+    if not box.cuikGuarded then
+        box.cuikGuarded = true
+        box.cuikRawAltArrow = box.SetAltArrowKeyMode
+        if box.cuikRawAltArrow then
+            box.SetAltArrowKeyMode = function(frame, enable)
+                if Keyboard:ChatBoxAllowsKeys() then
+                    box.cuikRawAltArrow(frame, enable)
+                else
+                    box.cuikRawAltArrow(frame, 1)
+                end
+            end
+        end
+        box.cuikRawEnableKeyboard = box.EnableKeyboard
+        if box.cuikRawEnableKeyboard then
+            box.EnableKeyboard = function(frame, enable)
+                if Keyboard:ChatBoxAllowsKeys() then
+                    box.cuikRawEnableKeyboard(frame, enable)
+                else
+                    box.cuikRawEnableKeyboard(frame, false)
+                end
+            end
+        end
+        local oldShow = box:GetScript("OnShow")
+        box:SetScript("OnShow", function()
+            if oldShow then oldShow() end
+            if Keyboard:ChatBoxAllowsKeys() then
+                return
+            end
+            Keyboard.pendingChatShow = true
+        end)
+    end
+    self:ApplyChatBoxGameplay()
+end
+
 function Keyboard:ReleaseIdleChatBox()
+    if self.settingFocus and not self:IsShown() then
+        self.settingFocus = nil
+    end
     if self:IsShown() or self.settingFocus then
         return
     end
+    self:GuardChatBox()
     -- OSK hidden. Leftover Focus / a shown chat box ate 1-4 and D-pad
     -- until the player opened and closed chat.
     local dirty = false
@@ -732,6 +794,7 @@ function Keyboard:OnEvent()
         if self.HookEditBoxes then
             self:HookEditBoxes()
         end
+        self:GuardChatBox()
         self:ReleaseIdleChatBox()
         self:RepairKeys()
     elseif event == "PLAYER_LOGOUT" then

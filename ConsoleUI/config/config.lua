@@ -32,7 +32,7 @@ Config.DEFAULTS = {
     barXOffset = 0,
     barYOffset = 70,
     barPadding = 65,
-    barStarPadding = 600,  -- Padding between left and right star centers
+    barStarPadding = 600,  -- Screen px between left/right cluster centers. Not scaled.
     barScale = 1.0,
     -- Sidebars only. Main 1-10 are diamonds.
     barAppearance = "classic",
@@ -1614,21 +1614,22 @@ function Config:CreateBarsSection()
     starLabel:SetPoint("LEFT", yEditBox, "RIGHT", 14, 0)
     starLabel:SetText(T("Gap") .. ":")
     
-    local starPaddingEditBox = self:CreateEditBox(generalBox, 35,
+    local starPaddingEditBox = self:CreateEditBox(generalBox, 50,
         function() return tostring(Config:Get("barStarPadding")) end,
         function(value)
-            local num = tonumber(value) or 200
-            if num < 50 then num = 50 end
-            if num > 1000 then num = 1000 end
+            local num = tonumber(value) or 600
+            if num < 0 then num = 0 end
+            if num > 2000 then num = 2000 end
             Config:Set("barStarPadding", num)
             Config:UpdateActionBarLayout()
         end,
         T("Center Gap"),
-        T("Space between left and right button groups. Range: 50-1000."))
+        T("Space between left and right button groups. Range: 50-1000."),
+        20)
     starPaddingEditBox:SetPoint("LEFT", starLabel, "RIGHT", 5, 0)
     starPaddingEditBox:SetScript("OnTextChanged", function()
-        local num = tonumber(this:GetText()) or 200
-        if num >= 50 and num <= 1000 then
+        local num = tonumber(this:GetText()) or 600
+        if num >= 0 and num <= 2000 then
             Config:Set("barStarPadding", num)
             Config:UpdateActionBarLayout()
         end
@@ -2532,7 +2533,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4.1"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -3714,7 +3715,7 @@ function Config:UpdateActionBarLayout()
     local scale = self:Get("barScale") or 1.0
     local buttonSize = self:Get("barButtonSize") or 82
     local padding = self:Get("barPadding") or 65
-    local starPadding = self:Get("barStarPadding") or 200
+    local starPadding = self:Get("barStarPadding") or 600
     local flankGap = self:Get("barFlankGap") or 50
     local xOffset = self:Get("barXOffset") or 0
     local yOffset = self:Get("barYOffset") or 70
@@ -3726,7 +3727,6 @@ function Config:UpdateActionBarLayout()
     else
         buttonSize = buttonSize * scale
         padding = padding * scale
-        starPadding = starPadding * scale
         flankGap = flankGap * scale
     end
     if layout == "full" and Layout and Layout.FullFit then
@@ -3937,3 +3937,5 @@ end
 -- After UpdateActionBarLayout / UpdateCrosshair exist. A SetPoint error
 -- here must not abort the rest of this file.
 Config:CreateGameMenuButton()
+
+
