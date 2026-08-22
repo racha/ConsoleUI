@@ -11,6 +11,19 @@ local CL = ConsoleUI.changelog
 -- Newest first. version must match the TOC Version string.
 ConsoleUI.CHANGELOG = {
     {
+        version = "1.0.0-RC4.5",
+        lines = {
+            "Cast bar is a thin gold strip. Spell name and time sit under it.",
+            "XP and reputation use trap chrome and gray 10% ticks. X/Y offsets in Bars.",
+            "Settings arrows now save. Empty width stores 400.",
+            "Blizz Frames: scale and place the minimap. Scale buffs and debuffs.",
+            "Touch bars have a Y offset for cutouts.",
+            "Spell Placement: X or Clear empties a slot. B closes.",
+            "Cursor works on inspect, enchanting, stable, dressing room, stack split, copper split, color picker, Honor, battlegrounds, ready check, and the BG map.",
+            "Saving binds no longer writes cursor or ring keys onto 1-4 and the D-pad.",
+        },
+    },
+    {
         version = "1.0.0-RC4.1",
         lines = {
             "Controller Gap: space between left and right clusters. Screen pixels — scale does not move them. Default 600. Arrows step 20.",
@@ -103,9 +116,9 @@ end
 
 function CL.CurrentVersion()
     if GetAddOnMetadata then
-        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4.1"
+        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4.5"
     end
-    return "1.0.0-RC4.1"
+    return "1.0.0-RC4.5"
 end
 
 function CL.EntriesSince(last, all)

@@ -2,7 +2,7 @@
 ## Title: |cfff1f2f4Console|r|cffffd12eUI Keyboard|r |cff8b8f98by HouseLegend|r
 ## Notes: Radial on-screen keyboard for ConsoleUI
 ## Author: HouseLegend
-## Version: 1.0.0-RC4.1
+## Version: 1.0.0-RC4.5
 ## RequiredDeps: ConsoleUI
 ## DefaultState: Enabled
 ## SavedVariables: ConsoleUIKeyboardLayout, ConsoleUIKeyboardDictionary, ConsoleUIKeyboardDB

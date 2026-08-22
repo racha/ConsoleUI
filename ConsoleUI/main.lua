@@ -211,7 +211,14 @@ function ConsoleUI_SaveBindings()
     if stickWasOn then
         radial:RestoreStickNavigation()
     end
+    local padSnap
+    if ConsoleUI_ParkTransientPadKeys then
+        padSnap = ConsoleUI_ParkTransientPadKeys()
+    end
     SaveBindings(set)
+    if ConsoleUI_ResumeTransientPadKeys then
+        ConsoleUI_ResumeTransientPadKeys(padSnap)
+    end
     -- Re-steal only for a live wheel. A leftover shown frame plus cursor
     -- teardown was re-arming ConsoleUI_RADIAL_* after vendors /cui.
     if stickWasOn and menuOpen then
@@ -257,7 +264,7 @@ end
 function ConsoleUI_Welcome()
     if ConsoleUI.welcomed then return end
     ConsoleUI.welcomed = true
-    local version = "1.0.0-RC4.1"
+    local version = "1.0.0-RC4.5"
     if GetAddOnMetadata then
         version = GetAddOnMetadata("ConsoleUI", "Version") or version
     end

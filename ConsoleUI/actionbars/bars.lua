@@ -2817,6 +2817,8 @@ function ActionBars:UpdateSideBars()
     local rightCount = config:Get("sideBarRightButtons") or 3
     local leftEdgeOffset = config:Get("sideBarLeftOffset") or 5
     local rightEdgeOffset = config:Get("sideBarRightOffset") or 5
+    local leftYOffset = config:Get("sideBarLeftYOffset") or 0
+    local rightYOffset = config:Get("sideBarRightYOffset") or 0
     local leftTouchScale = config:Get("sideBarLeftScale") or 1.0
     local rightTouchScale = config:Get("sideBarRightScale") or 1.0
     -- Side bars use their own scale sliders, not barScale.
@@ -2828,6 +2830,10 @@ function ActionBars:UpdateSideBars()
     if rightCount > 5 then rightCount = 5 end
     if leftEdgeOffset < 0 then leftEdgeOffset = 0 end
     if rightEdgeOffset < 0 then rightEdgeOffset = 0 end
+    if leftYOffset < -500 then leftYOffset = -500 end
+    if leftYOffset > 500 then leftYOffset = 500 end
+    if rightYOffset < -500 then rightYOffset = -500 end
+    if rightYOffset > 500 then rightYOffset = 500 end
     if leftTouchScale < 0.5 then leftTouchScale = 0.5 end
     if leftTouchScale > 2.0 then leftTouchScale = 2.0 end
     if rightTouchScale < 0.5 then rightTouchScale = 0.5 end
@@ -2928,7 +2934,7 @@ function ActionBars:UpdateSideBars()
         self.sideBarLeftFrame:SetHeight(totalHeight)
         self.sideBarLeftFrame:SetScale(1.0)
         self.sideBarLeftFrame:ClearAllPoints()
-        self.sideBarLeftFrame:SetPoint("LEFT", UIParent, "LEFT", leftEdgeOffset, 0)
+        self.sideBarLeftFrame:SetPoint("LEFT", UIParent, "LEFT", leftEdgeOffset, leftYOffset)
         self.sideBarLeftFrame:Show()
         
         -- Create/update buttons
@@ -2968,7 +2974,7 @@ function ActionBars:UpdateSideBars()
         self.sideBarRightFrame:SetHeight(totalHeight)
         self.sideBarRightFrame:SetScale(1.0)
         self.sideBarRightFrame:ClearAllPoints()
-        self.sideBarRightFrame:SetPoint("RIGHT", UIParent, "RIGHT", -rightEdgeOffset, 0)
+        self.sideBarRightFrame:SetPoint("RIGHT", UIParent, "RIGHT", -rightEdgeOffset, rightYOffset)
         self.sideBarRightFrame:Show()
         
         -- Create/update buttons

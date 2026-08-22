@@ -70,6 +70,17 @@ Hooks.frames = {
     {frame = "HelpFrame", name = "Help"},
     {frame = "CinematicFrame", name = "Cinematic"},
     {frame = "LFTFrame", name = "Looking For Group"},
+    {frame = "InspectFrame", name = "Inspect"},
+    {frame = "CraftFrame", name = "Enchanting"},
+    {frame = "PetStableFrame", name = "Pet Stable"},
+    {frame = "DressUpFrame", name = "Dressing Room"},
+    {frame = "StackSplitFrame", name = "Stack Split"},
+    {frame = "CoinPickupFrame", name = "Coin Pickup"},
+    {frame = "ColorPickerFrame", name = "Color Picker"},
+    {frame = "HonorFrame", name = "Honor"},
+    {frame = "BattlefieldFrame", name = "Battlegrounds"},
+    {frame = "ReadyCheckFrame", name = "Ready Check"},
+    {frame = "BattlefieldMinimap", name = "Battlefield Map"},
 }
 
 local function IsBagAddonFrame(frameName)
@@ -186,6 +197,10 @@ function Hooks:Initialize()
         self.eventFrame:RegisterEvent("MERCHANT_SHOW")
         self.eventFrame:RegisterEvent("AUCTION_HOUSE_SHOW")
         self.eventFrame:RegisterEvent("BANKFRAME_OPENED")
+        self.eventFrame:RegisterEvent("CRAFT_SHOW")
+        self.eventFrame:RegisterEvent("PET_STABLE_SHOW")
+        self.eventFrame:RegisterEvent("BATTLEFIELDS_SHOW")
+        self.eventFrame:RegisterEvent("READY_CHECK")
         -- Register events for party/raid frame updates (healer mode)
         self.eventFrame:RegisterEvent("PARTY_MEMBERS_CHANGED")
         self.eventFrame:RegisterEvent("RAID_ROSTER_UPDATE")
@@ -495,6 +510,19 @@ function Hooks:TryHookPendingFrames()
             self:OnFrameShow(keyBindingFrame)
         end
     end
+
+    -- LOD / popup frames: exist after addon load or first show
+    self:TryHookNamedFrame("InspectFrame", "Inspect")
+    self:TryHookNamedFrame("CraftFrame", "Enchanting")
+    self:TryHookNamedFrame("PetStableFrame", "Pet Stable")
+    self:TryHookNamedFrame("DressUpFrame", "Dressing Room")
+    self:TryHookNamedFrame("StackSplitFrame", "Stack Split")
+    self:TryHookNamedFrame("CoinPickupFrame", "Coin Pickup")
+    self:TryHookNamedFrame("ColorPickerFrame", "Color Picker")
+    self:TryHookNamedFrame("HonorFrame", "Honor")
+    self:TryHookNamedFrame("BattlefieldFrame", "Battlegrounds")
+    self:TryHookNamedFrame("ReadyCheckFrame", "Ready Check")
+    self:TryHookNamedFrame("BattlefieldMinimap", "Battlefield Map")
 end
 
 function Hooks:HookFrame(frame, frameName)
@@ -600,6 +628,11 @@ function Hooks:OnFrameShow(frame)
     if frameName == "TaxiFrame" then
         frame:EnableKeyboard(false)
         ConsoleUI_Debug("Disabled TaxiFrame keyboard capture")
+    end
+    if frameName == "ColorPickerFrame" or frameName == "BattlefieldMinimap" then
+        if frame.EnableKeyboard then
+            frame:EnableKeyboard(false)
+        end
     end
     
     -- Ensure cursor is on top

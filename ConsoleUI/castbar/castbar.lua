@@ -1,8 +1,7 @@
 --[[
     ConsoleUI - Cast Bar Module
     
-    Custom cast bar that appears above the chat frame
-    Uses the same texture style as the XP/Rep bars
+    Thin gold strip, red latency tail, name + timer under it.
 ]]
 
 -- Create the castbar module namespace
@@ -16,14 +15,399 @@ local CastBar = ConsoleUI.castbar
 -- Constants
 -- ============================================================================
 
-CastBar.MIN_HEIGHT = 20  -- Minimum height for border texture to render properly
+CastBar.MIN_HEIGHT = 6
+CastBar.INFO_HEIGHT = 14
+CastBar.FILL_TEX = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\White"
+CastBar.SPARK_TEX = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\CastSpark"
+CastBar.LAG_R = 0.77
+CastBar.LAG_G = 0.19
+CastBar.LAG_B = 0.19
 
 -- ============================================================================
 -- Helper Functions
 -- ============================================================================
 
-local function round(num)
-    return math.floor(num + 0.5)
+function CastBar.FormatTimer(elapsed, duration)
+    elapsed = tonumber(elapsed) or 0
+    duration = tonumber(duration) or 0
+    if duration <= 0 then
+        return ""
+    end
+    return string.format("%.1f / %.2f", elapsed, duration)
+end
+
+function CastBar.LatencyMs()
+    if not GetNetStats then
+        return 0
+    end
+    local _, _, latency = GetNetStats()
+    return tonumber(latency) or 0
+end
+
+function CastBar:ProgressHeight()
+    local config = ConsoleUI.config
+    local h = 6
+    if config and config.Get then
+        h = config:Get("castbarHeight") or 6
+    end
+    return math.max(CastBar.MIN_HEIGHT, h)
+end
+
+function CastBar:HostHeight()
+    return self:ProgressHeight() + CastBar.INFO_HEIGHT
+end
+
+function CastBar:SetSpellIcon(bar, spellName)
+    if bar and bar.icon then
+        bar.icon:Hide()
+    end
+end
+
+function CastBar:ApplyFillColor(b)
+    if not b or not b.bar then
+        return
+    end
+    local config = ConsoleUI.config
+    if not config then
+        return
+    end
+    local r, g, bb
+    if b.channeling then
+        r = config:Get("castbarChannelColorR") or 1.00
+        g = config:Get("castbarChannelColorG") or 0.82
+        bb = config:Get("castbarChannelColorB") or 0.18
+    else
+        r = config:Get("castbarColorR") or 1.00
+        g = config:Get("castbarColorG") or 0.82
+        bb = config:Get("castbarColorB") or 0.18
+    end
+    b.cuiFillR = r
+    b.cuiFillG = g
+    b.cuiFillB = bb
+    b.bar:SetStatusBarColor(r, g, bb, 1.0)
+    if b.cuiCastFill then
+        b.cuiCastFill:SetVertexColor(r, g, bb, 1)
+    end
+end
+
+function CastBar:EnsureFill(b)
+    if not b or not b.bar then
+        return
+    end
+    if ConsoleUI.config and ConsoleUI.config.HideStockFill then
+        ConsoleUI.config:HideStockFill(b.bar)
+    end
+    if b.cuiWatchFill then
+        b.cuiWatchFill:Hide()
+    end
+    -- Fill must live on the strip. A texture on the host paints under
+    -- cuiCastEmpty and the bar looks empty except for the spark.
+    local strip = b.cuiStrip or b.bar
+    if b.cuiCastFill and b.cuiCastFill.GetParent and b.cuiCastFill:GetParent() ~= strip then
+        b.cuiCastFill:Hide()
+        b.cuiCastFill = nil
+    end
+    if not b.cuiCastFill then
+        local fill = strip:CreateTexture(nil, "ARTWORK")
+        fill:SetTexture(CastBar.FILL_TEX)
+        fill:SetTexCoord(0, 1, 0, 1)
+        fill:SetVertexColor(1.00, 0.82, 0.18, 1)
+        fill:Hide()
+        b.cuiCastFill = fill
+    end
+    b.cuiCastFill:SetTexture(CastBar.FILL_TEX)
+    b.cuiCastFill:SetDrawLayer("ARTWORK")
+    b.cuiCastFill:ClearAllPoints()
+    b.cuiCastFill:SetPoint("TOPLEFT", strip, "TOPLEFT", 1, -1)
+    b.cuiCastFill:SetPoint("BOTTOMLEFT", strip, "BOTTOMLEFT", 1, 1)
+end
+
+function CastBar:SyncFill(b, pct)
+    self:EnsureFill(b)
+    if not b or not b.cuiCastFill then
+        return
+    end
+    if ConsoleUI.config and ConsoleUI.config.HideStockFill then
+        ConsoleUI.config:HideStockFill(b.bar)
+    end
+    pct = tonumber(pct) or 0
+    if pct < 0 then
+        pct = 0
+    end
+    if pct > 1 then
+        pct = 1
+    end
+    local full = 0
+    if b.cuiStrip and b.cuiStrip.GetWidth then
+        full = (b.cuiStrip:GetWidth() or 0) - 2
+    end
+    if full < 1 and b.width then
+        full = (b.width or 0) - 2
+    end
+    local width = full * pct
+    local fill = b.cuiCastFill
+    if width < 1 then
+        fill:Hide()
+        return
+    end
+    -- Stretch only. SetTexCoord(0, pct) is the choppy watch-bar crop.
+    fill:SetTexCoord(0, 1, 0, 1)
+    fill:SetWidth(width)
+    fill:SetVertexColor(
+        b.cuiFillR or 1.00,
+        b.cuiFillG or 0.82,
+        b.cuiFillB or 0.18,
+        1
+    )
+    fill:Show()
+end
+
+function CastBar:EnsureLag(b)
+    if not b or not b.bar then
+        return
+    end
+    local strip = b.cuiStrip or b.bar
+    if b.cuiCastLag and b.cuiCastLag.GetParent and b.cuiCastLag:GetParent() ~= strip then
+        b.cuiCastLag:Hide()
+        b.cuiCastLag = nil
+    end
+    if not b.cuiCastLag then
+        local lag = strip:CreateTexture(nil, "ARTWORK")
+        lag:Hide()
+        b.cuiCastLag = lag
+    end
+    b.cuiCastLag:SetTexture(CastBar.FILL_TEX)
+    b.cuiCastLag:SetVertexColor(CastBar.LAG_R, CastBar.LAG_G, CastBar.LAG_B, 1)
+    b.cuiCastLag:ClearAllPoints()
+    b.cuiCastLag:SetPoint("TOPRIGHT", strip, "TOPRIGHT", -1, -1)
+    b.cuiCastLag:SetPoint("BOTTOMRIGHT", strip, "BOTTOMRIGHT", -1, 1)
+end
+
+function CastBar:SyncLag(b, duration)
+    self:EnsureLag(b)
+    if not b or not b.cuiCastLag then
+        return
+    end
+    duration = tonumber(duration) or 0
+    local lagSec = CastBar.LatencyMs() / 1000
+    local pct = 0
+    if duration > 0 then
+        pct = lagSec / duration
+    end
+    if pct < 0 then
+        pct = 0
+    end
+    if pct > 0.45 then
+        pct = 0.45
+    end
+    local full = 0
+    if b.cuiStrip and b.cuiStrip.GetWidth then
+        full = (b.cuiStrip:GetWidth() or 0) - 2
+    end
+    if full < 1 and b.width then
+        full = (b.width or 0) - 2
+    end
+    local width = full * pct
+    if width < 1 then
+        b.cuiCastLag:Hide()
+        return
+    end
+    b.cuiCastLag:SetWidth(width)
+    b.cuiCastLag:Show()
+end
+
+function CastBar:HideWatchChrome(b)
+    if b.cuiNotch then
+        b.cuiNotch:Hide()
+    end
+    if b.cuiTicks then
+        local i
+        for i = 1, 19 do
+            if b.cuiTicks[i] then
+                b.cuiTicks[i]:Hide()
+            end
+        end
+    end
+    if b.cuiPips then
+        local i
+        for i = 1, 3 do
+            if b.cuiPips[i] then
+                b.cuiPips[i]:Hide()
+            end
+        end
+    end
+    if b.cuiEdgeT then b.cuiEdgeT:Hide() end
+    if b.cuiEdgeB then b.cuiEdgeB:Hide() end
+    if b.cuiEdgeL then b.cuiEdgeL:Hide() end
+    if b.cuiEdgeR then b.cuiEdgeR:Hide() end
+end
+
+function CastBar:FontSize(height)
+    height = height or CastBar.INFO_HEIGHT
+    return math.max(10, math.min(12, math.floor(height)))
+end
+
+function CastBar:LayoutChrome(b)
+    if not b then
+        return
+    end
+    local progressH = self:ProgressHeight()
+    local hostW = b.width or 400
+    local hostH = progressH + CastBar.INFO_HEIGHT
+    local rim = 1
+    b.height = progressH
+    if b.SetWidth then
+        b:SetWidth(hostW)
+        b:SetHeight(hostH)
+    end
+    if b.SetBackdrop then
+        b:SetBackdrop(nil)
+    end
+    if b.cuiTrack then
+        b.cuiTrack:Hide()
+    end
+    if b.cuiCastLeft then
+        b.cuiCastLeft:Hide()
+    end
+    if b.cuiCastRight then
+        b.cuiCastRight:Hide()
+    end
+    if b.cuiCastMid then
+        b.cuiCastMid:Hide()
+    end
+    if b.cuiCastTrack then
+        b.cuiCastTrack:Hide()
+    end
+    if b.cuiPlateTex then
+        b.cuiPlateTex:Hide()
+    end
+
+    if not b.cuiStrip then
+        b.cuiStrip = CreateFrame("Frame", nil, b)
+    end
+    b.cuiStrip:ClearAllPoints()
+    b.cuiStrip:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    b.cuiStrip:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+    b.cuiStrip:SetHeight(progressH)
+    b.cuiStrip:Show()
+
+    if not b.cuiCastBorder then
+        b.cuiCastBorder = b.cuiStrip:CreateTexture(nil, "BACKGROUND")
+    end
+    b.cuiCastBorder:SetTexture(CastBar.FILL_TEX)
+    b.cuiCastBorder:ClearAllPoints()
+    b.cuiCastBorder:SetAllPoints(b.cuiStrip)
+    b.cuiCastBorder:SetVertexColor(0, 0, 0, 1)
+    b.cuiCastBorder:Show()
+
+    if not b.cuiCastEmpty then
+        b.cuiCastEmpty = b.cuiStrip:CreateTexture(nil, "BORDER")
+    end
+    b.cuiCastEmpty:SetTexture(CastBar.FILL_TEX)
+    b.cuiCastEmpty:ClearAllPoints()
+    b.cuiCastEmpty:SetPoint("TOPLEFT", b.cuiStrip, "TOPLEFT", rim, -rim)
+    b.cuiCastEmpty:SetPoint("BOTTOMRIGHT", b.cuiStrip, "BOTTOMRIGHT", -rim, rim)
+    b.cuiCastEmpty:SetVertexColor(0.04, 0.04, 0.05, 1)
+    b.cuiCastEmpty:Show()
+
+    if b.bar then
+        b.bar:ClearAllPoints()
+        b.bar:SetPoint("TOPLEFT", b.cuiStrip, "TOPLEFT", rim, -rim)
+        b.bar:SetPoint("BOTTOMRIGHT", b.cuiStrip, "BOTTOMRIGHT", -rim, rim)
+    end
+
+    if not b.cuiPlate then
+        b.cuiPlate = CreateFrame("Frame", nil, b)
+    end
+    b.cuiPlate:ClearAllPoints()
+    b.cuiPlate:SetPoint("TOPLEFT", b, "TOPLEFT", 0, -progressH)
+    b.cuiPlate:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
+    b.cuiPlate:Show()
+end
+
+function CastBar:EnsureLayers(b)
+    if not b then
+        return
+    end
+    self:LayoutChrome(b)
+    local labelsParent = b.cuiPlate or b
+    if not b.cuiText then
+        local textFrame = CreateFrame("Frame", nil, b)
+        if ConsoleUI.config and ConsoleUI.config.StackAbove then
+            ConsoleUI.config:StackAbove(textFrame, labelsParent)
+        end
+        b.cuiText = textFrame
+    end
+    b.cuiText:ClearAllPoints()
+    b.cuiText:SetAllPoints(labelsParent)
+    local labels = b.cuiText
+    if b.text and b.text.GetParent and b.text:GetParent() ~= labels then
+        b.text:Hide()
+        b.text = nil
+    end
+    if b.timer and b.timer.GetParent and b.timer:GetParent() ~= labels then
+        b.timer:Hide()
+        b.timer = nil
+    end
+    local fontSize = self:FontSize(CastBar.INFO_HEIGHT)
+    -- 1.12: inherit a font object, then SetFont, then SetText. Bare
+    -- CreateFontString has no font; SetText errors and aborts init.
+    if not b.timer then
+        b.timer = labels:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        b.timer:SetJustifyH("RIGHT")
+        b.timer:SetTextColor(1, 1, 1, 1)
+    end
+    b.timer:SetFont("Fonts\\FRIZQT__.TTF", fontSize)
+    b.timer:ClearAllPoints()
+    b.timer:SetPoint("RIGHT", labels, "RIGHT", -8, 0)
+    if not b.text then
+        b.text = labels:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        b.text:SetJustifyH("LEFT")
+        b.text:SetTextColor(1, 1, 1, 1)
+    end
+    b.text:SetFont("Fonts\\FRIZQT__.TTF", fontSize)
+    b.text:ClearAllPoints()
+    b.text:SetPoint("LEFT", labels, "LEFT", 8, 0)
+    b.text:SetPoint("RIGHT", b.timer, "LEFT", -8, 0)
+    if b.bar then
+        if b.spark and b.spark.GetParent and b.spark:GetParent() ~= b.bar then
+            b.spark:Hide()
+            b.spark = nil
+        end
+        if not b.spark then
+            b.spark = b.bar:CreateTexture(nil, "OVERLAY")
+            b.spark:SetTexture(CastBar.SPARK_TEX)
+            b.spark:SetWidth(8)
+            b.spark:SetBlendMode("ADD")
+            b.spark:Hide()
+        end
+        b.spark:SetTexture(CastBar.SPARK_TEX)
+        b.spark:SetWidth(8)
+        b.spark:SetHeight(16)
+    end
+    if b.icon then
+        b.icon:Hide()
+    end
+    self:EnsureFill(b)
+    self:EnsureLag(b)
+end
+
+function CastBar:PaintLook(b)
+    if not b then
+        return
+    end
+    self:HideWatchChrome(b)
+    self:LayoutChrome(b)
+    if b.bar then
+        if ConsoleUI.config and ConsoleUI.config.PaintCastFill then
+            ConsoleUI.config:PaintCastFill(b.bar)
+        elseif ConsoleUI.config and ConsoleUI.config.HideStockFill then
+            ConsoleUI.config:HideStockFill(b.bar)
+        end
+        self:EnsureFill(b)
+        self:ApplyFillColor(b)
+    end
+    self:EnsureLayers(b)
 end
 
 -- ============================================================================
@@ -97,62 +481,33 @@ function CastBar:CreateBar()
     -- Create the main frame
     local b = _G[name] or CreateFrame("Frame", name, UIParent)
     
-    -- Get dimensions from config
     local barWidth = config:Get("xpBarWidth") or 400
-    local barHeight = math.max(CastBar.MIN_HEIGHT, config:Get("castbarHeight") or 20)
+    local barHeight = self:ProgressHeight()
     
     b.width = barWidth
     b.height = barHeight
     
     b:SetWidth(barWidth)
-    b:SetHeight(barHeight)
+    b:SetHeight(self:HostHeight())
     b:SetFrameStrata("MEDIUM")
-    b:SetFrameLevel(10)
     
-    -- Create status bar. Fill + rim come from PaintStatusBarChrome.
+    -- Fill lives in the octagon; chrome is LayoutChrome (not XP watch ticks).
     b.bar = b.bar or CreateFrame("StatusBar", nil, b)
-    local inset = (config.STATUS_BAR_INSET) or 3
-    b.bar:ClearAllPoints()
-    b.bar:SetPoint("TOPLEFT", b, "TOPLEFT", inset, -inset)
-    b.bar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -inset, inset)
+    if not b.cuiFillStacked and config.StackAbove then
+        config:StackAbove(b.bar, b)
+        b.cuiFillStacked = true
+    end
     
-    -- Get color from config (blue by default)
-    local colorR = config:Get("castbarColorR") or 0.0
-    local colorG = config:Get("castbarColorG") or 0.5
-    local colorB = config:Get("castbarColorB") or 1.0
+    local colorR = config:Get("castbarColorR") or 1.00
+    local colorG = config:Get("castbarColorG") or 0.82
+    local colorB = config:Get("castbarColorB") or 0.18
     b.bar:SetStatusBarColor(colorR, colorG, colorB, 1.0)
     b.bar:SetOrientation("HORIZONTAL")
     b.bar:SetMinMaxValues(0, 100)
     b.bar:SetValue(0)
     b.bar:Show()
     
-    if config.PaintStatusBarChrome then
-        config:PaintStatusBarChrome(b)
-    end
-    local overlay = b.cuiChrome or b
-
-    -- Spark + text on the rim frame so they sit above the fill
-    b.spark = b.spark or overlay:CreateTexture(nil, "OVERLAY")
-    b.spark:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
-    b.spark:SetWidth(16)
-    b.spark:SetHeight(barHeight * 2)
-    b.spark:SetBlendMode("ADD")
-    b.spark:Hide()
-    
-    local fontSize = math.max(8, math.min(14, math.floor(barHeight * 0.5)))
-    b.text = b.text or overlay:CreateFontString(nil, "OVERLAY")
-    b.text:SetPoint("CENTER", b.bar, "CENTER", 0, 0)
-    b.text:SetJustifyH("CENTER")
-    b.text:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "OUTLINE")
-    b.text:SetTextColor(1, 1, 1, 1)
-    b.text:SetText("")
-    
-    b.timer = b.timer or overlay:CreateFontString(nil, "OVERLAY")
-    b.timer:SetPoint("RIGHT", b.bar, "RIGHT", -5, 0)
-    b.timer:SetJustifyH("RIGHT")
-    b.timer:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "OUTLINE")
-    b.timer:SetTextColor(1, 1, 1, 1)
-    b.timer:SetText("")
+    self:PaintLook(b)
 
     -- Hide by default
     b:Hide()
@@ -221,25 +576,30 @@ function CastBar:SetupEvents()
             this.startTime = GetTime()
             this.maxValue = this.startTime + (castTime / 1000)
             
-            -- Use absolute time values like Blizzard does
-            this.bar:SetMinMaxValues(this.startTime, this.maxValue)
-            this.bar:SetValue(this.startTime)
-            this.text:SetText(this.spellName)
+            CastBar:EnsureLayers(this)
+            if this.text then
+                this.text:SetText(this.spellName)
+            end
+            CastBar:SetSpellIcon(this, this.spellName)
+            CastBar:ApplyFillColor(this)
+            CastBar:SyncFill(this, 0)
+            CastBar:SyncLag(this, castTime / 1000)
             
-            -- Set color from config
-            local colorR = config:Get("castbarColorR") or 0.0
-            local colorG = config:Get("castbarColorG") or 0.5
-            local colorB = config:Get("castbarColorB") or 1.0
-            this.bar:SetStatusBarColor(colorR, colorG, colorB, 1.0)
-            
-            this.spark:Show()
-            CastBar:UpdatePosition()
+            if this.spark then
+                this.spark:Show()
+            end
             this:Show()
+            CastBar:UpdatePosition()
             
         elseif event == "SPELLCAST_STOP" or event == "SPELLCAST_FAILED" or event == "SPELLCAST_INTERRUPTED" then
             this.casting = false
             this.channeling = false
-            this.spark:Hide()
+            if this.spark then
+                this.spark:Hide()
+            end
+            if this.icon then
+                this.icon:Hide()
+            end
             this:Hide()
             
         elseif event == "SPELLCAST_DELAYED" then
@@ -248,7 +608,6 @@ function CastBar:SetupEvents()
             if this.casting and delayAmount and this.startTime and this.maxValue then
                 this.startTime = this.startTime + (delayAmount / 1000)
                 this.maxValue = this.maxValue + (delayAmount / 1000)
-                this.bar:SetMinMaxValues(this.startTime, this.maxValue)
             end
             
         elseif event == "SPELLCAST_CHANNEL_START" then
@@ -279,20 +638,20 @@ function CastBar:SetupEvents()
             
             ConsoleUI_Debug("Channel started: " .. tostring(this.spellName) .. ", duration=" .. (channelTime/1000) .. "s")
             
-            -- Use absolute time values like Blizzard does
-            this.bar:SetMinMaxValues(this.startTime, this.endTime)
-            this.bar:SetValue(this.endTime)  -- Start full for channeling
-            this.text:SetText(this.spellName)
+            CastBar:EnsureLayers(this)
+            if this.text then
+                this.text:SetText(this.spellName)
+            end
+            CastBar:SetSpellIcon(this, this.spellName)
+            CastBar:ApplyFillColor(this)
+            CastBar:SyncFill(this, 1)
+            CastBar:SyncLag(this, channelTime / 1000)
             
-            -- Set channel color from config (gold by default)
-            local colorR = config:Get("castbarChannelColorR") or 1.0
-            local colorG = config:Get("castbarChannelColorG") or 0.75
-            local colorB = config:Get("castbarChannelColorB") or 0.25
-            this.bar:SetStatusBarColor(colorR, colorG, colorB, 1.0)
-            
-            this.spark:Show()
-            CastBar:UpdatePosition()
+            if this.spark then
+                this.spark:Show()
+            end
             this:Show()
+            CastBar:UpdatePosition()
             
         elseif event == "SPELLCAST_CHANNEL_UPDATE" then
             -- arg1 = new channel time remaining (ms)
@@ -303,7 +662,7 @@ function CastBar:SetupEvents()
                 if origDuration > 0 then
                     this.endTime = GetTime() + (newTimeRemaining / 1000)
                     this.startTime = this.endTime - origDuration
-                    this.bar:SetMinMaxValues(this.startTime, this.endTime)
+                    CastBar:SyncFill(this, (newTimeRemaining / 1000) / origDuration)
                 end
             end
             
@@ -311,7 +670,12 @@ function CastBar:SetupEvents()
             ConsoleUI_Debug("SPELLCAST_CHANNEL_STOP received")
             this.casting = false
             this.channeling = false
-            this.spark:Hide()
+            if this.spark then
+                this.spark:Hide()
+            end
+            if this.icon then
+                this.icon:Hide()
+            end
             this:Hide()
             
         elseif event == "PLAYER_ENTERING_WORLD" then
@@ -321,11 +685,16 @@ function CastBar:SetupEvents()
     
     -- OnUpdate for smooth progress (following Blizzard's approach)
     bar:SetScript("OnUpdate", function()
+        if not this.bar then
+            return
+        end
         if this.casting then
             -- Safety check for required values
             if not this.maxValue or not this.startTime then
                 this.casting = false
-                this.spark:Hide()
+                if this.spark then
+                    this.spark:Hide()
+                end
                 this:Hide()
                 return
             end
@@ -334,35 +703,29 @@ function CastBar:SetupEvents()
             if status > this.maxValue then
                 status = this.maxValue
             end
-            this.bar:SetValue(status)
-            
-            -- Calculate spark position like Blizzard does
-            -- Spark is positioned relative to parent frame, accounting for 3px padding
-            local barInnerWidth = this:GetWidth() - 6  -- subtract 3px padding on each side
             local duration = this.maxValue - this.startTime
-            local sparkPosition = 0
+            local pct = 0
             if duration > 0 then
-                sparkPosition = ((status - this.startTime) / duration) * barInnerWidth
+                pct = (status - this.startTime) / duration
             end
-            if sparkPosition < 0 then
-                sparkPosition = 0
+            CastBar:SyncFill(this, pct)
+            CastBar:SyncLag(this, duration)
+            local barInnerWidth = this.bar:GetWidth() or 0
+            if this.spark then
+                this.spark:ClearAllPoints()
+                this.spark:SetPoint("CENTER", this.bar, "LEFT", pct * barInnerWidth, 0)
             end
-            this.spark:ClearAllPoints()
-            this.spark:SetPoint("CENTER", this, "LEFT", 3 + sparkPosition, 0)
-            
-            -- Update timer text
-            local remaining = this.maxValue - status
-            if remaining > 0 then
-                this.timer:SetText(string.format("%.1f", remaining))
-            else
-                this.timer:SetText("")
+            if this.timer then
+                this.timer:SetText(CastBar.FormatTimer(status - this.startTime, duration))
             end
             
         elseif this.channeling then
             -- Safety check for required values
             if not this.endTime or not this.startTime then
                 this.channeling = false
-                this.spark:Hide()
+                if this.spark then
+                    this.spark:Hide()
+                end
                 this:Hide()
                 return
             end
@@ -373,31 +736,27 @@ function CastBar:SetupEvents()
             end
             if time >= this.endTime then
                 this.channeling = false
-                this.spark:Hide()
+                if this.spark then
+                    this.spark:Hide()
+                end
                 this:Hide()
                 return
             end
             
-            -- For channeling, bar value goes from endTime down to startTime
-            local barValue = this.startTime + (this.endTime - time)
-            this.bar:SetValue(barValue)
-            
-            -- Calculate spark position
-            local barInnerWidth = this:GetWidth() - 6  -- subtract 3px padding on each side
             local duration = this.endTime - this.startTime
-            local sparkPosition = 0
+            local pct = 0
             if duration > 0 then
-                sparkPosition = ((barValue - this.startTime) / duration) * barInnerWidth
+                pct = (this.endTime - time) / duration
             end
-            this.spark:ClearAllPoints()
-            this.spark:SetPoint("CENTER", this, "LEFT", 3 + sparkPosition, 0)
-            
-            -- Update timer text
-            local remaining = this.endTime - time
-            if remaining > 0 then
-                this.timer:SetText(string.format("%.1f", remaining))
-            else
-                this.timer:SetText("")
+            CastBar:SyncFill(this, pct)
+            CastBar:SyncLag(this, duration)
+            local barInnerWidth = this.bar:GetWidth() or 0
+            if this.spark then
+                this.spark:ClearAllPoints()
+                this.spark:SetPoint("CENTER", this.bar, "LEFT", pct * barInnerWidth, 0)
+            end
+            if this.timer then
+                this.timer:SetText(CastBar.FormatTimer(time - this.startTime, duration))
             end
         end
     end)
@@ -416,59 +775,31 @@ function CastBar:UpdatePosition()
     local bar = self.castBar
     
     local barWidth = config:Get("xpBarWidth") or 400
-    local barHeight = math.max(CastBar.MIN_HEIGHT, config:Get("castbarHeight") or 20)
+    local barHeight = self:ProgressHeight()
+    local hostH = self:HostHeight()
     local gap = 5
     
     local stackHeight = 0
     local xpbar = ConsoleUI.xpbar
-    if xpbar then
-        local repH, xpH = 0, 0
-        if xpbar.repBar and xpbar.repBar:IsShown() and xpbar.repBar:GetAlpha() > 0 then
-            repH = xpbar.repBar.height or config:Get("repBarHeight") or 20
-        end
-        if xpbar.xpBar and xpbar.xpBar:IsShown() and xpbar.xpBar:GetAlpha() > 0 then
-            xpH = xpbar.xpBar.height or config:Get("xpBarHeight") or 20
-        end
-        if repH > 0 and xpH > 0 then
-            stackHeight = repH + 2 + xpH
-        else
-            stackHeight = repH + xpH
-        end
+    if xpbar and xpbar.StackTop then
+        stackHeight = xpbar:StackTop()
     end
     
-    local castBarBottomY = stackHeight + gap
-    
-    local halfWidth = barWidth / 2
+    local ox = config:HudOffset("castbarOffsetX", 0)
+    local oy = config:HudOffset("castbarOffsetY", 16)
+    local castBarBottomY = stackHeight + gap + oy
     
     bar:ClearAllPoints()
-    bar:SetPoint("BOTTOMLEFT", UIParent, "BOTTOM", -halfWidth, castBarBottomY)
-    bar:SetPoint("TOPRIGHT", UIParent, "BOTTOM", halfWidth, castBarBottomY + barHeight)
+    bar:SetPoint("BOTTOM", UIParent, "BOTTOM", ox, castBarBottomY)
+    bar:SetWidth(barWidth)
+    bar:SetHeight(hostH)
     
     bar.width = barWidth
     bar.height = barHeight
     
-    -- Update bar size
-    local inset = (config.STATUS_BAR_INSET) or 3
-    if bar.bar then
-        bar.bar:ClearAllPoints()
-        bar.bar:SetPoint("TOPLEFT", bar, "TOPLEFT", inset, -inset)
-        bar.bar:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -inset, inset)
-    end
-    
-    -- Update font size
-    local fontSize = math.max(8, math.min(14, math.floor(barHeight * 0.5)))
-    if bar.text then
-        bar.text:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "OUTLINE")
-    end
-    if bar.timer then
-        bar.timer:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "OUTLINE")
-    end
-    
-    -- Update spark height
-    -- Update spark height (spark is child of bar, not bar.bar)
-    if bar.spark then
-        bar.spark:SetHeight(barHeight * 2)
-    end
+    -- Layout only. PaintLook resets the StatusBar texture and flashes the fill.
+    self:EnsureLayers(bar)
+    self:ApplyFillColor(bar)
 end
 
 -- ============================================================================
@@ -476,16 +807,7 @@ end
 -- ============================================================================
 
 function CastBar:UpdateColor()
-    if not self.castBar or not self.castBar.bar then return end
-    
-    local config = ConsoleUI.config
-    if not config then return end
-    
-    local colorR = config:Get("castbarColorR") or 0.0
-    local colorG = config:Get("castbarColorG") or 0.5
-    local colorB = config:Get("castbarColorB") or 1.0
-    
-    self.castBar.bar:SetStatusBarColor(colorR, colorG, colorB, 1.0)
+    self:ApplyFillColor(self.castBar)
 end
 
 -- ============================================================================
@@ -518,9 +840,7 @@ function CastBar:ReloadConfig()
     
     -- Update position and color
     self:UpdatePosition()
-    if config.PaintStatusBarChrome then
-        config:PaintStatusBarChrome(self.castBar)
-    end
+    self:PaintLook(self.castBar)
     self:UpdateColor()
     
     -- Re-register events if needed

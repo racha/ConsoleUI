@@ -66,8 +66,14 @@ ConsoleUI_translation["enUS"] = {
     ["Hide Default Bars"] = "Hide Default Bars",
     ["Hide Blizzard action bars. Uncheck to show them again this session."] = "Hide Blizzard action bars. Uncheck to show them again this session.",
 
-    -- Unit Frames
+    -- Blizz Frames
     ["Unit Frames"] = "Unit Frames",
+    ["Blizz Frames"] = "Blizz Frames",
+    ["Minimap"] = "Minimap",
+    ["Offset from Blizzard's top-right corner, in screen pixels. Negative X is left, negative Y is down. Range: -2000 to 2000."] = "Offset from Blizzard's top-right corner, in screen pixels. Negative X is left, negative Y is down. Range: -2000 to 2000.",
+    ["Buffs / Debuffs"] = "Buffs / Debuffs",
+    ["Buffs"] = "Buffs",
+    ["Debuffs"] = "Debuffs",
     ["Target of Target"] = "Target of Target",
     ["Party Pets"] = "Party Pets",
     ["Party 1"] = "Party 1",
@@ -150,7 +156,7 @@ ConsoleUI_translation["enUS"] = {
     ["Left touch"] = "Left touch",
     ["Right touch"] = "Right touch",
     ["Drop a spell on a slot"] = "Drop a spell on a slot",
-    ["Drag a spell or item onto a slot. Right-click to pick up."] = "Drag a spell or item onto a slot. Right-click to pick up.",
+    ["Drag a spell or item onto a slot. X or Clear empties it. B closes. Right-click to pick up."] = "Drag a spell or item onto a slot. X or Clear empties it. B closes. Right-click to pick up.",
     ["Spell Placement"] = "Spell Placement",
     ["Show Placement Frame"] = "Show Placement Frame",
     ["Opens the spell placement frame where you can drag and drop spells and items onto action bar slots."] = "Opens the spell placement frame where you can drag and drop spells and items onto action bar slots.",
@@ -190,6 +196,7 @@ ConsoleUI_translation["enUS"] = {
     ["Size: 20-80, Padding: 0-100, Star Padding: 50-1000, Scale: 0.5-2.0. X/Y offset from bottom center."] = "Size: 20-80, Padding: 0-100, Star Padding: 0-2000, Scale: 0.5-2.0. X/Y offset from bottom center.",
     ["Reset Layout"] = "Reset Layout",
     ["Reset"] = "Reset",
+    ["Reset this section to defaults."] = "Reset this section to defaults.",
     ["Auto-update spell ranks"] = "Auto-update spell ranks",
     ["When enabled, spells on action bars will automatically be updated to the highest rank when you learn a new spell rank."] = "When enabled, spells on action bars will automatically be updated to the highest rank when you learn a new spell rank.",
     ["Use travel form bar in prowl"] = "Use travel form bar in prowl",
@@ -219,6 +226,13 @@ ConsoleUI_translation["enUS"] = {
     ["Number of buttons on the right side bar. Range: 1-5."] = "Number of buttons on the right side bar. Range: 1-5.",
     ["Left Bar Buttons"] = "Left Bar Buttons",
     ["Right Bar Buttons"] = "Right Bar Buttons",
+    ["Left Edge Offset"] = "Left Edge Offset",
+    ["Right Edge Offset"] = "Right Edge Offset",
+    ["Left Y Offset"] = "Left Y Offset",
+    ["Right Y Offset"] = "Right Y Offset",
+    ["Distance in pixels from the left screen edge. Increase this to clear a display cutout or touch-safe area."] = "Distance in pixels from the left screen edge. Increase this to clear a display cutout or touch-safe area.",
+    ["Distance in pixels from the right screen edge. Increase this to clear a display cutout or touch-safe area."] = "Distance in pixels from the right screen edge. Increase this to clear a display cutout or touch-safe area.",
+    ["Vertical offset from screen middle. Positive is up, negative is down. Range: -500 to 500."] = "Vertical offset from screen middle. Positive is up, negative is down. Range: -500 to 500.",
     
     -- Chat
     ["Chat"] = "Chat",

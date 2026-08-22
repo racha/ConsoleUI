@@ -52,34 +52,42 @@ Config.DEFAULTS = {
     sideBarRightButtons = 3,  -- Number of buttons on right bar (1-5)
     sideBarLeftOffset = 5,  -- Safe-area distance from the left edge
     sideBarRightOffset = 5, -- Safe-area distance from the right edge
+    sideBarLeftYOffset = 0, -- Vertical offset from screen middle (left touch bar)
+    sideBarRightYOffset = 0,-- Vertical offset from screen middle (right touch bar)
     sideBarLeftScale = 1.0, -- Scales the complete left touch-bar cluster
     sideBarRightScale = 1.0,-- Scales the complete right touch-bar cluster
     -- XP/Rep Bar settings
     xpBarWidth = nil,  -- nil = default 400
-    xpBarHeight = 20,  -- Default height (minimum is 20 for border texture)
+    xpBarHeight = 16,  -- HTML inner track. Do not change without bars-plan.html.
     xpBarDisplay = "XP",  -- "XP", "PETXP", "REP", "FLEX", "XPFLEX"
     xpBarAlways = true,  -- XP bar visible by default
     xpBarTimeout = 5.0,  -- Seconds before bar fades out
     xpBarTextShow = true,
     xpBarTextMouse = false,
     xpBarTextOffsetY = 0,
+    xpBarOffsetX = 0,
+    xpBarOffsetY = 16,     -- Lift off the screen edge.
     xpBarColor = "0.0,1.0,0.0,1.0",  -- WoW default green for XP
     xpBarRestColor = "0.0,0.5,1.0,1.0",  -- WoW default blue for rested
     xpBarDontOverlap = false,
     repBarWidth = nil,  -- nil = default 400
-    repBarHeight = 20,  -- Default height (minimum is 20 for border texture)
+    repBarHeight = 16,
     repBarDisplay = "REP",  -- "REP", "FLEX"
     repBarAlways = false,  -- Rep bar hidden by default
     repBarTimeout = 5.0,  -- Seconds before bar fades out
     repBarTextShow = true,
     repBarTextMouse = false,
     repBarTextOffsetY = 0,
+    repBarOffsetX = 0,
+    repBarOffsetY = 16,
     -- Castbar settings
     castbarEnabled = true,  -- Castbar enabled by default
-    castbarHeight = 20,     -- Default height
-    castbarColorR = 0.0,    -- Blue by default (for regular casts)
-    castbarColorG = 0.5,
-    castbarColorB = 1.0,
+    castbarHeight = 6,      -- Thin strip. Text sits under it.
+    castbarOffsetX = 0,
+    castbarOffsetY = 16,    -- Extra gap above the XP stack.
+    castbarColorR = 1.00,   -- Gold, same as CP screenshot
+    castbarColorG = 0.82,
+    castbarColorB = 0.18,
     castbarChannelColorR = 1.0,    -- Gold by default (for channeling)
     castbarChannelColorG = 0.75,
     castbarChannelColorB = 0.25,
@@ -135,6 +143,39 @@ function Config:InitializeDB()
         end
         ConsoleUIDB.config.barSizeV2 = true
     end
+    if not ConsoleUIDB.config.watchBarV2 then
+        -- Old min was 20 for 9-slice. CP watch art is 16.
+        if ConsoleUIDB.config.xpBarHeight == 20 then
+            ConsoleUIDB.config.xpBarHeight = 16
+        end
+        if ConsoleUIDB.config.repBarHeight == 20 then
+            ConsoleUIDB.config.repBarHeight = 16
+        end
+        ConsoleUIDB.config.watchBarV2 = true
+    end
+    if not ConsoleUIDB.config.castBarThinV1 then
+        if ConsoleUIDB.config.castbarHeight == 14 then
+            ConsoleUIDB.config.castbarHeight = 8
+        end
+        ConsoleUIDB.config.castBarThinV1 = true
+    end
+    if not ConsoleUIDB.config.castBarCPV1 then
+        if ConsoleUIDB.config.castbarHeight == 8 then
+            ConsoleUIDB.config.castbarHeight = 14
+        end
+        if ConsoleUIDB.config.castbarColorR == 0 and ConsoleUIDB.config.castbarColorG == 0.5 then
+            ConsoleUIDB.config.castbarColorR = 1.00
+            ConsoleUIDB.config.castbarColorG = 0.82
+            ConsoleUIDB.config.castbarColorB = 0.18
+        end
+        ConsoleUIDB.config.castBarCPV1 = true
+    end
+    if not ConsoleUIDB.config.castBarSlimV1 then
+        if ConsoleUIDB.config.castbarHeight == 14 or ConsoleUIDB.config.castbarHeight == 8 then
+            ConsoleUIDB.config.castbarHeight = 6
+        end
+        ConsoleUIDB.config.castBarSlimV1 = true
+    end
     
     -- Initialize locale if available
     if ConsoleUI.locale then
@@ -189,6 +230,65 @@ function Config:Get(key)
     return value
 end
 
+function Config:HudOffset(key, fallback)
+    local n = tonumber(self:Get(key))
+    if not n then
+        n = fallback or 0
+    end
+    if n < -500 then
+        return -500
+    end
+    if n > 500 then
+        return 500
+    end
+    return n
+end
+
+function Config:HudOffsetFromText(value)
+    local n = tonumber(value) or 0
+    if n < -500 then
+        return -500
+    end
+    if n > 500 then
+        return 500
+    end
+    return n
+end
+
+function Config:AddOffsetRow(box, anchor, xKey, yKey, onChange)
+    local xLabel = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    xLabel:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
+    xLabel:SetText("X:")
+    local xBox = self:CreateEditBox(box, 42,
+        function() return tostring(self:HudOffset(xKey, 0)) end,
+        function(value)
+            self:Set(xKey, self:HudOffsetFromText(value))
+            if onChange then
+                onChange()
+            end
+        end,
+        "X Offset",
+        "Horizontal offset in pixels. Range: -500 to 500.",
+        self.NUDGE_MOVE)
+    xBox:SetPoint("LEFT", xLabel, "RIGHT", 5, 0)
+    local yLabel = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    yLabel:SetPoint("LEFT", xBox, "RIGHT", 12, 0)
+    yLabel:SetText("Y:")
+    local yBox = self:CreateEditBox(box, 42,
+        function() return tostring(self:HudOffset(yKey, 0)) end,
+        function(value)
+            self:Set(yKey, self:HudOffsetFromText(value))
+            if onChange then
+                onChange()
+            end
+        end,
+        "Y Offset",
+        "Vertical offset in pixels. Positive is up. Range: -500 to 500.",
+        self.NUDGE_MOVE)
+    yBox:SetPoint("LEFT", yLabel, "RIGHT", 5, 0)
+    return xBox, yBox
+end
+
 function Config:Set(key, value)
     if not ConsoleUIDB then
         ConsoleUIDB = {}
@@ -214,6 +314,9 @@ end
 Config.FRAME_WIDTH = 900
 Config.FRAME_HEIGHT = 650
 Config.SIDEBAR_WIDTH = 184
+Config.EDIT_BOX_WIDTH = 56
+Config.NUDGE_MOVE = 5
+Config.NUDGE_SCALE = 0.1
 Config.BUTTON_HEIGHT = 40
 Config.PADDING = 8
 Config.HEADER_HEIGHT = 62
@@ -321,70 +424,248 @@ function Config:GetHudBorderColor()
            clamp(self:Get("barGoldColorB"), 0.18)
 end
 
--- Thin HUD bars cannot use tooltip 9-slice (edgeSize 10 eats a 20px frame).
--- Track + 2px rim on a higher child frame so the fill never covers the border.
--- 1.12 crops this by texture width. Custom TGA + SetTexCoord shows full white.
-Config.STATUS_BAR_FILL = "Interface\\TargetingFrame\\UI-StatusBar"
-Config.STATUS_BAR_SOLID = "Interface\\Tooltips\\UI-Tooltip-Background"
-Config.STATUS_BAR_INSET = 3
-Config.STATUS_BAR_RIM = 2
+-- bars-plan.html Proposed: 400x16 inner trap, cut 14, 4px black rim, 2px gold ticks.
+-- White.tga is a solid texel. Tooltip-Background is dark — gold * dark = beige.
+-- Do not use ConsolePort XPBar.tga. Square backdrop hides the cut — no backdrop.
+Config.STATUS_BAR_FLAT = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\White"
+Config.STATUS_BAR_WHITE = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\White"
+Config.STATUS_BAR_WATCH_BACK = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\WatchRim"
+Config.STATUS_BAR_WATCH_FILL = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\WatchFill"
+Config.STATUS_BAR_TRACK = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\White"
+Config.STATUS_BAR_INSET = 0
+Config.WATCH_BORDER_PAD = 4
+Config.WATCH_GAP_COUNT = 9
+Config.WATCH_TICK_WIDTH = 1
+Config.WATCH_TICK_R = 0.42
+Config.WATCH_TICK_G = 0.42
+Config.WATCH_TICK_B = 0.42
 
 function Config:EnsureStatusBarChrome(frame)
     if not frame or frame.cuiChrome then
         return
     end
+    -- No square backdrop. It fills the TGA's transparent corners.
     if frame.SetBackdrop then
-        frame:SetBackdrop({
-            bgFile = self.STATUS_BAR_SOLID,
-            tile = true,
-            tileSize = 16,
-            insets = { left = 0, right = 0, top = 0, bottom = 0 },
-        })
+        frame:SetBackdrop(nil)
     end
-    local solid = self.STATUS_BAR_SOLID
-    local track = frame:CreateTexture(nil, "BACKGROUND")
-    track:SetTexture(solid)
-    track:SetAllPoints(frame)
-    frame.cuiTrack = track
-
     local chrome = CreateFrame("Frame", nil, frame)
     chrome:SetAllPoints(frame)
+    self:StackAbove(chrome, frame)
     frame.cuiChrome = chrome
-    local function edge()
-        local tex = chrome:CreateTexture(nil, "OVERLAY")
-        tex:SetTexture(solid)
-        return tex
+end
+
+function Config:HideWatchTicks(frame)
+    if not frame then
+        return
     end
-    local rim = self.STATUS_BAR_RIM
-    local top = edge()
-    top:SetPoint("TOPLEFT", chrome, "TOPLEFT", 0, 0)
-    top:SetPoint("TOPRIGHT", chrome, "TOPRIGHT", 0, 0)
-    top:SetHeight(rim)
-    local bot = edge()
-    bot:SetPoint("BOTTOMLEFT", chrome, "BOTTOMLEFT", 0, 0)
-    bot:SetPoint("BOTTOMRIGHT", chrome, "BOTTOMRIGHT", 0, 0)
-    bot:SetHeight(rim)
-    local left = edge()
-    left:SetPoint("TOPLEFT", chrome, "TOPLEFT", 0, -rim)
-    left:SetPoint("BOTTOMLEFT", chrome, "BOTTOMLEFT", 0, rim)
-    left:SetWidth(rim)
-    local right = edge()
-    right:SetPoint("TOPRIGHT", chrome, "TOPRIGHT", 0, -rim)
-    right:SetPoint("BOTTOMRIGHT", chrome, "BOTTOMRIGHT", 0, rim)
-    right:SetWidth(rim)
-    frame.cuiEdgeT = top
-    frame.cuiEdgeB = bot
-    frame.cuiEdgeL = left
-    frame.cuiEdgeR = right
+    if frame.cuiNotch then
+        frame.cuiNotch:Hide()
+    end
+    if frame.cuiTicks then
+        local i
+        for i = 1, table.getn(frame.cuiTicks) do
+            if frame.cuiTicks[i] then
+                frame.cuiTicks[i]:Hide()
+            end
+        end
+    end
+    if frame.cuiPips then
+        local i
+        for i = 1, table.getn(frame.cuiPips) do
+            if frame.cuiPips[i] then
+                frame.cuiPips[i]:Hide()
+            end
+        end
+    end
+end
+
+function Config:WatchWideBottom(frame)
+    -- XP: wide bottom (CP). Rep: flipped, wide top, so the pair kisses.
+    if frame and frame.barType == "REP" then
+        return false
+    end
+    return true
+end
+
+function Config:WatchTexV(frame)
+    if self:WatchWideBottom(frame) then
+        return 1, 0
+    end
+    return 0, 1
+end
+
+function Config:EnsureWatchOverlay(frame)
+    if not frame or not frame.cuiChrome then
+        return
+    end
+    self:HideWatchTicks(frame)
+    if not frame.cuiWatchBack then
+        local back = frame:CreateTexture(nil, "BACKGROUND")
+        back:SetTexture(self.STATUS_BAR_WATCH_BACK)
+        frame.cuiWatchBack = back
+    end
+    if not frame.cuiGapGold then
+        frame.cuiGapGold = {}
+        local i
+        for i = 1, self.WATCH_GAP_COUNT do
+            local line = frame:CreateTexture(nil, "OVERLAY")
+            line:SetTexture(self.STATUS_BAR_WHITE)
+            line:SetWidth(self.WATCH_TICK_WIDTH or 1)
+            frame.cuiGapGold[i] = line
+        end
+    end
+    if frame.cuiWatchGaps then
+        frame.cuiWatchGaps:Hide()
+    end
+    if frame.cuiWatchBody then
+        frame.cuiWatchBody:Hide()
+    end
+    if not frame.cuiText then
+        local textFrame = CreateFrame("Frame", nil, frame)
+        textFrame:SetAllPoints(frame)
+        self:StackAbove(textFrame, frame.cuiChrome)
+        frame.cuiText = textFrame
+    end
+end
+
+function Config:StackAbove(frame, parent)
+    if not frame or not frame.SetFrameLevel or not parent then
+        return
+    end
+    local base = 1
+    if parent.GetFrameLevel then
+        base = parent:GetFrameLevel() or 1
+    end
+    -- 1.12 errors if a child jumps many levels past its parent.
+    frame:SetFrameLevel(base + 1)
+end
+
+function Config:HideStockFill(statusBar)
+    if not statusBar then
+        return
+    end
+    -- 1.12 StatusBar redraws this on SetValue. It is a rectangle and
+    -- paints over XPBar.tga's cut corners. Kill it every sync.
+    local stock = statusBar.GetStatusBarTexture and statusBar:GetStatusBarTexture()
+    if stock then
+        if stock.SetAlpha then
+            stock:SetAlpha(0)
+        end
+        if stock.Hide then
+            stock:Hide()
+        end
+    end
+end
+
+function Config:EnsureWatchFill(statusBar)
+    if not statusBar then
+        return
+    end
+    self:HideStockFill(statusBar)
+    local host = statusBar
+    if statusBar.GetParent then
+        host = statusBar:GetParent() or statusBar
+    end
+    local layer = "ARTWORK"
+    if host.restedbar == statusBar then
+        layer = "BORDER"
+    end
+    if statusBar.cuiWatchFill then
+        local fill = statusBar.cuiWatchFill
+        fill:SetTexture(self.STATUS_BAR_WATCH_FILL)
+        if fill.SetDrawLayer then
+            fill:SetDrawLayer(layer)
+        end
+        fill:ClearAllPoints()
+        fill:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
+        fill:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
+        return
+    end
+    local fill = host:CreateTexture(nil, layer)
+    fill:SetTexture(self.STATUS_BAR_WATCH_FILL)
+    fill:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
+    fill:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
+    statusBar.cuiWatchFill = fill
+    if statusBar.SetStatusBarTexture then
+        statusBar:SetStatusBarTexture(self.STATUS_BAR_WHITE)
+    end
+end
+
+function Config:SyncWatchFill(statusBar)
+    if not statusBar then
+        return
+    end
+    self:EnsureWatchFill(statusBar)
+    self:HideStockFill(statusBar)
+    local fill = statusBar.cuiWatchFill
+    if not fill then
+        return
+    end
+    local minv, maxv = 0, 1
+    if statusBar.GetMinMaxValues then
+        minv, maxv = statusBar:GetMinMaxValues()
+    end
+    local v = 0
+    if statusBar.GetValue then
+        v = statusBar:GetValue() or 0
+    end
+    local span = (maxv or 0) - (minv or 0)
+    local pct = 0
+    if span > 0 then
+        pct = (v - minv) / span
+    end
+    if pct < 0 then
+        pct = 0
+    end
+    if pct > 1 then
+        pct = 1
+    end
+    local host = fill.GetParent and fill:GetParent() or statusBar
+    local full = 0
+    if host and host.GetWidth then
+        full = host:GetWidth() or 0
+    end
+    local width = full * pct
+    if width < 1 then
+        fill:Hide()
+        return
+    end
+    local top, bot = 0, 1
+    if host then
+        top, bot = self:WatchTexV(host)
+    end
+    -- Crop the trap, do not stretch it. Stretch would squash the cut.
+    fill:SetTexture(self.STATUS_BAR_WATCH_FILL)
+    fill:SetTexCoord(0, pct, top, bot)
+    fill:ClearAllPoints()
+    fill:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
+    fill:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
+    fill:SetWidth(width)
+    local r, g, b, a = 1, 1, 1, 1
+    if statusBar.GetStatusBarColor then
+        r, g, b, a = statusBar:GetStatusBarColor()
+    end
+    fill:SetVertexColor(r or 1, g or 1, b or 1, 1)
+    fill:Show()
 end
 
 function Config:PaintStatusBarFill(bar)
-    if not bar or not bar.SetStatusBarTexture then
+    if not bar then
         return
     end
-    -- 1.12 SetStatusBarTexture resets color to white. Do not paint a
-    -- fallback white here. Callers re-apply fill color after chrome.
-    bar:SetStatusBarTexture(self.STATUS_BAR_FILL)
+    self:SyncWatchFill(bar)
+end
+
+function Config:PaintCastFill(bar)
+    if not bar then
+        return
+    end
+    if bar.cuiWatchFill then
+        bar.cuiWatchFill:Hide()
+    end
+    -- Do not SetStatusBarTexture for cast. 1.12 StatusBar + custom TGA
+    -- updates in chunks. CastBar:SyncFill stretches a Texture instead.
+    self:HideStockFill(bar)
 end
 
 function Config:PaintStatusBarChrome(frame)
@@ -392,36 +673,59 @@ function Config:PaintStatusBarChrome(frame)
         return
     end
     self:EnsureStatusBarChrome(frame)
-    if frame.SetBackdropColor then
-        frame:SetBackdropColor(0.067, 0.071, 0.086, 0.96)
-    end
-    if frame.SetBackdropBorderColor then
-        frame:SetBackdropBorderColor(0, 0, 0, 0)
+    self:EnsureWatchOverlay(frame)
+    -- Square fill hides the TGA's transparent corners (the CP cut).
+    if frame.SetBackdrop then
+        frame:SetBackdrop(nil)
     end
     if frame.cuiTrack then
-        frame.cuiTrack:SetVertexColor(0.067, 0.071, 0.086, 0.96)
+        frame.cuiTrack:Hide()
     end
-    local r, g, b, a
-    if self:Get("barGoldBorder") then
-        r, g, b = self:GetHudBorderColor()
-        a = 0.90
-    else
-        r, g, b, a = 0.72, 0.73, 0.76, 0.90
+    local top, bot = self:WatchTexV(frame)
+    local pad = self.WATCH_BORDER_PAD or 4
+    if frame.cuiWatchBack then
+        frame.cuiWatchBack:SetTexture(self.STATUS_BAR_WATCH_BACK)
+        frame.cuiWatchBack:ClearAllPoints()
+        frame.cuiWatchBack:SetPoint("TOPLEFT", frame, "TOPLEFT", -pad, pad)
+        frame.cuiWatchBack:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", pad, -pad)
+        frame.cuiWatchBack:SetTexCoord(0, 1, top, bot)
+        frame.cuiWatchBack:SetVertexColor(0, 0, 0, 1)
+        frame.cuiWatchBack:Show()
     end
-    local function paintEdge(tex)
-        if tex then
-            tex:SetVertexColor(r, g, b, a)
-            tex:Show()
+    if frame.cuiWatchGaps then
+        frame.cuiWatchGaps:Hide()
+    end
+    if frame.cuiWatchBody then
+        frame.cuiWatchBody:Hide()
+    end
+    local w = 0
+    if frame.GetWidth then
+        w = frame:GetWidth() or 0
+    end
+    if frame.cuiGapGold then
+        local i
+        local tw = self.WATCH_TICK_WIDTH or 1
+        for i = 1, self.WATCH_GAP_COUNT do
+            local line = frame.cuiGapGold[i]
+            if line then
+                local x = 0
+                if w > 0 then
+                    x = w * i / 10
+                end
+                line:SetTexture(self.STATUS_BAR_WHITE)
+                line:ClearAllPoints()
+                line:SetPoint("TOPLEFT", frame, "TOPLEFT", x, 0)
+                line:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", x, 0)
+                line:SetWidth(tw)
+                line:SetVertexColor(
+                    self.WATCH_TICK_R or 0.42,
+                    self.WATCH_TICK_G or 0.42,
+                    self.WATCH_TICK_B or 0.42,
+                    1
+                )
+                line:Show()
+            end
         end
-    end
-    paintEdge(frame.cuiEdgeT)
-    paintEdge(frame.cuiEdgeB)
-    paintEdge(frame.cuiEdgeL)
-    paintEdge(frame.cuiEdgeR)
-    if frame.cuiChrome then
-        local level = frame.GetFrameLevel and frame:GetFrameLevel() or 1
-        frame.cuiChrome:SetFrameLevel(level + 8)
-        frame.cuiChrome:Show()
     end
     self:PaintStatusBarFill(frame.bar)
     self:PaintStatusBarFill(frame.restedbar)
@@ -460,8 +764,8 @@ function Config:ApplyHudBorderChrome()
             self:PaintStatusBarChrome(ConsoleUI.xpbar.repBar)
         end
     end
-    if ConsoleUI.castbar then
-        self:PaintStatusBarChrome(ConsoleUI.castbar.castBar)
+    if ConsoleUI.castbar and ConsoleUI.castbar.PaintLook then
+        ConsoleUI.castbar:PaintLook(ConsoleUI.castbar.castBar)
     end
 end
 
@@ -556,7 +860,7 @@ Config.SECTIONS = {
     { id = "bars", name = "Bars" },
     { id = "bindings", name = "Bindings" },
     { id = "rings", name = "Rings" },
-    { id = "unitframes", name = "Unit Frames" },
+    { id = "unitframes", name = "Blizz Frames" },
     { id = "profiles", name = "Profiles" },
     { id = "about", name = "About" },
     { id = "debug", name = "Debug" },
@@ -1076,6 +1380,33 @@ function Config:CreateInterfaceSection()
         end
     end)
     generalDelayFrame:Show()
+
+    self:AddSectionReset(generalBox, function()
+        Config:Set("controllerType", Config.DEFAULTS.controllerType)
+        Config:Set("controllerGlyphSize", Config.DEFAULTS.controllerGlyphSize)
+        Config:Set("healerMode", Config.DEFAULTS.healerMode)
+        Config:Set("openAllBagsAtVendor", Config.DEFAULTS.openAllBagsAtVendor)
+        Config:Set("dropdownNavEnabled", Config.DEFAULTS.dropdownNavEnabled)
+        Config:Set("hideBlizzardBars", Config.DEFAULTS.hideBlizzardBars)
+        UIDropDownMenu_SetSelectedValue(controllerTypeDropdown, Config.DEFAULTS.controllerType)
+        UIDropDownMenu_SetText(Config.DEFAULTS.controllerType == "xbox" and "Xbox" or "PlayStation", controllerTypeDropdown)
+        UIDropDownMenu_SetSelectedValue(glyphDropdown, Config.DEFAULTS.controllerGlyphSize)
+        UIDropDownMenu_SetText(GlyphSizeLabel(Config.DEFAULTS.controllerGlyphSize), glyphDropdown)
+        healerModeCheck:SetChecked(Config.DEFAULTS.healerMode and 1 or 0)
+        openBagsCheck:SetChecked(Config.DEFAULTS.openAllBagsAtVendor and 1 or 0)
+        dropdownNavCheck:SetChecked(Config.DEFAULTS.dropdownNavEnabled and 1 or 0)
+        hideBarsCheck:SetChecked(Config.DEFAULTS.hideBlizzardBars ~= false and 1 or 0)
+        Config:ApplyControllerGlyphs()
+        if ConsoleUI.hooks and ConsoleUI.hooks.HookPartyRaidFrames then
+            ConsoleUI.hooks:HookPartyRaidFrames()
+        end
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.ApplyDefaultBarVisibility then
+            ConsoleUI.actionbars:ApplyDefaultBarVisibility()
+        end
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
+            ConsoleUI.actionbars:UpdateAllButtons()
+        end
+    end)
     
     -- ==================== Crosshair Settings Box ====================
     local crosshairBox = self:CreateSectionBox(section, T("Crosshair"))
@@ -1244,7 +1575,8 @@ function Config:CreateInterfaceSection()
             Config:UpdateCrosshair()
         end,
         T("X Offset"),
-        T("Horizontal offset from screen center. Negative values move left, positive values move right."))
+        T("Horizontal offset from screen center. Negative values move left, positive values move right."),
+        self.NUDGE_MOVE)
     xEditBox:SetPoint("LEFT", xLabel, "RIGHT", 5, 0)
     xEditBox:SetScript("OnTextChanged", function()
         local num = tonumber(this:GetText()) or 0
@@ -1264,7 +1596,8 @@ function Config:CreateInterfaceSection()
             Config:UpdateCrosshair()
         end,
         T("Y Offset"),
-        T("Vertical offset from screen center. Negative values move down, positive values move up."))
+        T("Vertical offset from screen center. Negative values move down, positive values move up."),
+        self.NUDGE_MOVE)
     yEditBox:SetPoint("LEFT", yLabel, "RIGHT", 5, 0)
     yEditBox:SetScript("OnTextChanged", function()
         local num = tonumber(this:GetText()) or 0
@@ -1313,6 +1646,27 @@ function Config:CreateInterfaceSection()
         end
     end)
     crosshairDelayFrame:Show()
+
+    self:AddSectionReset(crosshairBox, function()
+        Config:Set("crosshairEnabled", Config.DEFAULTS.crosshairEnabled)
+        Config:Set("crosshairX", Config.DEFAULTS.crosshairX)
+        Config:Set("crosshairY", Config.DEFAULTS.crosshairY)
+        Config:Set("crosshairSize", Config.DEFAULTS.crosshairSize)
+        Config:Set("crosshairType", Config.DEFAULTS.crosshairType)
+        Config:Set("crosshairColorR", Config.DEFAULTS.crosshairColorR)
+        Config:Set("crosshairColorG", Config.DEFAULTS.crosshairColorG)
+        Config:Set("crosshairColorB", Config.DEFAULTS.crosshairColorB)
+        Config:Set("crosshairColorA", Config.DEFAULTS.crosshairColorA)
+        crosshairCheck:SetChecked(Config.DEFAULTS.crosshairEnabled and 1 or 0)
+        xEditBox:SetText(tostring(Config.DEFAULTS.crosshairX))
+        yEditBox:SetText(tostring(Config.DEFAULTS.crosshairY))
+        sizeEditBox:SetText(tostring(Config.DEFAULTS.crosshairSize))
+        local defType = Config.DEFAULTS.crosshairType or "cross"
+        UIDropDownMenu_SetSelectedValue(typeDropdown, defType)
+        UIDropDownMenu_SetText(defType == "cross" and T("Cross") or T("Dot"), typeDropdown)
+        UpdateColorPreview()
+        Config:UpdateCrosshair()
+    end)
     
     self.contentSections["interface"] = section
 end
@@ -1582,7 +1936,8 @@ function Config:CreateBarsSection()
             Config:UpdateActionBarLayout()
         end,
         T("X Offset"),
-        T("Horizontal offset from screen center."))
+        T("Horizontal offset from screen center."),
+        self.NUDGE_MOVE)
     xEditBox:SetPoint("LEFT", xLabel, "RIGHT", 5, 0)
     xEditBox:SetScript("OnTextChanged", function()
         local num = tonumber(this:GetText()) or 0
@@ -1602,7 +1957,8 @@ function Config:CreateBarsSection()
             Config:UpdateActionBarLayout()
         end,
         T("Y Offset"),
-        T("Vertical offset from screen bottom."))
+        T("Vertical offset from screen bottom."),
+        self.NUDGE_MOVE)
     yEditBox:SetPoint("LEFT", yLabel, "RIGHT", 5, 0)
     yEditBox:SetScript("OnTextChanged", function()
         local num = tonumber(this:GetText()) or 70
@@ -1635,17 +1991,12 @@ function Config:CreateBarsSection()
         end
     end)
     
-    local resetButton = self:MakePanelButton(generalBox, "ConsoleUIConfigResetLayout", 80, T("Reset"))
-    resetButton:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 0, -12)
-    resetButton:SetScript("OnClick", function()
+    self:AddSectionReset(generalBox, function()
         Config:Set("barButtonSize", Config.DEFAULTS.barButtonSize)
         Config:Set("barPadding", Config.DEFAULTS.barPadding)
         Config:Set("barStarPadding", Config.DEFAULTS.barStarPadding)
         Config:Set("barXOffset", Config.DEFAULTS.barXOffset)
         Config:Set("barYOffset", Config.DEFAULTS.barYOffset)
-        Config:Set("barScale", Config.DEFAULTS.barScale)
-        Config:Set("sideBarLeftScale", Config.DEFAULTS.sideBarLeftScale)
-        Config:Set("sideBarRightScale", Config.DEFAULTS.sideBarRightScale)
         Config:Set("barAppearance", Config.DEFAULTS.barAppearance)
         Config:Set("barLayout", Config.DEFAULTS.barLayout)
         Config:Set("barGoldBorder", Config.DEFAULTS.barGoldBorder)
@@ -1653,27 +2004,26 @@ function Config:CreateBarsSection()
         Config:Set("barGoldColorG", Config.DEFAULTS.barGoldColorG)
         Config:Set("barGoldColorB", Config.DEFAULTS.barGoldColorB)
         Config:Set("barFlankGap", Config.DEFAULTS.barFlankGap)
+        Config:Set("autoRankEnabled", Config.DEFAULTS.autoRankEnabled)
+        Config:Set("druidStealth", Config.DEFAULTS.druidStealth)
         Config:UpdateActionBarLayout()
+        Config:ApplyHudBorderChrome()
         sizeEditBox:SetText(tostring(Config.DEFAULTS.barButtonSize))
         paddingEditBox:SetText(tostring(Config.DEFAULTS.barPadding))
         starPaddingEditBox:SetText(tostring(Config.DEFAULTS.barStarPadding))
         xEditBox:SetText(tostring(Config.DEFAULTS.barXOffset))
         yEditBox:SetText(tostring(Config.DEFAULTS.barYOffset))
-        if Config.scaleEditBoxes then
-            Config.scaleEditBoxes.main:SetText(tostring(Config.DEFAULTS.barScale))
-            Config.scaleEditBoxes.left:SetText(tostring(Config.DEFAULTS.sideBarLeftScale))
-            Config.scaleEditBoxes.right:SetText(tostring(Config.DEFAULTS.sideBarRightScale))
-        end
         goldCheck:SetChecked(Config.DEFAULTS.barGoldBorder and 1 or 0)
+        autoRankCheck:SetChecked(Config.DEFAULTS.autoRankEnabled and 1 or 0)
+        druidStealthCheck:SetChecked(Config.DEFAULTS.druidStealth and 1 or 0)
         UpdateGoldColorPreview()
         local defLayout = Config.DEFAULTS.barLayout or "controller"
         UIDropDownMenu_SetSelectedValue(layoutDropdown, defLayout)
         UIDropDownMenu_SetText(LayoutLabel(defLayout), layoutDropdown)
-        ConsoleUI_Debug("Action bar layout reset to defaults")
     end)
-    
+
     local updateRanksButton = self:MakePanelButton(generalBox, "ConsoleUIConfigUpdateRanks", 110, T("Update ranks"), "ghost")
-    updateRanksButton:SetPoint("LEFT", resetButton, "RIGHT", 8, 0)
+    updateRanksButton:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 0, -12)
     druidStealthCheck:SetPoint("LEFT", updateRanksButton, "RIGHT", 16, 0)
     druidStealthLabel:SetPoint("LEFT", druidStealthCheck, "RIGHT", 4, 0)
     updateRanksButton:SetScript("OnClick", function()
@@ -1718,7 +2068,7 @@ function Config:CreateBarsSection()
             end,
             T("Scale"),
             nil,
-            0.1)
+            self.NUDGE_SCALE)
         box:SetPoint("TOPLEFT", parent, "TOPLEFT", x, parent.contentTop)
         box:SetScript("OnTextChanged", function()
             local num = tonumber(this:GetText()) or 1.0
@@ -1761,6 +2111,19 @@ function Config:CreateBarsSection()
     rightScaleBox:SetPoint("LEFT", rightScaleTitle, "RIGHT", 8, 0)
 
     self.scaleEditBoxes = { main = mainScaleBox, left = leftScaleBox, right = rightScaleBox }
+
+    self:AddSectionReset(scaleBox, function()
+        Config:Set("barScale", Config.DEFAULTS.barScale)
+        Config:Set("sideBarLeftScale", Config.DEFAULTS.sideBarLeftScale)
+        Config:Set("sideBarRightScale", Config.DEFAULTS.sideBarRightScale)
+        mainScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.barScale))
+        leftScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.sideBarLeftScale))
+        rightScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.sideBarRightScale))
+        Config:UpdateActionBarLayout()
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
+            ConsoleUI.actionbars:UpdateSideBars()
+        end
+    end)
     
     -- ==================== Left Side Bar Box ====================
     local leftSideBox = self:CreateSectionBox(section, "Left touch bar")
@@ -1823,7 +2186,7 @@ function Config:CreateBarsSection()
 
     local leftOffsetLabel = leftSideBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     leftOffsetLabel:SetPoint("TOPLEFT", leftBarCheck, "BOTTOMLEFT", 0, -10)
-    leftOffsetLabel:SetText("Edge offset")
+    leftOffsetLabel:SetText("X:")
     leftOffsetLabel:SetTextColor(unpack(self.UI_COLORS.muted))
 
     local leftOffsetEditBox = self:CreateEditBox(leftSideBox, 42,
@@ -1837,8 +2200,9 @@ function Config:CreateBarsSection()
                 ConsoleUI.actionbars:UpdateSideBars()
             end
         end,
-        "Left Edge Offset",
-        "Distance in pixels from the left screen edge. Increase this to clear a display cutout or touch-safe area.")
+        T("Left Edge Offset"),
+        T("Distance in pixels from the left screen edge. Increase this to clear a display cutout or touch-safe area."),
+        self.NUDGE_MOVE)
     leftOffsetEditBox:SetPoint("LEFT", leftOffsetLabel, "RIGHT", 6, 0)
     leftOffsetEditBox:SetScript("OnTextChanged", function()
         local num = tonumber(this:GetText()) or 5
@@ -1847,6 +2211,53 @@ function Config:CreateBarsSection()
             if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
                 ConsoleUI.actionbars:UpdateSideBars()
             end
+        end
+    end)
+
+    local leftYLabel = leftSideBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    leftYLabel:SetPoint("LEFT", leftOffsetEditBox, "RIGHT", 12, 0)
+    leftYLabel:SetText("Y:")
+    leftYLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+
+    local leftYEditBox = self:CreateEditBox(leftSideBox, 42,
+        function() return tostring(Config:Get("sideBarLeftYOffset") or 0) end,
+        function(value)
+            local num = tonumber(value) or 0
+            if num < -500 then num = -500 end
+            if num > 500 then num = 500 end
+            Config:Set("sideBarLeftYOffset", num)
+            if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
+                ConsoleUI.actionbars:UpdateSideBars()
+            end
+        end,
+        T("Left Y Offset"),
+        T("Vertical offset from screen middle. Positive is up, negative is down. Range: -500 to 500."),
+        self.NUDGE_MOVE)
+    leftYEditBox:SetPoint("LEFT", leftYLabel, "RIGHT", 6, 0)
+    leftYEditBox:SetScript("OnTextChanged", function()
+        local num = tonumber(this:GetText()) or 0
+        if num >= -500 and num <= 500 then
+            Config:Set("sideBarLeftYOffset", num)
+            if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
+                ConsoleUI.actionbars:UpdateSideBars()
+            end
+        end
+    end)
+
+    self:AddSectionReset(leftSideBox, function()
+        Config:Set("sideBarLeftEnabled", Config.DEFAULTS.sideBarLeftEnabled)
+        Config:Set("sideBarLeftButtons", Config.DEFAULTS.sideBarLeftButtons)
+        Config:Set("sideBarLeftOffset", Config.DEFAULTS.sideBarLeftOffset)
+        Config:Set("sideBarLeftYOffset", Config.DEFAULTS.sideBarLeftYOffset)
+        leftBarCheck:SetChecked(Config.DEFAULTS.sideBarLeftEnabled and 1 or 0)
+        leftCountEditBox:SetText(tostring(Config.DEFAULTS.sideBarLeftButtons))
+        leftOffsetEditBox:SetText(tostring(Config.DEFAULTS.sideBarLeftOffset))
+        leftYEditBox:SetText(tostring(Config.DEFAULTS.sideBarLeftYOffset))
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
+            ConsoleUI.actionbars:UpdateSideBars()
+        end
+        if Config.UpdateSidebarBindingVisibility then
+            Config:UpdateSidebarBindingVisibility()
         end
     end)
 
@@ -1911,7 +2322,7 @@ function Config:CreateBarsSection()
 
     local rightOffsetLabel = rightSideBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     rightOffsetLabel:SetPoint("TOPLEFT", rightBarCheck, "BOTTOMLEFT", 0, -10)
-    rightOffsetLabel:SetText("Edge offset")
+    rightOffsetLabel:SetText("X:")
     rightOffsetLabel:SetTextColor(unpack(self.UI_COLORS.muted))
 
     local rightOffsetEditBox = self:CreateEditBox(rightSideBox, 42,
@@ -1925,8 +2336,9 @@ function Config:CreateBarsSection()
                 ConsoleUI.actionbars:UpdateSideBars()
             end
         end,
-        "Right Edge Offset",
-        "Distance in pixels from the right screen edge. Increase this to clear a display cutout or touch-safe area.")
+        T("Right Edge Offset"),
+        T("Distance in pixels from the right screen edge. Increase this to clear a display cutout or touch-safe area."),
+        self.NUDGE_MOVE)
     rightOffsetEditBox:SetPoint("LEFT", rightOffsetLabel, "RIGHT", 6, 0)
     rightOffsetEditBox:SetScript("OnTextChanged", function()
         local num = tonumber(this:GetText()) or 5
@@ -1938,12 +2350,59 @@ function Config:CreateBarsSection()
         end
     end)
 
+    local rightYLabel = rightSideBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    rightYLabel:SetPoint("LEFT", rightOffsetEditBox, "RIGHT", 12, 0)
+    rightYLabel:SetText("Y:")
+    rightYLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+
+    local rightYEditBox = self:CreateEditBox(rightSideBox, 42,
+        function() return tostring(Config:Get("sideBarRightYOffset") or 0) end,
+        function(value)
+            local num = tonumber(value) or 0
+            if num < -500 then num = -500 end
+            if num > 500 then num = 500 end
+            Config:Set("sideBarRightYOffset", num)
+            if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
+                ConsoleUI.actionbars:UpdateSideBars()
+            end
+        end,
+        T("Right Y Offset"),
+        T("Vertical offset from screen middle. Positive is up, negative is down. Range: -500 to 500."),
+        self.NUDGE_MOVE)
+    rightYEditBox:SetPoint("LEFT", rightYLabel, "RIGHT", 6, 0)
+    rightYEditBox:SetScript("OnTextChanged", function()
+        local num = tonumber(this:GetText()) or 0
+        if num >= -500 and num <= 500 then
+            Config:Set("sideBarRightYOffset", num)
+            if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
+                ConsoleUI.actionbars:UpdateSideBars()
+            end
+        end
+    end)
+
+    self:AddSectionReset(rightSideBox, function()
+        Config:Set("sideBarRightEnabled", Config.DEFAULTS.sideBarRightEnabled)
+        Config:Set("sideBarRightButtons", Config.DEFAULTS.sideBarRightButtons)
+        Config:Set("sideBarRightOffset", Config.DEFAULTS.sideBarRightOffset)
+        Config:Set("sideBarRightYOffset", Config.DEFAULTS.sideBarRightYOffset)
+        rightBarCheck:SetChecked(Config.DEFAULTS.sideBarRightEnabled and 1 or 0)
+        rightCountEditBox:SetText(tostring(Config.DEFAULTS.sideBarRightButtons))
+        rightOffsetEditBox:SetText(tostring(Config.DEFAULTS.sideBarRightOffset))
+        rightYEditBox:SetText(tostring(Config.DEFAULTS.sideBarRightYOffset))
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
+            ConsoleUI.actionbars:UpdateSideBars()
+        end
+        if Config.UpdateSidebarBindingVisibility then
+            Config:UpdateSidebarBindingVisibility()
+        end
+    end)
+
     -- ==================== XP Bar Box ====================
     local xpBox = self:CreateSectionBox(section, T("XP Bar"))
     xpBox:ClearAllPoints()
     xpBox:SetPoint("TOPLEFT", leftSideBox, "BOTTOMLEFT", 0, -6)
     xpBox:SetPoint("RIGHT", section, "CENTER", -6, 0)
-    xpBox:SetHeight(100)
+    xpBox:SetHeight(132)
     xpBox.heightCalculated = true  -- Don't auto-calculate
     
     -- Row 1: Always Visible and Text checkboxes
@@ -1982,9 +2441,8 @@ function Config:CreateBarsSection()
         Config:Set("xpBarTextShow", checked)
         if ConsoleUI.xpbar and ConsoleUI.xpbar.xpBar then
             ConsoleUI.xpbar:ReloadBarConfig(ConsoleUI.xpbar.xpBar, "XP")
-            if ConsoleUI.xpbar.xpBar.always then
-                event = "PLAYER_XP_UPDATE"
-                ConsoleUI.xpbar.xpBar:GetScript("OnEvent")(ConsoleUI.xpbar.xpBar)
+            if ConsoleUI.xpbar.xpBar.always and ConsoleUI.xpbar.Fire then
+                ConsoleUI.xpbar:Fire(ConsoleUI.xpbar.xpBar, "PLAYER_XP_UPDATE")
             end
             if ConsoleUI.xpbar.xpBar.bar and ConsoleUI.xpbar.xpBar.bar.text then
                 if checked then
@@ -2002,22 +2460,20 @@ function Config:CreateBarsSection()
     xpWidthLabel:SetText(T("Width") .. ":")
     
     local xpWidthEditBox = self:CreateEditBox(xpBox, 40,
-        function() 
-            local val = Config:Get("xpBarWidth")
-            return val and tostring(val) or "0"
+        function()
+            return tostring(Config:Get("xpBarWidth") or 400)
         end,
         function(value)
-            local num = tonumber(value)
-            if num == 0 then num = nil end
-            if num and num < 50 then num = 50 end
-            if num and num > 2000 then num = 2000 end
+            local num = tonumber(value) or 400
+            if num < 50 then num = 50 end
+            if num > 2000 then num = 2000 end
             Config:Set("xpBarWidth", num)
             if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
                 ConsoleUI.xpbar:UpdateAllBars()
             end
         end,
         T("XP Bar Width"),
-        T("Width of XP bar in pixels. Set to 0 to use the default width (400)."))
+        T("Width of XP bar in pixels. Range: 50-2000."))
     xpWidthEditBox:SetPoint("LEFT", xpWidthLabel, "RIGHT", 5, 0)
     
     local xpHeightLabel = xpBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -2025,10 +2481,10 @@ function Config:CreateBarsSection()
     xpHeightLabel:SetText(T("Height") .. ":")
     
     local xpHeightEditBox = self:CreateEditBox(xpBox, 30,
-        function() return tostring(Config:Get("xpBarHeight") or 20) end,
+        function() return tostring(Config:Get("xpBarHeight") or 16) end,
         function(value)
-            local num = tonumber(value) or 20
-            if num < 20 then num = 20 end
+            local num = tonumber(value) or 16
+            if num < 16 then num = 16 end
             if num > 100 then num = 100 end
             Config:Set("xpBarHeight", num)
             if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
@@ -2036,7 +2492,7 @@ function Config:CreateBarsSection()
             end
         end,
         T("XP Bar Height"),
-        T("Height of XP bar in pixels. Range: 20-100."))
+        T("Height of XP bar in pixels. Range: 16-100."))
     xpHeightEditBox:SetPoint("LEFT", xpHeightLabel, "RIGHT", 5, 0)
     
     local xpTimeoutLabel = xpBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -2057,13 +2513,39 @@ function Config:CreateBarsSection()
         T("XP Bar Timeout"),
         T("Seconds before the bar fades out. Range: 0-60."))
     xpTimeoutEditBox:SetPoint("LEFT", xpTimeoutLabel, "RIGHT", 5, 0)
+
+    local xpXEditBox, xpYEditBox = self:AddOffsetRow(xpBox, xpWidthLabel, "xpBarOffsetX", "xpBarOffsetY", function()
+        if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
+            ConsoleUI.xpbar:UpdateAllBars()
+        end
+    end)
+
+    self:AddSectionReset(xpBox, function()
+        Config:Set("xpBarAlways", Config.DEFAULTS.xpBarAlways)
+        Config:Set("xpBarTextShow", Config.DEFAULTS.xpBarTextShow)
+        Config:Set("xpBarWidth", Config.DEFAULTS.xpBarWidth)
+        Config:Set("xpBarHeight", Config.DEFAULTS.xpBarHeight)
+        Config:Set("xpBarTimeout", Config.DEFAULTS.xpBarTimeout)
+        Config:Set("xpBarOffsetX", Config.DEFAULTS.xpBarOffsetX)
+        Config:Set("xpBarOffsetY", Config.DEFAULTS.xpBarOffsetY)
+        xpAlwaysCheck:SetChecked(Config.DEFAULTS.xpBarAlways and 1 or 0)
+        xpTextShowCheck:SetChecked(Config.DEFAULTS.xpBarTextShow and 1 or 0)
+        xpWidthEditBox:SetText(tostring(Config.DEFAULTS.xpBarWidth or 400))
+        xpHeightEditBox:SetText(tostring(Config.DEFAULTS.xpBarHeight))
+        xpTimeoutEditBox:SetText(tostring(Config.DEFAULTS.xpBarTimeout))
+        xpXEditBox:SetText(tostring(Config.DEFAULTS.xpBarOffsetX))
+        xpYEditBox:SetText(tostring(Config.DEFAULTS.xpBarOffsetY))
+        if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
+            ConsoleUI.xpbar:UpdateAllBars()
+        end
+    end)
     
     -- ==================== Rep Bar Box ====================
     local repBox = self:CreateSectionBox(section, T("Rep Bar"))
     repBox:ClearAllPoints()
     repBox:SetPoint("TOPRIGHT", rightSideBox, "BOTTOMRIGHT", 0, -6)
     repBox:SetPoint("LEFT", section, "CENTER", 6, 0)
-    repBox:SetHeight(100)
+    repBox:SetHeight(132)
     repBox.heightCalculated = true  -- Don't auto-calculate
     
     -- Row 1: Always Visible and Text checkboxes
@@ -2103,9 +2585,8 @@ function Config:CreateBarsSection()
         if ConsoleUI.xpbar and ConsoleUI.xpbar.repBar then
             ConsoleUI.xpbar.repBar.text_show = checked
             ConsoleUI.xpbar:ReloadBarConfig(ConsoleUI.xpbar.repBar, "REP")
-            if ConsoleUI.xpbar.repBar.always then
-                event = "UPDATE_FACTION"
-                ConsoleUI.xpbar.repBar:GetScript("OnEvent")(ConsoleUI.xpbar.repBar)
+            if ConsoleUI.xpbar.repBar.always and ConsoleUI.xpbar.Fire then
+                ConsoleUI.xpbar:Fire(ConsoleUI.xpbar.repBar, "UPDATE_FACTION")
             end
             if ConsoleUI.xpbar.repBar.bar and ConsoleUI.xpbar.repBar.bar.text then
                 if checked then
@@ -2123,22 +2604,20 @@ function Config:CreateBarsSection()
     repWidthLabel:SetText(T("Width") .. ":")
     
     local repWidthEditBox = self:CreateEditBox(repBox, 40,
-        function() 
-            local val = Config:Get("repBarWidth")
-            return val and tostring(val) or "0"
+        function()
+            return tostring(Config:Get("repBarWidth") or 400)
         end,
         function(value)
-            local num = tonumber(value)
-            if num == 0 then num = nil end
-            if num and num < 50 then num = 50 end
-            if num and num > 2000 then num = 2000 end
+            local num = tonumber(value) or 400
+            if num < 50 then num = 50 end
+            if num > 2000 then num = 2000 end
             Config:Set("repBarWidth", num)
             if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
                 ConsoleUI.xpbar:UpdateAllBars()
             end
         end,
         T("Rep Bar Width"),
-        T("Width of Reputation bar in pixels. Set to 0 to use the default width (400)."))
+        T("Width of Reputation bar in pixels. Range: 50-2000."))
     repWidthEditBox:SetPoint("LEFT", repWidthLabel, "RIGHT", 5, 0)
     
     local repHeightLabel = repBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -2146,10 +2625,10 @@ function Config:CreateBarsSection()
     repHeightLabel:SetText(T("Height") .. ":")
     
     local repHeightEditBox = self:CreateEditBox(repBox, 30,
-        function() return tostring(Config:Get("repBarHeight") or 20) end,
+        function() return tostring(Config:Get("repBarHeight") or 16) end,
         function(value)
-            local num = tonumber(value) or 20
-            if num < 20 then num = 20 end
+            local num = tonumber(value) or 16
+            if num < 16 then num = 16 end
             if num > 100 then num = 100 end
             Config:Set("repBarHeight", num)
             if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
@@ -2157,7 +2636,7 @@ function Config:CreateBarsSection()
             end
         end,
         T("Rep Bar Height"),
-        T("Height of Reputation bar in pixels. Range: 20-100."))
+        T("Height of Reputation bar in pixels. Range: 16-100."))
     repHeightEditBox:SetPoint("LEFT", repHeightLabel, "RIGHT", 5, 0)
     
     local repTimeoutLabel = repBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -2178,13 +2657,39 @@ function Config:CreateBarsSection()
         T("Rep Bar Timeout"),
         T("Seconds before the bar fades out. Range: 0-60."))
     repTimeoutEditBox:SetPoint("LEFT", repTimeoutLabel, "RIGHT", 5, 0)
+
+    local repXEditBox, repYEditBox = self:AddOffsetRow(repBox, repWidthLabel, "repBarOffsetX", "repBarOffsetY", function()
+        if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
+            ConsoleUI.xpbar:UpdateAllBars()
+        end
+    end)
+
+    self:AddSectionReset(repBox, function()
+        Config:Set("repBarAlways", Config.DEFAULTS.repBarAlways)
+        Config:Set("repBarTextShow", Config.DEFAULTS.repBarTextShow)
+        Config:Set("repBarWidth", Config.DEFAULTS.repBarWidth)
+        Config:Set("repBarHeight", Config.DEFAULTS.repBarHeight)
+        Config:Set("repBarTimeout", Config.DEFAULTS.repBarTimeout)
+        Config:Set("repBarOffsetX", Config.DEFAULTS.repBarOffsetX)
+        Config:Set("repBarOffsetY", Config.DEFAULTS.repBarOffsetY)
+        repAlwaysCheck:SetChecked(Config.DEFAULTS.repBarAlways and 1 or 0)
+        repTextShowCheck:SetChecked(Config.DEFAULTS.repBarTextShow and 1 or 0)
+        repWidthEditBox:SetText(tostring(Config.DEFAULTS.repBarWidth or 400))
+        repHeightEditBox:SetText(tostring(Config.DEFAULTS.repBarHeight))
+        repTimeoutEditBox:SetText(tostring(Config.DEFAULTS.repBarTimeout))
+        repXEditBox:SetText(tostring(Config.DEFAULTS.repBarOffsetX))
+        repYEditBox:SetText(tostring(Config.DEFAULTS.repBarOffsetY))
+        if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
+            ConsoleUI.xpbar:UpdateAllBars()
+        end
+    end)
     
     -- ==================== Cast Bar Box ====================
     local castBox = self:CreateSectionBox(section, T("Cast Bar"))
     castBox:ClearAllPoints()
     castBox:SetPoint("TOPLEFT", xpBox, "BOTTOMLEFT", 0, -6)
     castBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
-    castBox:SetHeight(78)
+    castBox:SetHeight(110)
     castBox.heightCalculated = true
     
     -- Row 1: Enable checkbox, Height, Color button
@@ -2204,10 +2709,10 @@ function Config:CreateBarsSection()
     castHeightLabel:SetText(T("Height") .. ":")
     
     local castHeightEditBox = self:CreateEditBox(castBox, 35,
-        function() return tostring(Config:Get("castbarHeight") or 20) end,
+        function() return tostring(Config:Get("castbarHeight") or 6) end,
         function(value)
-            local num = tonumber(value) or 20
-            if num < 20 then num = 20 end
+            local num = tonumber(value) or 6
+            if num < 6 then num = 6 end
             if num > 100 then num = 100 end
             Config:Set("castbarHeight", num)
             if ConsoleUI.castbar and ConsoleUI.castbar.UpdatePosition then
@@ -2215,8 +2720,14 @@ function Config:CreateBarsSection()
             end
         end,
         T("Cast Bar Height"),
-        T("Height of cast bar in pixels. Range: 20-100."))
+        T("Height of the cast strip in pixels. Range: 6-100."))
     castHeightEditBox:SetPoint("LEFT", castHeightLabel, "RIGHT", 5, 0)
+
+    local castXEditBox, castYEditBox = self:AddOffsetRow(castBox, castEnabledCheck, "castbarOffsetX", "castbarOffsetY", function()
+        if ConsoleUI.castbar and ConsoleUI.castbar.UpdatePosition then
+            ConsoleUI.castbar:UpdatePosition()
+        end
+    end)
     
     local castColorLabel = castBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     castColorLabel:SetPoint("LEFT", castHeightEditBox, "RIGHT", 20, 0)
@@ -2350,6 +2861,28 @@ function Config:CreateBarsSection()
             ColorPickerFrame:Show()
         end)
         delayFrame:Show()
+    end)
+
+    self:AddSectionReset(castBox, function()
+        Config:Set("castbarEnabled", Config.DEFAULTS.castbarEnabled)
+        Config:Set("castbarHeight", Config.DEFAULTS.castbarHeight)
+        Config:Set("castbarOffsetX", Config.DEFAULTS.castbarOffsetX)
+        Config:Set("castbarOffsetY", Config.DEFAULTS.castbarOffsetY)
+        Config:Set("castbarColorR", Config.DEFAULTS.castbarColorR)
+        Config:Set("castbarColorG", Config.DEFAULTS.castbarColorG)
+        Config:Set("castbarColorB", Config.DEFAULTS.castbarColorB)
+        Config:Set("castbarChannelColorR", Config.DEFAULTS.castbarChannelColorR)
+        Config:Set("castbarChannelColorG", Config.DEFAULTS.castbarChannelColorG)
+        Config:Set("castbarChannelColorB", Config.DEFAULTS.castbarChannelColorB)
+        castEnabledCheck:SetChecked(Config.DEFAULTS.castbarEnabled and 1 or 0)
+        castHeightEditBox:SetText(tostring(Config.DEFAULTS.castbarHeight))
+        castXEditBox:SetText(tostring(Config.DEFAULTS.castbarOffsetX))
+        castYEditBox:SetText(tostring(Config.DEFAULTS.castbarOffsetY))
+        UpdateCastColorPreview()
+        UpdateChannelColorPreview()
+        if ConsoleUI.castbar and ConsoleUI.castbar.ReloadConfig then
+            ConsoleUI.castbar:ReloadConfig()
+        end
     end)
     
     self.contentSections["bars"] = section
@@ -2533,7 +3066,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4.1"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4.5"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -2895,9 +3428,30 @@ function Config:RefreshCheckboxes(section)
     RefreshCheckboxRecursive(section)
 end
 
+function Config:AddSectionReset(box, onClick)
+    if not box or not onClick then
+        return nil
+    end
+    local Locale = ConsoleUI.locale
+    local T = Locale and Locale.T or function(key) return key end
+    local btn = self:MakePanelButton(box, self:GetNextElementName("Reset"), 80, T("Reset"), "ghost")
+    btn:SetHeight(22)
+    btn:SetPoint("TOPRIGHT", box, "TOPRIGHT", -8, -5)
+    btn.tooltipText = T("Reset this section to defaults.")
+    btn:SetScript("OnClick", function()
+        PlaySound("igMainMenuOptionCheckBoxOn")
+        onClick()
+    end)
+    return btn
+end
+
 function Config:CreateEditBox(parent, width, getFunc, setFunc, label, tooltipText, step)
     local name = self:GetNextElementName("Edit")
     local editBox = CreateFrame("EditBox", name, parent)
+    local minW = self.EDIT_BOX_WIDTH or 56
+    if not width or width < minW then
+        width = minW
+    end
     editBox:SetWidth(width)
     editBox:SetHeight(20)
     editBox:SetAutoFocus(false)
@@ -2905,6 +3459,14 @@ function Config:CreateEditBox(parent, width, getFunc, setFunc, label, tooltipTex
     editBox:SetJustifyH("CENTER")
     editBox:SetTextInsets(2, 12, 0, 0)
     local nudge = step or 1
+
+    local function Commit()
+        setFunc(editBox:GetText())
+        local shown = getFunc()
+        if shown ~= nil then
+            editBox:SetText(shown)
+        end
+    end
 
     local function ApplyNudge(delta)
         local val = tonumber(editBox:GetText()) or 0
@@ -2915,11 +3477,7 @@ function Config:CreateEditBox(parent, width, getFunc, setFunc, label, tooltipTex
         else
             editBox:SetText(tostring(val))
         end
-        if editBox:GetScript("OnTextChanged") then
-            local script = editBox:GetScript("OnTextChanged")
-            arg1 = true
-            script()
-        end
+        Commit()
         PlaySound("igMainMenuOptionCheckBoxOn")
     end
 	
@@ -2981,11 +3539,11 @@ function Config:CreateEditBox(parent, width, getFunc, setFunc, label, tooltipTex
     
     editBox:SetScript("OnEnterPressed", function()
         this:ClearFocus()
-        setFunc(this:GetText())
+        Commit()
     end)
     
     editBox:SetScript("OnEditFocusLost", function()
-        setFunc(this:GetText())
+        Commit()
     end)
 
     if ConsoleUIKeyboard and ConsoleUIKeyboard.HookBox then
@@ -3845,8 +4403,8 @@ function Config:UpdateActionBarLayout()
         ConsoleUI.xpbar:UpdateAllBars()
     end
     if ConsoleUI.castbar then
-        if ConsoleUI.castbar.castBar then
-            self:PaintStatusBarChrome(ConsoleUI.castbar.castBar)
+        if ConsoleUI.castbar.castBar and ConsoleUI.castbar.PaintLook then
+            ConsoleUI.castbar:PaintLook(ConsoleUI.castbar.castBar)
         end
         if ConsoleUI.castbar.UpdateColor then
             ConsoleUI.castbar:UpdateColor()

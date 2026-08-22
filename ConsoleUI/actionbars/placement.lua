@@ -341,6 +341,77 @@ function Placement:PaintSlot(button, filled, hovered)
     end
 end
 
+function Placement:CursorIsHolding()
+    if CursorHasItem and CursorHasItem() then
+        return true
+    end
+    if CursorHasSpell and CursorHasSpell() then
+        return true
+    end
+    if ConsoleUI.cursor and ConsoleUI.cursor.heldItemTexturePath then
+        return true
+    end
+    return false
+end
+
+function Placement:ClearSlot(button)
+    if not button or not button.actionSlot then
+        return false
+    end
+    local slot = button.actionSlot
+    if not HasAction(slot) then
+        return false
+    end
+    if (CursorHasItem and CursorHasItem()) or (CursorHasSpell and CursorHasSpell()) then
+        ClearCursor()
+    end
+    PickupAction(slot)
+    ClearCursor()
+    self:UpdateButton(button)
+    if self.clearBtn and self.clearBtn.owner == button then
+        self.clearBtn:Hide()
+        self.clearBtn.owner = nil
+    end
+    if ConsoleUI.actionbars then
+        if ConsoleUI.actionbars.UpdateAllButtons then
+            ConsoleUI.actionbars:UpdateAllButtons()
+        end
+        if button.side and ConsoleUI.actionbars.UpdateAllSideBarButtons then
+            ConsoleUI.actionbars:UpdateAllSideBarButtons()
+        end
+    end
+    if ConsoleUI.cursor and ConsoleUI.cursor.ClearHeldItemTexture then
+        ConsoleUI.cursor:ClearHeldItemTexture()
+    end
+    if ConsoleUI.cursor and ConsoleUI.cursor.RefreshFrame then
+        ConsoleUI.cursor:RefreshFrame()
+    end
+    return true
+end
+
+function Placement:HideClearChip()
+    if self.clearBtn then
+        self.clearBtn:Hide()
+        self.clearBtn.owner = nil
+    end
+end
+
+function Placement:ShowClearFor(button)
+    if not button or not button.actionSlot or not HasAction(button.actionSlot) or self:CursorIsHolding() then
+        self:HideClearChip()
+        return
+    end
+    if not self.clearBtn then
+        return
+    end
+    local btn = self.clearBtn
+    btn.owner = button
+    btn:ClearAllPoints()
+    btn:SetPoint("BOTTOM", button, "BOTTOM", 0, 2)
+    btn:SetFrameLevel((button:GetFrameLevel() or 1) + 8)
+    btn:Show()
+end
+
 function Placement:MakeCard(parent, title)
     local c = Colors()
     local card = CreateFrame("Frame", nil, parent)
@@ -554,7 +625,7 @@ function Placement:CreateFrame()
 
     local hint = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     hint:SetPoint("LEFT", footerFill, "LEFT", 12, 0)
-    hint:SetText(L("Drag a spell or item onto a slot. Right-click to pick up."))
+    hint:SetText(L("Drag a spell or item onto a slot. X or Clear empties it. B closes. Right-click to pick up."))
     hint:SetTextColor(unpack(c.muted))
     hint:SetJustifyH("LEFT")
     frame.hint = hint
@@ -571,6 +642,45 @@ function Placement:CreateFrame()
         ClearCursor()
     end)
     frame.closeButton = closeButton
+
+    local clearBtn = CreateFrame("Button", "ConsoleUIPlacementClear", frame)
+    clearBtn:SetWidth(BUTTON_SIZE - 6)
+    clearBtn:SetHeight(16)
+    clearBtn:SetBackdrop(CardBackdrop())
+    clearBtn:SetBackdropColor(0.16, 0.06, 0.07, 0.96)
+    clearBtn:SetBackdropBorderColor(0.84, 0.30, 0.36, 0.35)
+    clearBtn:Hide()
+    local clearLabel = clearBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    clearLabel:SetPoint("CENTER", clearBtn, "CENTER", 0, 0)
+    clearLabel:SetText(L("Clear"))
+    clearLabel:SetTextColor(0.95, 0.55, 0.58)
+    clearBtn:SetScript("OnClick", function()
+        if this.owner then
+            Placement:ClearSlot(this.owner)
+        end
+    end)
+    clearBtn:SetScript("OnEnter", function()
+        this:SetBackdropBorderColor(0.84, 0.30, 0.36, 0.70)
+        if this.owner then
+            Placement:PaintSlot(this.owner, HasAction(this.owner.actionSlot), true)
+        end
+    end)
+    clearBtn:SetScript("OnLeave", function()
+        this:SetBackdropBorderColor(0.84, 0.30, 0.36, 0.35)
+    end)
+    clearBtn:SetScript("OnUpdate", function()
+        local owner = this.owner
+        if not owner then
+            this:Hide()
+            return
+        end
+        local focus = GetMouseFocus()
+        if focus ~= this and focus ~= owner then
+            Placement:PaintSlot(owner, HasAction(owner.actionSlot), false)
+            Placement:HideClearChip()
+        end
+    end)
+    self.clearBtn = clearBtn
 
     table.insert(UISpecialFrames, "ConsoleUIPlacementFrame")
     self.frame = frame
@@ -684,6 +794,7 @@ function Placement:CreateActionButton(parent, actionSlot, buttonIndex, pageIndex
                 ConsoleUI.cursor:SetHeldItemTexture(texture)
             end
         end
+        Placement:ShowClearFor(this)
     end)
     
     -- Right-click to pick up
@@ -697,6 +808,7 @@ function Placement:CreateActionButton(parent, actionSlot, buttonIndex, pageIndex
             if texture and ConsoleUI.cursor and ConsoleUI.cursor.SetHeldItemTexture then
                 ConsoleUI.cursor:SetHeldItemTexture(texture)
             end
+            Placement:ShowClearFor(this)
         end
     end)
     
@@ -718,9 +830,15 @@ function Placement:CreateActionButton(parent, actionSlot, buttonIndex, pageIndex
             GameTooltip:AddLine("Empty slot", 0.7, 0.7, 0.7)
         end
         GameTooltip:Show()
+        Placement:ShowClearFor(this)
     end)
     
     button:SetScript("OnLeave", function()
+        local focus = GetMouseFocus()
+        if Placement.clearBtn and focus == Placement.clearBtn then
+            GameTooltip:Hide()
+            return
+        end
         Placement:PaintSlot(this, HasAction(this.actionSlot), false)
         GameTooltip:Hide()
     end)
@@ -746,6 +864,7 @@ function Placement:CreateActionButton(parent, actionSlot, buttonIndex, pageIndex
                 ConsoleUI.cursor:ClearHeldItemTexture()
             end
         end
+        Placement:ShowClearFor(this)
     end)
 
     return button
@@ -897,6 +1016,7 @@ function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex,
                 ConsoleUI.cursor:SetHeldItemTexture(texture)
             end
         end
+        Placement:ShowClearFor(this)
     end)
     
     -- Right-click to pick up
@@ -909,6 +1029,7 @@ function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex,
             if texture and ConsoleUI.cursor and ConsoleUI.cursor.SetHeldItemTexture then
                 ConsoleUI.cursor:SetHeldItemTexture(texture)
             end
+            Placement:ShowClearFor(this)
         end
     end)
     
@@ -924,9 +1045,15 @@ function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex,
             GameTooltip:AddLine("Empty slot (touch screen)", 0.7, 0.7, 0.7)
         end
         GameTooltip:Show()
+        Placement:ShowClearFor(this)
     end)
     
     button:SetScript("OnLeave", function()
+        local focus = GetMouseFocus()
+        if Placement.clearBtn and focus == Placement.clearBtn then
+            GameTooltip:Hide()
+            return
+        end
         Placement:PaintSlot(this, HasAction(this.actionSlot), false)
         GameTooltip:Hide()
     end)
@@ -949,6 +1076,7 @@ function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex,
                 ConsoleUI.cursor:ClearHeldItemTexture()
             end
         end
+        Placement:ShowClearFor(this)
     end)
     
     return button
@@ -1107,6 +1235,7 @@ function Placement:Show()
         self.sideBarRightButtons = {}
         self.sideBarLeftFrame = nil
         self.sideBarRightFrame = nil
+        self.clearBtn = nil
         ConsoleUI_Debug("Placement: Rebuilding due to form count change")
     end
     
@@ -1129,6 +1258,7 @@ function Placement:Show()
 end
 
 function Placement:Hide()
+    self:HideClearChip()
     if self.frame then
         self.frame:Hide()
     end

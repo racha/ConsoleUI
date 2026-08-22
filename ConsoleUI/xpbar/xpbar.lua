@@ -28,6 +28,12 @@ local function round(num)
     return math.floor(num + 0.5)
 end
 
+function XPBar.FormatWatchText(prefix, current, maxValue)
+    current = tonumber(current) or 0
+    maxValue = tonumber(maxValue) or 0
+    return prefix .. ": " .. current .. "/" .. maxValue
+end
+
 local CLASS_RGB = {
     WARRIOR = { 0.78, 0.61, 0.43 },
     PALADIN = { 0.96, 0.55, 0.73 },
@@ -101,10 +107,30 @@ function XPBar:ApplyFillColors(bar)
         if bar.restedbar then
             local rr, rg, rb, ra = GetRestColor()
             bar.restedbar:SetStatusBarColor(rr, rg, rb, ra)
-            bar.restedbar:SetFrameLevel(1)
-            bar.bar:SetFrameLevel(2)
         end
     end
+    if ConsoleUI.config and ConsoleUI.config.SyncWatchFill then
+        ConsoleUI.config:SyncWatchFill(bar.bar)
+        ConsoleUI.config:SyncWatchFill(bar.restedbar)
+    end
+end
+
+-- 1.12 widget scripts read global `this`. fn(bar) does not set it.
+function XPBar:Fire(bar, ev)
+    if not bar or not bar.GetScript then
+        return
+    end
+    local fn = bar:GetScript("OnEvent")
+    if not fn then
+        return
+    end
+    local prevThis = this
+    local prevEvent = event
+    this = bar
+    event = ev
+    fn()
+    this = prevThis
+    event = prevEvent
 end
 
 function XPBar:PaintChrome(bar)
@@ -250,6 +276,13 @@ local function OnUpdate()
     local config = ConsoleUI.config
     
     -- Show/hide text on mouseover
+    if config.SyncWatchFill then
+        config:SyncWatchFill(self.bar)
+        if self.restedbar then
+            config:SyncWatchFill(self.restedbar)
+        end
+    end
+
     if config:Get(self.text_mouse_key) == true then
         if MouseIsOver(self) then
             self.bar.text:Show()
@@ -352,15 +385,8 @@ local function OnEvent()
             end
         end
         
-        -- Set text
-        local text = "%s: %s%%"
-        local xpperc = xpmax > 0 and round(xp / xpmax * 100) or 0
-        local experc = ex and xpmax > 0 and round(ex / xpmax * 100) or 0
-        if ex and ex > 0 then 
-            text = "%s: %s%% (%s%% Rested)" 
-        end
         if self.bar.text then
-            self.bar.text:SetText(string.format(text, "Experience", xpperc, experc))
+            self.bar.text:SetText(XPBar.FormatWatchText("XP", xp, xpmax))
         end
         
         self.tick = GetTime() + self.timeout
@@ -385,10 +411,8 @@ local function OnEvent()
         local cr, cg, cb = GetPlayerClassColor()
         self.bar:SetStatusBarColor(cr, cg, cb, 1.0)
         
-        local text = "%s: %s%%"
-        local xpperc = nextXP and nextXP ~= 0 and round(currXP / nextXP * 100) or 0
         if self.bar.text then
-            self.bar.text:SetText(string.format(text, "Pet Experience", xpperc))
+            self.bar.text:SetText(XPBar.FormatWatchText("Pet XP", currXP, nextXP))
         end
         
         self.tick = GetTime() + self.timeout
@@ -427,11 +451,13 @@ local function OnEvent()
                     self.bar:SetStatusBarColor(0.0, 1.0, 0.0, 1)
                 end
                 
-                local text = "%s: %s%% (%s)"
-                local perc = round(barValue / barMax * 100)
                 local standing = GetText("FACTION_STANDING_LABEL" .. standingID, UnitSex("player"))
                 if self.bar.text then
-                    self.bar.text:SetText(string.format(text, name, perc, standing))
+                    local label = name or "Rep"
+                    if standing then
+                        label = label .. " (" .. standing .. ")"
+                    end
+                    self.bar.text:SetText(XPBar.FormatWatchText(label, barValue, barMax))
                 end
                 
                 self.tick = GetTime() + self.timeout
@@ -469,10 +495,8 @@ end
 -- Bar Creation
 -- ============================================================================
 
--- Minimum height for border texture to render properly
--- edgeSize (12) * 2 (top + bottom) + minimum content space (2) = 26
--- Reduced to allow smaller bars while still maintaining border visibility
-XPBar.MIN_HEIGHT = 20
+-- bars-plan.html inner track is 16px. Smaller hides the gold ticks.
+XPBar.MIN_HEIGHT = 16
 
 function XPBar:ReloadBarConfig(bar, barType)
     local config = ConsoleUI.config
@@ -507,9 +531,8 @@ function XPBar:ReloadBarConfig(bar, barType)
         end
     end
     
-    -- Calculate font size based on bar height (scale proportionally)
-    -- Scale from 8px font at MIN_HEIGHT to 16px font at MIN_HEIGHT*2
-    bar.font_size = math.max(8, math.min(16, math.floor(bar.height * 0.5)))
+    -- HTML label is 11px on the 16px track.
+    bar.font_size = math.max(11, math.min(16, math.floor(bar.height * 0.7)))
     
     -- Store config keys for updates
     bar.text_mouse_key = prefix .. "BarTextMouse"
@@ -520,7 +543,9 @@ function XPBar:ReloadBarConfig(bar, barType)
     bar.text_show_key = prefix .. "BarTextShow"
     bar.text_off_y_key = prefix .. "BarTextOffsetY"
     bar.barType = barType
-    self:PaintChrome(bar)
+    if bar.bar and config.PaintStatusBarChrome then
+        self:PaintChrome(bar)
+    end
 end
 
 function XPBar:CreateBar(barType)
@@ -538,9 +563,6 @@ function XPBar:CreateBar(barType)
     -- Get colors (WoW default colors)
     local rest_color = config:Get("xpBarRestColor") or "0.0,0.5,1.0,1.0"
     
-    -- XP fill sits on top of rested so class color is visible.
-    local barLevel, restedLevel = 2, 1
-    
     -- Ensure minimum height
     b.height = math.max(XPBar.MIN_HEIGHT, b.height)
     b:SetWidth(b.width)
@@ -549,11 +571,10 @@ function XPBar:CreateBar(barType)
     
     -- Create status bar
     b.bar = b.bar or CreateFrame("StatusBar", nil, b)
-    local inset = (config.STATUS_BAR_INSET) or 3
+    local inset = (config.STATUS_BAR_INSET) or 1
     b.bar:ClearAllPoints()
     b.bar:SetPoint("TOPLEFT", b, "TOPLEFT", inset, -inset)
     b.bar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -inset, inset)
-    b.bar:SetFrameLevel(barLevel)
     
     -- Set bar color based on bar type
     if barType == "XP" then
@@ -568,7 +589,7 @@ function XPBar:CreateBar(barType)
     
     -- Ensure bar is visible and has initial values
     b.bar:SetMinMaxValues(0, 100)
-    b.bar:SetValue(50)  -- Set to 50% for testing visibility
+    b.bar:SetValue(0)
     b.bar:Show()
     
     -- Create rested bar (for XP only) - uses same texture as main bar
@@ -577,7 +598,6 @@ function XPBar:CreateBar(barType)
         b.restedbar:ClearAllPoints()
         b.restedbar:SetPoint("TOPLEFT", b, "TOPLEFT", inset, -inset)
         b.restedbar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -inset, inset)
-        b.restedbar:SetFrameLevel(restedLevel)
         local cr, cg, cb, ca = GetStringColor(rest_color)
         b.restedbar:SetStatusBarColor(cr, cg, cb, ca)
         b.restedbar:SetOrientation("HORIZONTAL")
@@ -585,16 +605,29 @@ function XPBar:CreateBar(barType)
         b.restedbar:SetValue(0)
         b.restedbar:Hide()  -- Hidden by default until rested XP is available
     end
+    if not b.cuiFillStacked and config.StackAbove then
+        if b.restedbar then
+            config:StackAbove(b.restedbar, b)
+            config:StackAbove(b.bar, b.restedbar)
+        else
+            config:StackAbove(b.bar, b)
+        end
+        b.cuiFillStacked = true
+    end
     if config.PaintStatusBarChrome then
         self:PaintChrome(b)
     end
 
-    -- Text on the rim frame so the fill does not cover it
-    local textParent = b.cuiChrome or b
-    b.bar.text = b.bar.text or textParent:CreateFontString(nil, "OVERLAY")
+    -- Text above ticks so a divider never cuts the numbers
+    local textParent = b.cuiText or b
+    if b.bar.text and b.bar.text.GetParent and b.bar.text:GetParent() ~= textParent then
+        b.bar.text:Hide()
+        b.bar.text = nil
+    end
+    b.bar.text = b.bar.text or textParent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    b.bar.text:SetFont("Fonts\\FRIZQT__.TTF", b.font_size, "OUTLINE")
     b.bar.text:SetPoint("CENTER", b, "CENTER", 0, b.text_off_y)
     b.bar.text:SetJustifyH("CENTER")
-    b.bar.text:SetFont("Fonts\\FRIZQT__.TTF", b.font_size, "OUTLINE")
     b.bar.text:SetTextColor(1, 1, 1, 1)
     
     if b.text_show then
@@ -630,12 +663,10 @@ function XPBar:CreateBar(barType)
     -- Start bars hidden unless always visible is enabled
     -- They will be shown by OnEvent when there's actual data
     if b.always then
-        -- If always visible, trigger initial update to show bar
-        -- Set event as global so OnEvent can access it
-        event = "PLAYER_ENTERING_WORLD"
-        b:GetScript("OnEvent")(b)
+        self:Fire(b, "PLAYER_ENTERING_WORLD")
+        b:SetAlpha(1)
+        b:Show()
     else
-        -- Start hidden - will be shown by OnEvent when data is available
         b:SetAlpha(0)
         b:Hide()
     end
@@ -647,6 +678,36 @@ end
 -- Position Update
 -- ============================================================================
 
+function XPBar:BarShown(bar)
+    return bar and bar.IsShown and bar:IsShown() and bar:GetAlpha() > 0
+end
+
+function XPBar:WatchBottom(bar)
+    local config = ConsoleUI.config
+    if bar == self.xpBar then
+        local y = config:HudOffset("xpBarOffsetY", 16)
+        if self:BarShown(self.repBar) then
+            y = y + (self.repBar.height or XPBar.MIN_HEIGHT) + 2
+        end
+        return y
+    end
+    return config:HudOffset("repBarOffsetY", 16)
+end
+
+function XPBar:StackTop()
+    local top = 0
+    if self:BarShown(self.repBar) then
+        top = self:WatchBottom(self.repBar) + (self.repBar.height or XPBar.MIN_HEIGHT)
+    end
+    if self:BarShown(self.xpBar) then
+        local t = self:WatchBottom(self.xpBar) + (self.xpBar.height or XPBar.MIN_HEIGHT)
+        if t > top then
+            top = t
+        end
+    end
+    return top
+end
+
 function XPBar:UpdateBarPosition(bar)
     if not bar then return end
     
@@ -656,22 +717,21 @@ function XPBar:UpdateBarPosition(bar)
     self:ReloadBarConfig(bar, bar.barType)
     
     local barWidth = config:Get(bar.width_key) or 400
-    local gap = 2
     local barHeight = bar.height
-    
-    -- REP at the bottom. XP stacks above REP when REP is visible.
-    local barYOffset = 0
-    if bar == self.xpBar and self.repBar and self.repBar:IsShown() and self.repBar:GetAlpha() > 0 then
-        barYOffset = (self.repBar.height or XPBar.MIN_HEIGHT) + gap
+    local ox
+    if bar.barType == "REP" then
+        ox = config:HudOffset("repBarOffsetX", 0)
+    else
+        ox = config:HudOffset("xpBarOffsetX", 0)
     end
     
     bar:ClearAllPoints()
-    bar:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, barYOffset)
+    bar:SetPoint("BOTTOM", UIParent, "BOTTOM", ox, self:WatchBottom(bar))
     bar:SetWidth(barWidth)
     bar:SetHeight(barHeight)
     
     -- Update status bar size to match new height
-    local inset = (config.STATUS_BAR_INSET) or 3
+    local inset = (config.STATUS_BAR_INSET) or 1
     if bar.bar then
         bar.bar:ClearAllPoints()
         bar.bar:SetPoint("TOPLEFT", bar, "TOPLEFT", inset, -inset)
@@ -734,22 +794,8 @@ function XPBar:RefreshFills()
         return
     end
     self._refreshing = true
-    local prev = event
-    if self.xpBar and self.xpBar.GetScript then
-        local fn = self.xpBar:GetScript("OnEvent")
-        if fn then
-            event = "PLAYER_XP_UPDATE"
-            fn(self.xpBar)
-        end
-    end
-    if self.repBar and self.repBar.GetScript then
-        local fn = self.repBar:GetScript("OnEvent")
-        if fn then
-            event = "UPDATE_FACTION"
-            fn(self.repBar)
-        end
-    end
-    event = prev
+    self:Fire(self.xpBar, "PLAYER_XP_UPDATE")
+    self:Fire(self.repBar, "UPDATE_FACTION")
     self._refreshing = nil
 end
 
@@ -758,11 +804,15 @@ end
 -- ============================================================================
 
 function XPBar:Initialize()
-    -- Create bars
     self.xpBar = self:CreateBar("XP")
     self.repBar = self:CreateBar("REP")
-    
-    -- Update positions
     self:UpdateAllBars()
-    
+    if self.xpBar and self.xpBar.always then
+        self.xpBar:SetAlpha(1)
+        self.xpBar:Show()
+    end
+    if self.repBar and self.repBar.always then
+        self.repBar:SetAlpha(1)
+        self.repBar:Show()
+    end
 end

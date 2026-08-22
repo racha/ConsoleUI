@@ -351,17 +351,17 @@ function Tooltip:Initialize()
             actions = {{icon = "a", prompt = L("Select")}},
             bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
         },
+        -- Spell placement. Must be before ConsoleUI.* or B stays Close and X never binds.
+        {
+            pattern = "ConsoleUIPlacementButton%d+",
+            actions = {{icon = "a", prompt = L("Pickup / Place")}, {icon = "x", prompt = L("Clear")}, {icon = "b", prompt = L("Close")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}, {key = "2", action = "ConsoleUI_PLACEMENT_CLEAR"}}
+        },
         -- ConsoleUI config buttons
         {
             pattern = "ConsoleUI.*",
             actions = {{icon = "a", prompt = L("Select")}},
             bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
-        },
-        -- Spell placement buttons
-        {
-            pattern = "ConsoleUIPlacementButton%d+",
-            actions = {{icon = "a", prompt = L("Pickup / Place")}, {icon = "b", prompt = L("Clear")}},
-            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}, {key = "4", action = "ConsoleUI_PLACEMENT_CLEAR"}}
         },
         -- Macro buttons
         {

@@ -50,6 +50,28 @@ do
         end
     end
 end
+if Config.DEFAULTS.minimapScale == nil then
+    Config.DEFAULTS.minimapScale = 1.0
+end
+if Config.DEFAULTS.buffScale == nil then
+    Config.DEFAULTS.buffScale = 1.0
+end
+if Config.DEFAULTS.debuffScale == nil then
+    Config.DEFAULTS.debuffScale = 1.0
+end
+if Config.DEFAULTS.minimapXOffset == nil then
+    Config.DEFAULTS.minimapXOffset = 0
+end
+if Config.DEFAULTS.minimapYOffset == nil then
+    Config.DEFAULTS.minimapYOffset = 0
+end
+
+Config.MINIMAP_FRAMES = { "MinimapCluster", "Minimap" }
+Config.MINIMAP_OFFSET_MIN = -2000
+Config.MINIMAP_OFFSET_MAX = 2000
+Config.BUFF_BUTTON_MAX = 32
+Config.DEBUFF_BUTTON_MAX = 16
+Config.BUFF_EXTRA = { "TempEnchant1", "TempEnchant2" }
 
 function Config:ClampUnitFrameScale(value)
     local n = tonumber(value)
@@ -61,6 +83,23 @@ function Config:ClampUnitFrameScale(value)
     end
     if n > Config.UNIT_FRAME_SCALE_MAX then
         n = Config.UNIT_FRAME_SCALE_MAX
+    end
+    return n
+end
+
+function Config:ClampMinimapOffset(value)
+    local n = tonumber(value)
+    if not n then
+        n = 0
+    end
+    if n < Config.MINIMAP_OFFSET_MIN then
+        n = Config.MINIMAP_OFFSET_MIN
+    end
+    if n > Config.MINIMAP_OFFSET_MAX then
+        n = Config.MINIMAP_OFFSET_MAX
+    end
+    if math.floor then
+        n = math.floor(n + 0.5)
     end
     return n
 end
@@ -131,6 +170,96 @@ function Config:ApplyOneUnitFrame(spec)
     self:WatchUnitFrame(frame)
 end
 
+function Config:GetMinimapFrame()
+    if not getglobal then
+        return nil
+    end
+    local i
+    for i = 1, Count(self.MINIMAP_FRAMES) do
+        local candidate = getglobal(self.MINIMAP_FRAMES[i])
+        if candidate and candidate.SetScale then
+            return candidate
+        end
+    end
+    return nil
+end
+
+function Config:ApplyMinimapPosition(frame)
+    if not frame or not frame.ClearAllPoints or not frame.SetPoint or not UIParent then
+        return
+    end
+    local x = 0
+    local y = 0
+    if self.Get then
+        x = self:Get("minimapXOffset") or 0
+        y = self:Get("minimapYOffset") or 0
+    end
+    x = self:ClampMinimapOffset(x)
+    y = self:ClampMinimapOffset(y)
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", x, y)
+end
+
+function Config:ApplyMinimapScale()
+    local desired = 1.0
+    if self.Get then
+        desired = self:Get("minimapScale") or 1.0
+    end
+    desired = self:ClampUnitFrameScale(desired)
+    local frame = self:GetMinimapFrame()
+    if not frame then
+        return
+    end
+    local chain = self:UnitFrameParentChainScale(frame)
+    frame:SetScale(self:UnitFrameOwnScale(desired, chain))
+    self:ApplyMinimapPosition(frame)
+    self:WatchUnitFrame(frame)
+    local map = getglobal("Minimap")
+    if map and map ~= frame and map.SetScale then
+        map:SetScale(1)
+    end
+end
+
+function Config:ApplyNamedScale(name, desired)
+    if not getglobal or not name then
+        return
+    end
+    local frame = getglobal(name)
+    if not frame or not frame.SetScale then
+        return
+    end
+    local chain = self:UnitFrameParentChainScale(frame)
+    frame:SetScale(self:UnitFrameOwnScale(desired, chain))
+    self:WatchUnitFrame(frame)
+end
+
+function Config:ApplyAuraPrefix(prefix, maxCount, desired)
+    local i
+    for i = 1, maxCount do
+        self:ApplyNamedScale(prefix .. i, desired)
+    end
+end
+
+function Config:ApplyAuraScales()
+    if not getglobal then
+        return
+    end
+    local buffs = 1.0
+    local debuffs = 1.0
+    if self.Get then
+        buffs = self:Get("buffScale") or 1.0
+        debuffs = self:Get("debuffScale") or 1.0
+    end
+    buffs = self:ClampUnitFrameScale(buffs)
+    debuffs = self:ClampUnitFrameScale(debuffs)
+    self:ApplyAuraPrefix("BuffButton", self.BUFF_BUTTON_MAX, buffs)
+    self:ApplyAuraPrefix("DebuffButton", self.DEBUFF_BUTTON_MAX, debuffs)
+    local i
+    for i = 1, Count(self.BUFF_EXTRA) do
+        self:ApplyNamedScale(self.BUFF_EXTRA[i], buffs)
+    end
+end
+
 function Config:ApplyUnitFrameScales()
     if self.unitFrameScaleBusy then
         return
@@ -140,19 +269,67 @@ function Config:ApplyUnitFrameScales()
     for i = 1, Count(self.UNIT_FRAMES) do
         self:ApplyOneUnitFrame(self.UNIT_FRAMES[i])
     end
+    self:ApplyMinimapScale()
+    self:ApplyAuraScales()
     self.unitFrameScaleBusy = nil
 end
 
-function Config:ResetUnitFrameScales()
+function Config:ResetUnitFrameGroup(group)
     local i
     for i = 1, Count(self.UNIT_FRAMES) do
         local spec = self.UNIT_FRAMES[i]
-        self:Set(spec.key, 1.0)
-        if self.unitFrameScaleBoxes and self.unitFrameScaleBoxes[spec.key] then
-            self.unitFrameScaleBoxes[spec.key]:SetText("1.0")
+        if spec.group == group then
+            self:Set(spec.key, 1.0)
+            if self.unitFrameScaleBoxes and self.unitFrameScaleBoxes[spec.key] then
+                self.unitFrameScaleBoxes[spec.key]:SetText("1.0")
+            end
         end
     end
     self:ApplyUnitFrameScales()
+end
+
+function Config:ResetMinimapSection()
+    self:Set("minimapScale", 1.0)
+    self:Set("minimapXOffset", 0)
+    self:Set("minimapYOffset", 0)
+    if self.minimapScaleBox then
+        self.minimapScaleBox:SetText("1.0")
+    end
+    if self.minimapXBox then
+        self.minimapXBox:SetText("0")
+    end
+    if self.minimapYBox then
+        self.minimapYBox:SetText("0")
+    end
+    self:ApplyUnitFrameScales()
+end
+
+function Config:ResetAuraSection()
+    self:Set("buffScale", 1.0)
+    self:Set("debuffScale", 1.0)
+    if self.unitFrameScaleBoxes then
+        if self.unitFrameScaleBoxes.buffScale then
+            self.unitFrameScaleBoxes.buffScale:SetText("1.0")
+        end
+        if self.unitFrameScaleBoxes.debuffScale then
+            self.unitFrameScaleBoxes.debuffScale:SetText("1.0")
+        end
+    end
+    self:ApplyUnitFrameScales()
+end
+
+function Config:ResetUnitFrameScales()
+    local seen = {}
+    local i
+    for i = 1, Count(self.UNIT_FRAMES) do
+        local group = self.UNIT_FRAMES[i].group
+        if not seen[group] then
+            seen[group] = true
+            self:ResetUnitFrameGroup(group)
+        end
+    end
+    self:ResetMinimapSection()
+    self:ResetAuraSection()
 end
 
 function Config:EnsureUnitFrameScaleEvents()
@@ -164,9 +341,21 @@ function Config:EnsureUnitFrameScaleEvents()
     watcher:RegisterEvent("PLAYER_TARGET_CHANGED")
     watcher:RegisterEvent("UNIT_PET")
     watcher:RegisterEvent("PARTY_MEMBERS_CHANGED")
+    watcher:RegisterEvent("PLAYER_AURAS_CHANGED")
+    watcher:RegisterEvent("UNIT_AURA")
     watcher:SetScript("OnEvent", function()
-        if ConsoleUI.config and ConsoleUI.config.ApplyUnitFrameScales then
-            ConsoleUI.config:ApplyUnitFrameScales()
+        local cfg = ConsoleUI.config
+        if not cfg then
+            return
+        end
+        if event == "PLAYER_AURAS_CHANGED" or event == "UNIT_AURA" then
+            if cfg.ApplyAuraScales then
+                cfg:ApplyAuraScales()
+            end
+            return
+        end
+        if cfg.ApplyUnitFrameScales then
+            cfg:ApplyUnitFrameScales()
         end
     end)
     self.unitFrameScaleEvents = watcher
@@ -232,7 +421,7 @@ function Config:CreateUnitFramesSection()
             MakeSet(spec.key),
             T(spec.name),
             T("1.0 is Blizzard default. Range: 0.5–2.0."),
-            0.1)
+            self.NUDGE_SCALE)
         box:ClearAllPoints()
         box:SetPoint("LEFT", label, "RIGHT", 4, 0)
         box:SetScript("OnTextChanged", MakeChanged(spec.key))
@@ -274,17 +463,73 @@ function Config:CreateUnitFramesSection()
 
     self.unitFrameScaleBoxes = {}
 
-    local playerBox = self:CreateSectionBox(section, T("Player"))
-    playerBox:SetPoint("TOP", section, "TOP", 0, -6)
-    local playerH = FillGroupBox(playerBox, "player")
-    local resetButton = self:MakePanelButton(playerBox, "ConsoleUIConfigResetUnitFrames", 80, T("Reset"))
-    resetButton:SetPoint("TOPLEFT", playerBox, "TOPLEFT", playerBox.contentLeft, playerBox.contentTop - 36)
-    resetButton:SetScript("OnClick", function()
-        PlaySound("igMainMenuOptionCheckBoxOn")
-        Config:ResetUnitFrameScales()
+    local function AddOffsetField(parent, key, labelText, x, y)
+        local label = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
+        label:SetWidth(24)
+        label:SetJustifyH("LEFT")
+        label:SetText(labelText)
+        label:SetTextColor(unpack(self.UI_COLORS.muted))
+
+        local box = self:CreateEditBox(
+            parent,
+            50,
+            function()
+                return tostring(Config:Get(key) or 0)
+            end,
+            function(value)
+                Config:Set(key, Config:ClampMinimapOffset(value))
+                Config:ApplyMinimapScale()
+            end,
+            T("Minimap") .. " " .. labelText,
+            T("Offset from Blizzard's top-right corner, in screen pixels. Negative X is left, negative Y is down. Range: -2000 to 2000."),
+            20)
+        box:ClearAllPoints()
+        box:SetPoint("LEFT", label, "RIGHT", 4, 0)
+        box:SetScript("OnTextChanged", function()
+            local num = tonumber(this:GetText())
+            if num and num >= Config.MINIMAP_OFFSET_MIN and num <= Config.MINIMAP_OFFSET_MAX then
+                Config:Set(key, Config:ClampMinimapOffset(num))
+                Config:ApplyMinimapScale()
+            end
+        end)
+        return box
+    end
+
+    local minimapBox = self:CreateSectionBox(section, T("Minimap"))
+    minimapBox:SetPoint("TOP", section, "TOP", 0, -6)
+    local minimapSpec = { key = "minimapScale", name = "Size" }
+    AddScaleField(minimapBox, minimapSpec, minimapBox.contentLeft, minimapBox.contentTop)
+    self.minimapScaleBox = self.unitFrameScaleBoxes.minimapScale
+    self.minimapXBox = AddOffsetField(minimapBox, "minimapXOffset", "X:", minimapBox.contentLeft, minimapBox.contentTop - 28)
+    self.minimapYBox = AddOffsetField(minimapBox, "minimapYOffset", "Y:", minimapBox.contentLeft + 140, minimapBox.contentTop - 28)
+    minimapBox:SetHeight(28 + 56 + minimapBox.bottomPadding)
+    minimapBox.heightCalculated = true
+    self:AddSectionReset(minimapBox, function()
+        Config:ResetMinimapSection()
     end)
-    playerBox:SetHeight(playerH + 30)
+
+    local auraBox = self:CreateSectionBox(section, T("Buffs / Debuffs"))
+    auraBox:ClearAllPoints()
+    auraBox:SetPoint("TOPLEFT", minimapBox, "BOTTOMLEFT", 0, -6)
+    auraBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
+    AddScaleField(auraBox, { key = "buffScale", name = "Buffs" }, auraBox.contentLeft, auraBox.contentTop)
+    AddScaleField(auraBox, { key = "debuffScale", name = "Debuffs" }, auraBox.contentLeft + 310, auraBox.contentTop)
+    auraBox:SetHeight(28 + 28 + auraBox.bottomPadding)
+    auraBox.heightCalculated = true
+    self:AddSectionReset(auraBox, function()
+        Config:ResetAuraSection()
+    end)
+
+    local playerBox = self:CreateSectionBox(section, T("Player"))
+    playerBox:ClearAllPoints()
+    playerBox:SetPoint("TOPLEFT", auraBox, "BOTTOMLEFT", 0, -6)
+    playerBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
+    playerBox:SetHeight(FillGroupBox(playerBox, "player"))
     playerBox.heightCalculated = true
+    self:AddSectionReset(playerBox, function()
+        Config:ResetUnitFrameGroup("player")
+    end)
 
     local targetBox = self:CreateSectionBox(section, T("Target"))
     targetBox:ClearAllPoints()
@@ -292,6 +537,9 @@ function Config:CreateUnitFramesSection()
     targetBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
     targetBox:SetHeight(FillGroupBox(targetBox, "target"))
     targetBox.heightCalculated = true
+    self:AddSectionReset(targetBox, function()
+        Config:ResetUnitFrameGroup("target")
+    end)
 
     local partyBox = self:CreateSectionBox(section, T("Party"))
     partyBox:ClearAllPoints()
@@ -299,6 +547,9 @@ function Config:CreateUnitFramesSection()
     partyBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
     partyBox:SetHeight(FillGroupBox(partyBox, "party"))
     partyBox.heightCalculated = true
+    self:AddSectionReset(partyBox, function()
+        Config:ResetUnitFrameGroup("party")
+    end)
 
     local petBox = self:CreateSectionBox(section, T("Party Pets"))
     petBox:ClearAllPoints()
@@ -306,6 +557,9 @@ function Config:CreateUnitFramesSection()
     petBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
     petBox:SetHeight(FillGroupBox(petBox, "partypet"))
     petBox.heightCalculated = true
+    self:AddSectionReset(petBox, function()
+        Config:ResetUnitFrameGroup("partypet")
+    end)
 
     local hint = section:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     hint:SetPoint("TOPLEFT", petBox, "BOTTOMLEFT", 4, -8)

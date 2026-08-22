@@ -301,6 +301,25 @@ function ConsoleUI_PadWantedAction(slot)
     return "ConsoleUI_ACTION_" .. slot
 end
 
+function ConsoleUI_IsTransientPadAction(action)
+    if not action or action == "" then
+        return false
+    end
+    if string.find(action, "^ConsoleUI_CURSOR") then
+        return true
+    end
+    if string.find(action, "^ConsoleUI_RADIAL") then
+        return true
+    end
+    if string.find(action, "^CONSOLEUIK_") then
+        return true
+    end
+    if action == "ConsoleUI_RING_CANCEL" then
+        return true
+    end
+    return false
+end
+
 function ConsoleUI_ShouldOwnPadKey(current, want, cursorOn, overlayOn)
     if cursorOn or overlayOn then
         return false
@@ -314,22 +333,83 @@ function ConsoleUI_ShouldOwnPadKey(current, want, cursorOn, overlayOn)
     if string.find(current, "^ACTIONBUTTON") then
         return true
     end
-    if string.find(current, "^CONSOLEUIK_") then
-        return true
-    end
-    if string.find(current, "^ConsoleUI_CURSOR") then
-        return true
-    end
-    if string.find(current, "^ConsoleUI_RADIAL") then
+    if ConsoleUI_IsTransientPadAction(current) then
         return true
     end
     if string.find(current, "^ConsoleUI_ACTION_") then
         return true
     end
-    if current == "ConsoleUI_RING_CANCEL" then
-        return true
-    end
     return false
+end
+
+-- Face 1-4 stay the player's. Only strip overlay leftovers (cursor / ring / OSK).
+function ConsoleUI_ShouldRepairFaceKey(current, cursorOn, overlayOn)
+    if cursorOn or overlayOn then
+        return false
+    end
+    return ConsoleUI_IsTransientPadAction(current)
+end
+
+function ConsoleUI_PersistPadAction(slot)
+    local key = tostring(slot)
+    local cursor = ConsoleUI.cursor and ConsoleUI.cursor.keybindings
+    if cursor then
+        local orig = cursor.originalDPadBindings and cursor.originalDPadBindings[key]
+        if orig and orig ~= "" and not ConsoleUI_IsTransientPadAction(orig) then
+            return orig
+        end
+        if cursor.currentButton and cursor.buttonBindings then
+            local name = key
+            if cursor.currentButton.GetName then
+                name = cursor.currentButton:GetName() or tostring(cursor.currentButton)
+            else
+                name = tostring(cursor.currentButton)
+            end
+            local row = cursor.buttonBindings[name]
+            if row and row[key] and row[key] ~= "" and not ConsoleUI_IsTransientPadAction(row[key]) then
+                return row[key]
+            end
+        end
+    end
+    if slot >= 5 then
+        return ConsoleUI_PadWantedAction(slot)
+    end
+    if ConsoleUI.proxied and ConsoleUI.proxied.GetSlotBinding then
+        local proxied = ConsoleUI.proxied:GetSlotBinding(slot)
+        if proxied and proxied ~= "" then
+            return proxied
+        end
+    end
+    return "ACTIONBUTTON" .. slot
+end
+
+-- Welcome / bags remap 1 and 5-8 in memory. Persist those and a new
+-- character (or the account set) wakes up on Cursor Click / Cursor Up.
+function ConsoleUI_ParkTransientPadKeys()
+    local snap = {}
+    if not GetBindingAction or not SetBinding then
+        return snap
+    end
+    local i
+    for i = 1, 8 do
+        local key = tostring(i)
+        local current = GetBindingAction(key) or ""
+        if ConsoleUI_IsTransientPadAction(current) then
+            snap[key] = current
+            SetBinding(key, ConsoleUI_PersistPadAction(i))
+        end
+    end
+    return snap
+end
+
+function ConsoleUI_ResumeTransientPadKeys(snap)
+    if not snap or not SetBinding then
+        return
+    end
+    local key, action
+    for key, action in pairs(snap) do
+        SetBinding(key, action)
+    end
 end
 
 function ConsoleUIKeybindings:RepairPadGameplay()
@@ -346,6 +426,7 @@ function ConsoleUIKeybindings:RepairPadGameplay()
     if ConsoleUIKeyboard and ConsoleUIKeyboard.IsShown and ConsoleUIKeyboard:IsShown() then
         overlayOn = true
     end
+    local changed = false
     local slot
     for slot = 5, 8 do
         local key = tostring(slot)
@@ -353,8 +434,18 @@ function ConsoleUIKeybindings:RepairPadGameplay()
         local current = GetBindingAction and GetBindingAction(key) or ""
         if ConsoleUI_ShouldOwnPadKey(current, want, cursorOn, overlayOn) then
             SetBinding(key, want)
+            changed = true
         end
     end
+    for slot = 1, 4 do
+        local key = tostring(slot)
+        local current = GetBindingAction and GetBindingAction(key) or ""
+        if ConsoleUI_ShouldRepairFaceKey(current, cursorOn, overlayOn) then
+            SetBinding(key, ConsoleUI_PersistPadAction(slot))
+            changed = true
+        end
+    end
+    return changed
 end
 
 -- Auto-setup may only take a free key or one already owned by ConsoleUI.
@@ -445,9 +536,9 @@ function ConsoleUIKeybindings:FinishInitialize()
     if ConsoleUI.radial and ConsoleUI.radial.RepairMovementBindings then
         ConsoleUI.radial:RepairMovementBindings()
     end
-    self:RepairPadGameplay()
+    local repaired = self:RepairPadGameplay()
 
-    if ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings() then
+    if repaired or (ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings()) then
         ConsoleUI_SaveBindings()
     end
 

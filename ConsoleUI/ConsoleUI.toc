@@ -7,7 +7,7 @@
 ## Title-zhTW: |cfff1f2f4Console|r|cffffd12eUI|r |cff8b8f98by HouseLegend|r
 ## Author: HouseLegend
 # x-release-please-start-version
-## Version: 1.0.0-RC4.1
+## Version: 1.0.0-RC4.5
 # x-release-please-end
 ## Notes: Game controller UI for WoW Vanilla (Interface 11200)
 ## Notes-esES: Interfaz de mando para WoW Vanilla

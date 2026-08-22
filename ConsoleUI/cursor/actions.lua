@@ -330,9 +330,6 @@ function ConsoleUI_ClickCursor(mouseButton)
                 else
                     ConsoleUI_Debug("Slot " .. actionSlot .. " is empty and cursor is empty - no action")
                 end
-            elseif mouseButton == "RightButton" then
-                -- B button: Clear slot
-                ConsoleUI_PLACEMENT_CLEAR()
             end
             return
         end
@@ -962,13 +959,20 @@ function ConsoleUI_Bind()
         end
         return
     end
+
+    local Cursor = ConsoleUI.cursor
+    local hover = Cursor and Cursor.navigationState and Cursor.navigationState.currentButton
+    local hoverName = hover and hover:GetName()
+    if hoverName and string.find(hoverName, "ConsoleUIPlacementButton%d+") then
+        ConsoleUI_PLACEMENT_CLEAR()
+        return
+    end
     
     -- Normal bind action - use the same pickup logic as ConsoleUI_PickupItem
     ConsoleUI_PickupItem()
     
     -- Show placement frame when binding items to action bars
     -- Check cursor state OR if fake cursor has a held item (for macros which may not trigger CursorHasSpell/CursorHasItem)
-    local Cursor = ConsoleUI.cursor
     local hasHeldItem = Cursor and Cursor.heldItemTexturePath
     if CursorHasSpell() or CursorHasItem() or hasHeldItem then
         if ConsoleUI.placement then
@@ -1035,48 +1039,10 @@ function ConsoleUI_PLACEMENT_CLEAR()
         ConsoleUI_Debug("ConsoleUI_PLACEMENT_CLEAR: Not a placement button: " .. (buttonName or "nil"))
         return
     end
-    
-    -- Get the action slot from the button
-    local actionSlot = button.actionSlot
-    if not actionSlot then 
-        ConsoleUI_Debug("ConsoleUI_PLACEMENT_CLEAR: No action slot")
-        return 
+
+    if ConsoleUI.placement and ConsoleUI.placement.ClearSlot then
+        ConsoleUI.placement:ClearSlot(button)
     end
-    
-    -- Check if slot actually has an action
-    if not HasAction(actionSlot) then
-        ConsoleUI_Debug("ConsoleUI_PLACEMENT_CLEAR: Slot " .. actionSlot .. " is already empty")
-        return
-    end
-    
-    -- Clear the action slot
-    -- Method: Pick up the action, then clear cursor
-    -- First ensure cursor is empty (clear any existing cursor item)
-    if CursorHasItem() or CursorHasSpell() then
-        ClearCursor()
-    end
-    
-    -- Pick up the action from the slot
-    PickupAction(actionSlot)
-    
-    -- Now clear the cursor (this should remove the action from the slot)
-    -- Note: ClearCursor() should work for actions in WoW 1.12
-    ClearCursor()
-    
-    ConsoleUI_Debug("Cleared action slot " .. actionSlot)
-    
-    -- Update the button display
-    if ConsoleUI.placement and ConsoleUI.placement.UpdateButton then
-        ConsoleUI.placement:UpdateButton(button)
-    end
-    
-    -- Update main action bar if on current page
-    if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
-        ConsoleUI.actionbars:UpdateAllButtons()
-    end
-    
-    -- Refresh cursor frame to update tooltip
-    Cursor:RefreshFrame()
 end
 
 -- ============================================================================

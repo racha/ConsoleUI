@@ -4,7 +4,7 @@
 
 ConsoleUI is a controller interface for the **original 1.12 Vanilla client**. It puts your spells on the face buttons, opens bags and menus from a stick wheel, and lets you type in chat without a keyboard.
 
-This release is **v1.0.0-RC4.1** — ready to try, still a release candidate.
+This release is **v1.0.0-RC4.5** — ready to try, still a release candidate.
 
 ---
 
@@ -58,7 +58,7 @@ Follow their install notes (it is a client mod, not only an AddOns folder). Then
 
 ### Settings
 
-Open with `/cui`. Interface, Bars, Bindings, Rings, Unit Frames, Profiles, About, Debug.
+Open with `/cui`. Interface, Bars, Bindings, Rings, Blizz Frames, Profiles, About, Debug.
 
 ![Settings](screenshots/settings.png)
 
@@ -94,7 +94,7 @@ Point at a cluster, press a face button, type. **A** sends, **B** closes, **X** 
 
 ## Install
 
-1. Download **ConsoleUI-1.0.0-RC4.1.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
+1. Download **ConsoleUI-1.0.0-RC4.5.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
 2. Open the zip. You will see two folders: `ConsoleUI` and `ConsoleUIKeyboard`.
 3. Copy **both** into:
 
@@ -199,7 +199,7 @@ Ten face / D-pad slots. Hold **LT** or **LB** to change page.
 - **Flat** — one row of squares, active page only
 - **Full** — three controller diamond sets at once (LB | default or LB+LT | LT). The live page is solid; the others fade
 
-`/cui` → **Bars** if you want them bigger, gold-edged, or moved. `/cui` → **Unit Frames** to scale player, target, party, and pets.
+`/cui` → **Bars** if you want them bigger, gold-edged, or moved. `/cui` → **Blizz Frames** to scale the minimap, buffs, debuffs, player, target, party, and pets.
 
 ### Quick Menu (the Radial Menu)
 

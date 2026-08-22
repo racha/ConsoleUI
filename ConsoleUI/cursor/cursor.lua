@@ -16,11 +16,18 @@ CursorFrame:SetFrameStrata("FULLSCREEN_DIALOG")
 CursorFrame:SetFrameLevel(1001)
 CursorFrame:Hide()
 
--- Create cursor texture (pointer)
-local cursorTexture = CursorFrame:CreateTexture(nil, "OVERLAY")
-cursorTexture:SetTexture("Interface\\CURSOR\\Point")
-cursorTexture:SetAllPoints(CursorFrame)
-CursorFrame.texture = cursorTexture
+-- LK-style cursor: tan pointer + face-button glyph (A / Cross).
+local cursorTip = CursorFrame:CreateTexture(nil, "ARTWORK")
+cursorTip:SetTexture("Interface\\CURSOR\\Item")
+cursorTip:SetAllPoints(CursorFrame)
+CursorFrame.tip = cursorTip
+CursorFrame.texture = cursorTip
+
+local cursorButton = CursorFrame:CreateTexture(nil, "OVERLAY")
+cursorButton:SetWidth(32)
+cursorButton:SetHeight(32)
+cursorButton:SetPoint("CENTER", CursorFrame, "CENTER", 4, -4)
+CursorFrame.button = cursorButton
 
 -- Create held item texture (shows what's being carried)
 local heldItemTexture = CursorFrame:CreateTexture(nil, "ARTWORK")
@@ -29,9 +36,6 @@ heldItemTexture:SetHeight(28)
 heldItemTexture:SetPoint("BOTTOM", CursorFrame, "TOP", 0, -4)
 heldItemTexture:Hide()
 CursorFrame.heldItemTexture = heldItemTexture
-
--- Normal cursor texture path
-local NORMAL_CURSOR_TEXTURE = "Interface\\CURSOR\\Point"
 
 -- Create highlight texture for current button
 local highlightFrame = CreateFrame("Frame", "ConsoleUICursorHighlight", UIParent)
@@ -78,6 +82,18 @@ Cursor.highlight = highlightFrame
 -- Track if cursor is holding something
 Cursor.isHoldingItem = false
 Cursor.heldItemTexturePath = nil
+
+function Cursor:RefreshButtonGlyph()
+    local path = "Interface\\AddOns\\ConsoleUI\\textures\\controllers\\xbox\\a"
+    if ConsoleUI.actionbars and ConsoleUI.actionbars.GetControllerIconPath then
+        path = ConsoleUI.actionbars:GetControllerIconPath("a")
+    end
+    if CursorFrame.button then
+        CursorFrame.button:SetTexture(path)
+    end
+end
+
+Cursor:RefreshButtonGlyph()
 
 -- ============================================================================
 -- Cursor Item Tracking
@@ -401,9 +417,10 @@ function Cursor:UpdateCursorPosition(button)
     
     local x, y = button:GetCenter()
     if x and y then
-        -- Position cursor at bottom of button
+        -- Pointer tip on the node, A glyph hangs down-right (ConsolePortLK).
+        self:RefreshButtonGlyph()
         self.frame:ClearAllPoints()
-        self.frame:SetPoint("CENTER", button, "BOTTOM", 8, 0)
+        self.frame:SetPoint("TOPLEFT", button, "CENTER", 0, 0)
         self.frame:Show()
         
         -- Position highlight around button
