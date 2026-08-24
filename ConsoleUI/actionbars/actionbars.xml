@@ -119,8 +119,9 @@
     </CheckButton>
 
     <!-- ============================================================ -->
-    <!-- LEFT CLUSTER: D-Pad + RT (slot 10) outside bottom-left       -->
-    <!-- Positions are overwritten by Config:UpdateActionBarLayout    -->
+    <!-- ACTION INPUTS: positions are overwritten by                 -->
+    <!-- Config:UpdateActionBarLayout. LT/LB visual-only frames are  -->
+    <!-- created in bars.lua; slot 10 RT and slot 9 RB move right.   -->
     <!-- ============================================================ -->
     
     <!-- 10 = RT -->
@@ -175,11 +176,10 @@
     </CheckButton>
 
     <!-- ============================================================ -->
-    <!-- RIGHT STAR: RB (center) + Face Buttons (A/X/Y/B around it)   -->
-    <!-- Positioned at bottom center, right side                      -->
+    <!-- RIGHT CLUSTER: Face Buttons + RT above RB on the flank       -->
     <!-- ============================================================ -->
     
-    <!-- 9 = RB (CENTER of right star) -->
+    <!-- 9 = RB -->
     <CheckButton name="ConsoleActionButton9" inherits="ConsoleActionButtonTemplate" id="9" parent="UIParent">
         <Anchors>
             <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM">

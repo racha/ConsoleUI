@@ -54,7 +54,7 @@ local function HookBox(box, force)
     box:SetScript("OnEditFocusGained", function()
         if oldGain then oldGain() end
         Keyboard.chatWanted = GetTime and GetTime() or 0
-        if Keyboard:IsEnabled() then
+        if Keyboard:WantsBox(this) then
             Keyboard:SetFocus(this)
         end
     end)
@@ -83,7 +83,7 @@ function Keyboard:HookNamedBoxes()
 end
 
 local function FocusIfShown(box)
-    if box and box.IsVisible and box:IsVisible() and Keyboard:IsEnabled() then
+    if box and box.IsVisible and box:IsVisible() and Keyboard:WantsBox(box) then
         HookBox(box, true)
         Keyboard:SetFocus(box)
     end
@@ -145,7 +145,7 @@ scan:SetScript("OnUpdate", function()
     if Keyboard.pendingChatShow and not Keyboard:IsShown() then
         Keyboard.pendingChatShow = nil
         local box = ChatFrameEditBox
-        if box and box.HasFocus and box:HasFocus() and Keyboard:IsEnabled() then
+        if box and box.HasFocus and box:HasFocus() and Keyboard:WantsBox(box) then
             Keyboard.chatWanted = GetTime and GetTime() or 0
             Keyboard:SetFocus(box)
         elseif box and box.IsShown and box:IsShown() and not Keyboard:ChatBoxAllowsKeys() then

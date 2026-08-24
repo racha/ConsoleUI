@@ -2,7 +2,7 @@
     Action-bar diamond layout. Pure math. No frames.
     controller = diamonds. flat = one row of squares. full = three
     cloned controller sets (LB | default | LT).
-    Slot 10 = RT. Slot 9 = RB. LB is Ctrl, not a diamond.
+    Twelve-button chrome: LB/LT visual modifiers + 10 action inputs.
 ]]
 
 ConsoleUI = ConsoleUI or {}
@@ -10,6 +10,13 @@ ConsoleUI.actionbars = ConsoleUI.actionbars or {}
 
 local Layout = {}
 ConsoleUI.actionbars.Layout = Layout
+
+local function Mod(a, b)
+    if math.mod then
+        return math.mod(a, b)
+    end
+    return math.fmod(a, b)
+end
 
 Layout.HIT = 56
 Layout.INNER = 33
@@ -24,7 +31,7 @@ Layout.PIP_IN = {
     [5] = { 0,  1 }, [1] = { 0,  1 },
     [6] = { 1,  0 }, [2] = { 1,  0 },
     [8] = {-1,  0 }, [4] = {-1,  0 },
-    [10] = { 1, 0 },
+    [10] = { -1, 0 },
     [9] = { -1, 0 },
 }
 Layout.TEX = "Interface\\AddOns\\ConsoleUI\\textures\\radial\\"
@@ -32,13 +39,24 @@ Layout.GOLD = { 1.00, 0.82, 0.18 }
 
 Layout.STAR = {
     [1] = "right", [2] = "right", [3] = "right", [4] = "right", [9] = "right",
-    [5] = "left", [6] = "left", [7] = "left", [8] = "left", [10] = "left",
+    [5] = "left", [6] = "left", [7] = "left", [8] = "left", [10] = "right",
 }
 
-Layout.FLAT_LEFT = { 6, 7, 5, 8, 10 }
-Layout.FLAT_RIGHT = { 2, 3, 1, 4, 9 }
+Layout.FLAT_X = {
+    [6] = -0.5, [7] = 0.5, [5] = 1.5, [8] = 2.5,
+    [2] = -2.5, [3] = -1.5, [1] = -0.5, [4] = 0.5, [9] = 1.5, [10] = 2.5,
+}
 Layout.SLICE_N = 16
 Layout.SQUARE_GAP = 8
+Layout.PET_SQUARE_GAP = 2
+Layout.PET_SLOTS = 10
+Layout.PET_GROUP_GAP = 2
+Layout.STANCE_MAX = 8
+Layout.STANCE_BASE = 0.8
+Layout.PET_BASE = 0.6
+Layout.AUTOCAST_PULSE = 3.2
+Layout.AUTOCAST_DOT = Layout.GOLD_OUT
+Layout.AUTOCAST_DOTS = 4
 
 function Layout.SquareStep(buttonSize, padding)
     buttonSize = buttonSize or Layout.HIT
@@ -49,6 +67,9 @@ function Layout.SquareStep(buttonSize, padding)
     return padding
 end
 
+-- Two 56 rows + the slot hit gap. Portrait stays the origin.
+Layout.PET_HUB = Layout.HIT + Layout.SquareStep(Layout.HIT)
+
 function Layout.SliceClipSize(buttonSize)
     buttonSize = buttonSize or Layout.HIT
     local clip = buttonSize - Layout.ICON_IN * 2
@@ -58,6 +79,105 @@ function Layout.SliceClipSize(buttonSize)
     return clip
 end
 
+function Layout.PetSquareStep()
+    return Layout.HIT + Layout.GOLD_OUT * 2 + Layout.PET_SQUARE_GAP
+end
+
+function Layout.PetHitGap()
+    return Layout.GOLD_OUT * 2 + Layout.PET_SQUARE_GAP
+end
+
+function Layout.PetBarY()
+    return -(Layout.PET_HUB - Layout.HIT) / 2
+end
+
+function Layout.PetBarTopY()
+    return Layout.PetBarY() + Layout.PetSquareStep()
+end
+
+function Layout.PetBarFirst()
+    return Layout.PET_HUB / 2 + Layout.PetHitGap() + Layout.HIT / 2
+end
+
+function Layout.PetSlotGroup(slot)
+    slot = tonumber(slot) or 1
+    if slot <= 3 then
+        return "action"
+    end
+    if slot <= 6 then
+        return "stance"
+    end
+    return "spell"
+end
+
+function Layout.PetGroupStartX(group)
+    return Layout.PetBarFirst()
+end
+
+function Layout.PetCommandY()
+    return Layout.PetSquareStep() / 2
+end
+
+function Layout.PetStanceY()
+    return -Layout.PetSquareStep() / 2
+end
+
+function Layout.PetSpellY()
+    return 0
+end
+
+function Layout.PetSideX(group, grow)
+    local x = Layout.PetBarFirst()
+    local flip = grow == "left"
+    if group ~= "spell" then
+        flip = not flip
+    end
+    if flip then
+        x = -x
+    end
+    return x
+end
+
+function Layout.PetGroupPoint(group, index, grow)
+    index = tonumber(index) or 1
+    if index < 1 then
+        index = 1
+    end
+    local x = Layout.PetSideX(group, grow)
+    if group == "spell" then
+        local step = Layout.PetSquareStep()
+        if x < 0 then
+            x = x - (index - 1) * step
+        else
+            x = x + (index - 1) * step
+        end
+        return x, Layout.PetSpellY()
+    end
+    if group == "stance" then
+        return x, Layout.PetStanceY()
+    end
+    return x, Layout.PetCommandY()
+end
+
+function Layout.PetPickerPoint(group, index, grow)
+    index = tonumber(index) or 1
+    if index < 1 then
+        index = 1
+    end
+    local x, y = Layout.PetGroupPoint(group, 1, grow)
+    local step = Layout.PetSquareStep()
+    if x < 0 then
+        x = x + index * step
+    else
+        x = x - index * step
+    end
+    return x, y
+end
+
+function Layout.PetBarPoint(i, grow)
+    return Layout.PetGroupPoint("spell", i, grow)
+end
+
 function Layout.SquareIconSize(buttonSize)
     buttonSize = buttonSize or Layout.HIT
     local icon = buttonSize - Layout.ICON_IN * 2
@@ -65,6 +185,24 @@ function Layout.SquareIconSize(buttonSize)
         icon = 8
     end
     return icon
+end
+
+function Layout.SquarePathPoint(progress, half)
+    progress = Mod(tonumber(progress) or 0, 1)
+    half = tonumber(half) or 0
+    local leg = progress * 4
+    local side = math.floor(leg)
+    local t = leg - side
+    if side == 0 then
+        return -half + half * 2 * t, half
+    end
+    if side == 1 then
+        return half, half - half * 2 * t
+    end
+    if side == 2 then
+        return half - half * 2 * t, -half
+    end
+    return -half, -half + half * 2 * t
 end
 
 function Layout.SliceRow(i, n, size)
@@ -138,7 +276,7 @@ local SPLIT = {
     [6]  = { ax = -1, ay =  0, dir = "W" },
     [5]  = { ax =  0, ay = -1, dir = "S" },
     [8]  = { ax =  1, ay =  0, dir = "E" },
-    [10] = { ax =  0, ay = -1, dir = "W", flank = -1 },
+    [10] = { ax =  0, ay =  1, dir = "E", flank = 1 },
     [3]  = { ax =  0, ay =  1, dir = "N" },
     [2]  = { ax = -1, ay =  0, dir = "W" },
     [1]  = { ax =  0, ay = -1, dir = "S" },
@@ -231,21 +369,9 @@ end
 function Layout.Local(id, kind, metrics, padding)
     metrics = metrics or Layout.Metrics(Layout.HIT, Layout.FLANK_GAP)
     if kind == "flat" then
-        local row = Layout.FLAT_LEFT
-        if Layout.STAR[id] == "right" then
-            row = Layout.FLAT_RIGHT
-        end
-        local slot = 0
-        local i
-        for i = 1, 5 do
-            if row[i] == id then
-                slot = i - 1
-                break
-            end
-        end
         local step = Layout.SquareStep(metrics.size, padding)
         return {
-            x = (slot - 2) * step,
+            x = (Layout.FLAT_X[id] or 0) * step,
             y = 0,
             dir = "O",
             star = Layout.STAR[id],
@@ -267,6 +393,22 @@ function Layout.Local(id, kind, metrics, padding)
         dir = spec.dir,
         star = Layout.STAR[id],
     }
+end
+
+function Layout.ModifierLocal(modifier, kind, metrics, padding)
+    metrics = metrics or Layout.Metrics(Layout.HIT, Layout.FLANK_GAP)
+    if kind == "flat" then
+        local x = -2.5
+        if modifier == "lt" then
+            x = -1.5
+        end
+        return { x = x * Layout.SquareStep(metrics.size, padding), y = 0, dir = "O", star = "left" }
+    end
+    local y = -metrics.inner
+    if modifier == "lt" then
+        y = metrics.inner
+    end
+    return { x = -metrics.flankOut, y = y, dir = "W", star = "left" }
 end
 
 Layout.FULL_AIR = 96
@@ -333,6 +475,19 @@ function Layout.FullPack(metrics, air)
             starX = -pack / 2
         end
         local x = starX + loc.x
+        local l = x - chrome
+        local r = x + chrome
+        if not minX or l < minX then
+            minX = l
+        end
+        if not maxX or r > maxX then
+            maxX = r
+        end
+    end
+    local modifiers = { "lb", "lt" }
+    for i = 1, 2 do
+        local loc = Layout.ModifierLocal(modifiers[i], "controller", metrics)
+        local x = -pack / 2 + loc.x
         local l = x - chrome
         local r = x + chrome
         if not minX or l < minX then
@@ -433,6 +588,27 @@ function Layout.World(id, kind, metrics, padding, starPad, xOff, yOff, col)
     starX = starX + (xOff or 0)
     return {
         x = starX + loc.x,
+        y = (yOff or 0) + loc.y,
+        dir = loc.dir,
+        star = loc.star,
+    }
+end
+
+function Layout.ModifierWorld(modifier, kind, metrics, padding, starPad, xOff, yOff, col)
+    if kind == "full" then
+        metrics = Layout.FullMetrics(metrics and metrics.size, metrics and metrics.flankGap)
+        local loc = Layout.ModifierLocal(modifier, "controller", metrics, padding)
+        local pack, colGap = Layout.FullPack(metrics)
+        return {
+            x = (col or 0) * colGap - pack / 2 + loc.x + (xOff or 0),
+            y = (yOff or 0) + loc.y,
+            dir = loc.dir,
+            star = loc.star,
+        }
+    end
+    local loc = Layout.ModifierLocal(modifier, kind, metrics, padding)
+    return {
+        x = -(starPad or 600) / 2 + loc.x + (xOff or 0),
         y = (yOff or 0) + loc.y,
         dir = loc.dir,
         star = loc.star,

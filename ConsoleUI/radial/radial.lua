@@ -808,9 +808,12 @@ function Radial:Hide()
     if self.frame and self.frame:IsShown() then
         if PlaySound then PlaySound("igMainMenuClose") end
         self.frame:Hide()
-        return
+    else
+        self:Cleanup()
     end
-    self:Cleanup()
+    if ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then
+        ConsoleUI.keybindings:RepairPadGameplay()
+    end
 end
 
 function Radial:Cleanup()

@@ -66,6 +66,9 @@ function Keyboard:RunSelfCheck(printResult)
     if not Keyboard.PickGuess or not Keyboard.CycleGuess then Fail(fails, "PickGuess missing") end
     if not Keyboard.GenerateDictionary then Fail(fails, "GenerateDictionary missing") end
     if not Keyboard.HookEditBoxes then Fail(fails, "HookEditBoxes missing") end
+    if not Keyboard.WantsBox or not Keyboard.ShowFor or not Keyboard.SetShowFor then
+        Fail(fails, "showFor helpers missing")
+    end
     if not Keyboard.StealKeys then Fail(fails, "StealKeys missing") end
     if Keyboard.StealCount ~= 69 then
         Fail(fails, "steal list should be 17 keys x 4 modifiers + Escape, got " .. tostring(Keyboard.StealCount))

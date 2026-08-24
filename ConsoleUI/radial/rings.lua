@@ -2,7 +2,7 @@
     ConsoleUI - User rings
 
     Hold ConsoleUI_RING_N to show, point, release to use. B / ESC cancel.
-    No center cluster. Spells and items only.
+    No center cluster. Spells, items, macros.
 ]]
 
 local function L(key)
@@ -334,6 +334,92 @@ function Rings:FindBagItem(entry)
     return nil, nil
 end
 
+function Rings:MacroLineKind(line)
+    line = string.gsub(tostring(line or ""), "^%s+", "")
+    if line == "" or string.sub(line, 1, 1) == "#" then
+        return "skip"
+    end
+    local _, _, cmd, rest = string.find(line, "^/(%S+)%s*(.*)$")
+    if not cmd then
+        return "chat", line
+    end
+    cmd = string.lower(cmd)
+    rest = string.gsub(rest or "", "^%s+", "")
+    rest = string.gsub(rest, "%s+$", "")
+    if cmd == "cast" or cmd == "castspell" then
+        return "cast", rest
+    end
+    if cmd == "use" then
+        return "use", rest
+    end
+    return "slash", line
+end
+
+function Rings:ReleaseChatBox()
+    local box = ChatFrameEditBox
+    if not box then
+        return
+    end
+    if box.SetText then
+        box:SetText("")
+    end
+    if box.ClearFocus then
+        box:ClearFocus()
+    end
+    if box.Hide then
+        box:Hide()
+    end
+end
+
+function Rings:SendChatLine(line)
+    local box = ChatFrameEditBox
+    if not box or not box.SetText then
+        return false
+    end
+    if not ChatEdit_ParseText and not ChatEdit_SendText then
+        return false
+    end
+    box:SetText(line)
+    if ChatEdit_ParseText then
+        ChatEdit_ParseText(box, 1)
+    else
+        ChatEdit_SendText(box)
+    end
+    self:ReleaseChatBox()
+    return true
+end
+
+function Rings:RunMacroBody(body)
+    -- ponytail: 1.12 has no RunMacroText. Parse one line at a time; no /castsequence engine.
+    -- /cast and /use skip ChatFrameEditBox — a focused box blocks pad casts.
+    if not body or body == "" then
+        return false
+    end
+    local sent = false
+    local line
+    for line in string.gfind(body, "[^\n]+") do
+        local kind, payload = self:MacroLineKind(line)
+        if kind == "cast" and payload and payload ~= "" and CastSpellByName then
+            CastSpellByName(payload)
+            sent = true
+        elseif kind == "use" and payload and payload ~= "" then
+            local bag, slot = self:FindBagItem({ name = payload })
+            if bag and slot and UseContainerItem then
+                UseContainerItem(bag, slot)
+                sent = true
+            elseif CastSpellByName then
+                CastSpellByName(payload)
+                sent = true
+            end
+        elseif kind == "slash" or kind == "chat" then
+            if self:SendChatLine(payload) then
+                sent = true
+            end
+        end
+    end
+    return sent
+end
+
 function Rings:UseEntry(entry)
     if not entry or not entry.kind or not entry.name then
         return false
@@ -351,7 +437,152 @@ function Rings:UseEntry(entry)
         ConsoleUI_Debug("Rings: item not in bags: " .. tostring(entry.name))
         return false
     end
+    if entry.kind == "macro" then
+        local idx = GetMacroIndexByName and GetMacroIndexByName(entry.name)
+        if idx and idx > 0 then
+            if RunMacro then
+                RunMacro(idx)
+                return true
+            end
+            local _, _, body = GetMacroInfo(idx)
+            return self:RunMacroBody(body)
+        end
+        return false
+    end
     return false
+end
+
+function Rings:CursorLooksHeld()
+    if CursorHasItem and CursorHasItem() then
+        return true
+    end
+    if CursorHasSpell and CursorHasSpell() then
+        return true
+    end
+    if ConsoleUI.cursor and ConsoleUI.cursor.heldItemTexturePath then
+        return true
+    end
+    return false
+end
+
+function Rings:EntryFromCursor()
+    local p = self.lastPickup
+    if not p or not p.kind or not p.name then
+        return nil
+    end
+    if not self:CursorLooksHeld() and p.kind ~= "macro" then
+        return nil
+    end
+    return {
+        kind = p.kind,
+        name = p.name,
+        itemID = p.itemID,
+        texture = p.texture,
+    }
+end
+
+function Rings:RememberSpell(id, book)
+    if not id or not GetSpellName then
+        return
+    end
+    book = book or BOOKTYPE_SPELL
+    local name, rank = GetSpellName(id, book)
+    if not name then
+        return
+    end
+    local full = name
+    if rank and rank ~= "" then
+        full = name .. "(" .. rank .. ")"
+    end
+    local tex = GetSpellTexture and GetSpellTexture(id, book)
+    self.lastPickup = { kind = "spell", name = full, texture = tex }
+end
+
+function Rings:RememberBagItem(bag, slot)
+    if bag == nil or slot == nil or not GetContainerItemLink then
+        return
+    end
+    local link = GetContainerItemLink(bag, slot)
+    if not link then
+        return
+    end
+    local tex = GetContainerItemInfo(bag, slot)
+    self.lastPickup = {
+        kind = "item",
+        name = ItemNameFromLink(link),
+        itemID = ParseItemID(link),
+        texture = tex,
+    }
+end
+
+function Rings:RememberMacro(index)
+    if not index or not GetMacroInfo then
+        return
+    end
+    local name, tex = GetMacroInfo(index)
+    if not name then
+        return
+    end
+    self.lastPickup = { kind = "macro", name = name, texture = tex }
+end
+
+function Rings:RememberInventory(slot)
+    if not slot or not GetInventoryItemLink then
+        return
+    end
+    local link = GetInventoryItemLink("player", slot)
+    if not link then
+        return
+    end
+    local tex = GetInventoryItemTexture and GetInventoryItemTexture("player", slot)
+    self.lastPickup = {
+        kind = "item",
+        name = ItemNameFromLink(link),
+        itemID = ParseItemID(link),
+        texture = tex,
+    }
+end
+
+function Rings:HookPickups()
+    if self._pickupHooked then
+        return
+    end
+    self._pickupHooked = true
+    if PickupSpell then
+        local orig = PickupSpell
+        PickupSpell = function(id, book)
+            Rings:RememberSpell(id, book)
+            return orig(id, book)
+        end
+    end
+    if PickupContainerItem then
+        local orig = PickupContainerItem
+        PickupContainerItem = function(bag, slot)
+            Rings:RememberBagItem(bag, slot)
+            return orig(bag, slot)
+        end
+    end
+    if PickupMacro then
+        local orig = PickupMacro
+        PickupMacro = function(index)
+            Rings:RememberMacro(index)
+            return orig(index)
+        end
+    end
+    if PickupInventoryItem then
+        local orig = PickupInventoryItem
+        PickupInventoryItem = function(slot)
+            Rings:RememberInventory(slot)
+            return orig(slot)
+        end
+    end
+    if ClearCursor then
+        local orig = ClearCursor
+        ClearCursor = function()
+            Rings.lastPickup = nil
+            return orig()
+        end
+    end
 end
 
 function Rings:CreateFrame()
@@ -533,6 +764,9 @@ function Rings:Hide()
     end
     self.activeID = nil
     self.selectedIndex = nil
+    if ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then
+        ConsoleUI.keybindings:RepairPadGameplay()
+    end
 end
 
 function Rings:Cancel()
@@ -585,3 +819,5 @@ function ConsoleUI_RingCancel()
         ConsoleUI.rings:Cancel()
     end
 end
+
+Rings:HookPickups()

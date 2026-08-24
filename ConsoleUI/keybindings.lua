@@ -111,6 +111,18 @@ _G["BINDING_NAME_ConsoleUI_RING_CANCEL"] = L("Cancel Ring")
 -- Interact header and binding name
 _G["BINDING_HEADER_CONSOLEUIINTERACT"] = L("ConsoleUI Interact")
 _G["BINDING_NAME_ConsoleUI_INTERACT"] = L("Interact with Target")
+_G["BINDING_NAME_ConsoleUI_UNIT_MENU"] = L("Unit Menu")
+
+_G["BINDING_HEADER_CONSOLEUISTANCE"] = L("ConsoleUI Stance")
+_G["BINDING_HEADER_CONSOLEUIPET"] = L("ConsoleUI Pet")
+local extraI
+for extraI = 1, 8 do
+    _G["BINDING_NAME_ConsoleUI_STANCE_" .. extraI] = L("Stance") .. " " .. extraI
+end
+for extraI = 1, 10 do
+    _G["BINDING_NAME_ConsoleUI_PET_" .. extraI] = L("Pet") .. " " .. extraI
+end
+_G["BINDING_NAME_ConsoleUI_PET_FOLLOW"] = L("Pet Follow")
 
 -- ============================================================================
 -- ConsoleUI_InteractNearest Function (used by ConsoleUI_INTERACT binding)
@@ -160,12 +172,17 @@ function ConsoleUI_ChatBlocksActions()
 end
 
 function ConsoleUI_ActionButton(slot)
-    if ConsoleUI_ChatBlocksActions() then return end
+    if ConsoleUI_ChatBlocksActions() then
+        ConsoleUI_PrintDebug("Action skip chat slot=" .. tostring(slot))
+        return
+    end
 
-    -- ACTION bindings and ActionButtonDown do not set keystate.
-    -- runOnUp leftovers (chat / radial) stay "up" and used to skip every cast
-    -- until a later "down" leaked in. Skip only an explicit release.
-    if keystate == "up" then
+    if ConsoleUI.loot and ConsoleUI.loot.ConsumePad and ConsoleUI.loot:ConsumePad(slot) then
+        ConsoleUI_PrintDebug("Action skip loot slot=" .. tostring(slot))
+        return
+    end
+    if ConsoleUI.unit and ConsoleUI.unit.ConsumePad and ConsoleUI.unit:ConsumePad(slot) then
+        ConsoleUI_PrintDebug("Action skip unit slot=" .. tostring(slot))
         return
     end
     local actualSlot = slot
@@ -186,11 +203,7 @@ function ConsoleUI_ActionButton(slot)
             end
         end
         
-        -- Debug output
-        if ConsoleUI_DEBUG_KEYS then
-            local bonusBar = GetBonusBarOffset() or 0
-            ConsoleUI_Debug("Key slot=" .. slot .. " bonus=" .. bonusBar .. " actual=" .. actualSlot .. " has=" .. tostring(HasAction(actualSlot)))
-        end
+        ConsoleUI_PrintDebug("Action fire slot=" .. tostring(slot) .. " actual=" .. tostring(actualSlot) .. " has=" .. tostring(HasAction and HasAction(actualSlot)) .. " keystate=" .. tostring(keystate))
         
         -- Check if healer mode is enabled and cursor is over a party/raid/player frame
         local ActionBars = ConsoleUI.actionbars
@@ -291,14 +304,39 @@ end
 -- D-pad is 5-8. Chat steal leftover, ACTIONBUTTON, and cursor leaks
 -- on those keys are why casts die until chat is toggled (restore writes
 -- ConsoleUI_ACTION_5-8). Face 1-4 stay the player's. JUMP etc. stay.
+-- Blizzard PETFOLLOW calls PetFollow(), which does not drop a target.
+-- The pet-bar Follow square uses FollowAndDismiss (stock slot click).
+function ConsoleUI_LivePetFollowBind(action)
+    if action == "PETFOLLOW" then
+        return "ConsoleUI_PET_FOLLOW"
+    end
+    return action
+end
+
 function ConsoleUI_PadWantedAction(slot)
     if ConsoleUI.proxied and ConsoleUI.proxied.GetSlotBinding then
         local proxied = ConsoleUI.proxied:GetSlotBinding(slot)
         if proxied and proxied ~= "" then
-            return proxied
+            return ConsoleUI_LivePetFollowBind(proxied)
         end
     end
     return "ConsoleUI_ACTION_" .. slot
+end
+
+function ConsoleUI_ModifierKeyForSlot(slot)
+    if not slot or slot < 11 or slot > 40 then
+        return nil
+    end
+    local page = math.floor((slot - 1) / 10)
+    local button = math.mod(slot - 1, 10) + 1
+    local key = button == 10 and "0" or tostring(button)
+    if page == 1 then
+        return "SHIFT-" .. key
+    end
+    if page == 2 then
+        return "CTRL-" .. key
+    end
+    return "CTRL-SHIFT-" .. key
 end
 
 function ConsoleUI_IsTransientPadAction(action)
@@ -337,6 +375,9 @@ function ConsoleUI_ShouldOwnPadKey(current, want, cursorOn, overlayOn)
         return true
     end
     if string.find(current, "^ConsoleUI_ACTION_") then
+        return true
+    end
+    if current == "PETFOLLOW" and want == "ConsoleUI_PET_FOLLOW" then
         return true
     end
     return false
@@ -399,6 +440,17 @@ function ConsoleUI_ParkTransientPadKeys()
             SetBinding(key, ConsoleUI_PersistPadAction(i))
         end
     end
+    local slot
+    for slot = 11, 40 do
+        local key = ConsoleUI_ModifierKeyForSlot(slot)
+        if key then
+            local current = GetBindingAction(key) or ""
+            if ConsoleUI_IsTransientPadAction(current) then
+                snap[key] = current
+                SetBinding(key, ConsoleUI_PadWantedAction(slot))
+            end
+        end
+    end
     return snap
 end
 
@@ -426,6 +478,12 @@ function ConsoleUIKeybindings:RepairPadGameplay()
     if ConsoleUIKeyboard and ConsoleUIKeyboard.IsShown and ConsoleUIKeyboard:IsShown() then
         overlayOn = true
     end
+    if ConsoleUI.loot and ConsoleUI.loot.Busy and ConsoleUI.loot:Busy() then
+        overlayOn = true
+    end
+    if ConsoleUI.unit and ConsoleUI.unit.Busy and ConsoleUI.unit:Busy() then
+        overlayOn = true
+    end
     local changed = false
     local slot
     for slot = 5, 8 do
@@ -445,6 +503,15 @@ function ConsoleUIKeybindings:RepairPadGameplay()
             changed = true
         end
     end
+    for slot = 11, 40 do
+        local key = ConsoleUI_ModifierKeyForSlot(slot)
+        local want = ConsoleUI_PadWantedAction(slot)
+        local current = GetBindingAction and GetBindingAction(key) or ""
+        if ConsoleUI_ShouldOwnPadKey(current, want, cursorOn, overlayOn) then
+            SetBinding(key, want)
+            changed = true
+        end
+    end
     return changed
 end
 
@@ -458,7 +525,71 @@ function ConsoleUI_CanClaimKey(key)
     if not current or current == "" then
         return true
     end
+    if ConsoleUI_KeepPetBind(current) then
+        return false
+    end
     return string.find(current, "^ConsoleUI_") ~= nil
+end
+
+-- Reset / repair must not drop Follow. Native PETFOLLOW does not dismiss;
+-- ConsoleUI_PET_FOLLOW is the stock-click bind.
+function ConsoleUI_KeepPetBind(action)
+    if action == "ConsoleUI_PET_FOLLOW" then
+        return true
+    end
+    return action and action ~= "" and string.find(action, "^PET") ~= nil
+end
+
+function ConsoleUI_CanonicalPetBind(action)
+    if action == "ConsoleUI_PET_FOLLOW" or action == "PETFOLLOW" then
+        return "PETFOLLOW"
+    end
+    if ConsoleUI_KeepPetBind(action) then
+        return action
+    end
+    return nil
+end
+
+function ConsoleUIKeybindings:ClaimPetFollowKeys()
+    if not GetBindingKey or not SetBinding then
+        return false
+    end
+    local changed = false
+    local guard = 0
+    local key = GetBindingKey("PETFOLLOW")
+    while key and guard < 8 do
+        SetBinding(key, "ConsoleUI_PET_FOLLOW")
+        changed = true
+        guard = guard + 1
+        key = GetBindingKey("PETFOLLOW")
+    end
+    return changed
+end
+
+function ConsoleUIKeybindings:RecoverOrphanPetFollow()
+    if GetBindingKey and GetBindingKey("ConsoleUI_PET_FOLLOW") then
+        return false
+    end
+    if not ConsoleUIDB then
+        return false
+    end
+    if not ConsoleUIDB.proxiedActions then
+        ConsoleUIDB.proxiedActions = {}
+    end
+    if ConsoleUIDB.proxiedActions[14] then
+        return false
+    end
+    local current = GetBindingAction and GetBindingAction("SHIFT-4") or ""
+    if current ~= "" and current ~= "ConsoleUI_ACTION_14" then
+        return false
+    end
+    ConsoleUIDB.proxiedActions[14] = "PETFOLLOW"
+    if ConsoleUI.proxied and ConsoleUI.proxied.ApplySlotBinding then
+        ConsoleUI.proxied:ApplySlotBinding(14)
+    elseif SetBinding then
+        SetBinding("SHIFT-4", "ConsoleUI_PET_FOLLOW")
+    end
+    return true
 end
 
 function ConsoleUIKeybindings:SetupDefaultBindings()
@@ -536,9 +667,11 @@ function ConsoleUIKeybindings:FinishInitialize()
     if ConsoleUI.radial and ConsoleUI.radial.RepairMovementBindings then
         ConsoleUI.radial:RepairMovementBindings()
     end
+    local claimed = self:ClaimPetFollowKeys()
+    local recovered = self:RecoverOrphanPetFollow()
     local repaired = self:RepairPadGameplay()
 
-    if repaired or (ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings()) then
+    if claimed or recovered or repaired or (ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings()) then
         ConsoleUI_SaveBindings()
     end
 
@@ -589,18 +722,39 @@ ConsoleUI.keybindings = ConsoleUIKeybindings
 -- Function to force reset all keybindings (called from config menu)
 function ConsoleUIKeybindings:ResetAllBindings()
     local keys = self.DEFAULT_KEYS
-
-    -- Rebind modifier pages only. Leave 1-0 / M / ESCAPE alone.
+    local i
+    if not ConsoleUIDB then
+        ConsoleUIDB = {}
+    end
+    if not ConsoleUIDB.proxiedActions then
+        ConsoleUIDB.proxiedActions = {}
+    end
+    -- Reset only ConsoleUI modifier chords. Bare 1-0 and proxied choices are user state.
+    -- Adopt live PET* binds first so SHIFT-4 PETFOLLOW is not written as ACTION_14.
+    local function adopt(key, slot)
+        if ConsoleUIDB.proxiedActions[slot] then
+            return
+        end
+        local current = GetBindingAction and GetBindingAction(key)
+        local keep = ConsoleUI_CanonicalPetBind(current)
+        if keep then
+            ConsoleUIDB.proxiedActions[slot] = keep
+        end
+    end
     for i = 1, 10 do
+        adopt("SHIFT-" .. keys[i], i + 10)
+        adopt("CTRL-" .. keys[i], i + 20)
+        adopt("CTRL-SHIFT-" .. keys[i], i + 30)
         SetBinding("SHIFT-" .. keys[i], "ConsoleUI_ACTION_" .. (i + 10))
         SetBinding("CTRL-" .. keys[i], "ConsoleUI_ACTION_" .. (i + 20))
         SetBinding("CTRL-SHIFT-" .. keys[i], "ConsoleUI_ACTION_" .. (i + 30))
     end
 
-    ConsoleUI_SaveBindings()
-    
-    -- Now apply proxied actions (will override CE_ACTION bindings where needed)
     if ConsoleUI.proxied and ConsoleUI.proxied.ApplyAllBindings then
         ConsoleUI.proxied:ApplyAllBindings()
+    end
+    local claimed = self:ClaimPetFollowKeys()
+    if claimed or not (ConsoleUI.proxied and ConsoleUI.proxied.ApplyAllBindings) then
+        ConsoleUI_SaveBindings()
     end
 end

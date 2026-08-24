@@ -31,7 +31,11 @@ end
 function XPBar.FormatWatchText(prefix, current, maxValue)
     current = tonumber(current) or 0
     maxValue = tonumber(maxValue) or 0
-    return prefix .. ": " .. current .. "/" .. maxValue
+    local perc = 0
+    if maxValue > 0 then
+        perc = round(current / maxValue * 100)
+    end
+    return prefix .. ": " .. current .. "/" .. maxValue .. " (" .. perc .. "%)"
 end
 
 local CLASS_RGB = {
@@ -410,6 +414,7 @@ local function OnEvent()
         self.bar:SetValue(currXP)
         local cr, cg, cb = GetPlayerClassColor()
         self.bar:SetStatusBarColor(cr, cg, cb, 1.0)
+        XPBar:ApplyFillColors(self)
         
         if self.bar.text then
             self.bar.text:SetText(XPBar.FormatWatchText("Pet XP", currXP, nextXP))
@@ -450,6 +455,7 @@ local function OnEvent()
                     -- Default to green if no faction color available (matching WoW default UI)
                     self.bar:SetStatusBarColor(0.0, 1.0, 0.0, 1)
                 end
+                XPBar:ApplyFillColors(self)
                 
                 local standing = GetText("FACTION_STANDING_LABEL" .. standingID, UnitSex("player"))
                 if self.bar.text then

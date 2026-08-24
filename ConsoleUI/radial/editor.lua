@@ -11,19 +11,6 @@ end
 
 local Rings = ConsoleUI.rings
 
-local function PickupToEntry()
-    local p = Rings and Rings.lastPickup
-    if not p or not p.kind or not p.name then
-        return nil
-    end
-    return {
-        kind = p.kind,
-        name = p.name,
-        itemID = p.itemID,
-        texture = p.texture,
-    }
-end
-
 function ConsoleUI.BuildRingsSection(Config, content)
     local T = L
     local section = CreateFrame("Frame", nil, content)
@@ -107,58 +94,253 @@ function ConsoleUI.BuildRingsSection(Config, content)
     slotLabel:SetTextColor(0.77, 0.78, 0.80)
     Config.ringsSlotLabel = slotLabel
 
+    local slotHint = slotPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    slotHint:SetPoint("TOPLEFT", slotLabel, "BOTTOMLEFT", 0, -4)
+    slotHint:SetPoint("RIGHT", slotPanel, "RIGHT", -8, 0)
+    slotHint:SetJustifyH("LEFT")
+    slotHint:SetText(T("Drop a spell, item, or macro on a square. X or Clear empties it."))
+    slotHint:SetTextColor(unpack(Config.UI_COLORS.muted))
+    Config.ringsSlotHint = slotHint
+
+    local lay = ConsoleUI.actionbars and ConsoleUI.actionbars.Layout
+    local HIT = (lay and lay.HIT) or 56
+    local STEP = (lay and lay.SquareStep and lay.SquareStep(HIT)) or (HIT + 20)
+    local COLS = 4
+
+    local function AfterSlotChange()
+        Config:RefreshRingsEditor()
+        if ConsoleUI.proxied and ConsoleUI.config and ConsoleUI.config.RefreshProxiedDropdowns then
+            ConsoleUI.config:RefreshProxiedDropdowns()
+        end
+    end
+
+    function Config:PaintRingSlot(slot, entry, hover)
+        if not slot then
+            return
+        end
+        local bars = ConsoleUI.actionbars
+        if bars and bars.ApplySquareAppearance then
+            bars:ApplySquareAppearance(slot)
+        end
+        if slot.diamondPlate then
+            slot.diamondPlate:SetVertexColor(0, 0, 0)
+            slot.diamondPlate:SetAlpha(1)
+        end
+        if slot.diamondRim then
+            slot.diamondRim:SetVertexColor(0, 0, 0)
+            slot.diamondRim:SetAlpha(1)
+            slot.diamondRim:Show()
+        end
+        if slot.diamondRing then
+            if hover then
+                local r, g, b = 1.00, 0.82, 0.18
+                if ConsoleUI.config and ConsoleUI.config.GetHudBorderColor then
+                    r, g, b = ConsoleUI.config:GetHudBorderColor()
+                end
+                slot.diamondRing:SetVertexColor(r, g, b)
+                slot.diamondRing:SetAlpha(1)
+                slot.diamondRing:Show()
+            else
+                slot.diamondRing:Hide()
+            end
+        end
+        if bars and bars.RaiseDiamondChrome then
+            bars:RaiseDiamondChrome(slot)
+        end
+        if slot.icon then
+            if entry and entry.texture then
+                slot.icon:SetTexture(entry.texture)
+                slot.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                slot.icon:SetAlpha(1)
+                slot.icon:Show()
+            else
+                slot.icon:SetTexture(nil)
+                slot.icon:Hide()
+            end
+        end
+        if slot.label then
+            if entry and entry.name then
+                slot.label:SetText(entry.name)
+                slot.label:SetTextColor(0.90, 0.90, 0.91)
+            else
+                slot.label:SetText(T("Empty"))
+                slot.label:SetTextColor(0.56, 0.57, 0.60)
+            end
+        end
+        if Rings.SetCountBadge then
+            Rings:SetCountBadge(slot, entry)
+        end
+    end
+
+    function Config:DropOnRingSlot(slot, clearIfEmpty)
+        if not slot or not Config.selectedRingID or not Rings then
+            return
+        end
+        local entry = Rings.EntryFromCursor and Rings:EntryFromCursor()
+        if entry then
+            Rings:SetSlot(Config.selectedRingID, slot.index, entry)
+            if ClearCursor then
+                ClearCursor()
+            end
+            if ConsoleUI.cursor and ConsoleUI.cursor.ClearHeldItemTexture then
+                ConsoleUI.cursor:ClearHeldItemTexture()
+            end
+            Rings.lastPickup = nil
+        elseif clearIfEmpty then
+            Rings:SetSlot(Config.selectedRingID, slot.index, nil)
+        else
+            return
+        end
+        AfterSlotChange()
+    end
+
+    function Config:HideRingClearChip()
+        if self.ringClearBtn then
+            self.ringClearBtn:Hide()
+            self.ringClearBtn.owner = nil
+        end
+    end
+
+    function Config:ShowRingClearFor(slot)
+        if not slot or not self:RingSlotHasEntry(slot) then
+            self:HideRingClearChip()
+            return
+        end
+        if Rings and Rings.CursorLooksHeld and Rings:CursorLooksHeld() then
+            self:HideRingClearChip()
+            return
+        end
+        local btn = self.ringClearBtn
+        if not btn then
+            return
+        end
+        btn.owner = slot
+        btn:ClearAllPoints()
+        btn:SetPoint("BOTTOM", slot, "BOTTOM", 0, 2)
+        btn:SetFrameLevel((slot:GetFrameLevel() or 1) + 8)
+        btn:Show()
+    end
+
+    function Config:ClearRingSlot(slot)
+        if not slot or not slot.index or not Config.selectedRingID or not Rings then
+            return
+        end
+        Rings:SetSlot(Config.selectedRingID, slot.index, nil)
+        self:HideRingClearChip()
+        AfterSlotChange()
+    end
+
+    function Config:RingSlotHasEntry(slot)
+        if not slot or not slot.index or not self.selectedRingID or not Rings then
+            return nil
+        end
+        local ring = Rings:GetRing(self.selectedRingID)
+        return ring and ring.slots and ring.slots[slot.index]
+    end
+
     local slots = {}
     for i = 1, 8 do
         local slot = CreateFrame("Button", "ConsoleUIConfigRingSlot" .. i, slotPanel)
-        slot:SetHeight(42)
-        slot:SetPoint("TOPLEFT", slotPanel, "TOPLEFT", 8, -28 - (i - 1) * 46)
-        slot:SetPoint("RIGHT", slotPanel, "RIGHT", -8, 0)
-        slot:SetBackdrop(Config.BACKDROP_CARD)
-        slot:SetBackdropColor(unpack(Config.UI_COLORS.inset))
-        slot:SetBackdropBorderColor(0, 0, 0, 0)
+        slot:SetWidth(HIT)
+        slot:SetHeight(HIT)
+        local col = math.mod(i - 1, COLS)
+        local row = math.floor((i - 1) / COLS)
+        slot:SetPoint("TOPLEFT", slotPanel, "TOPLEFT", 16 + col * STEP, -48 - row * (STEP + 18))
         slot.index = i
+        slot:EnableMouse(true)
+        slot:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        slot:RegisterForDrag("LeftButton")
 
-        local idx = slot:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        idx:SetPoint("LEFT", slot, "LEFT", 8, 0)
-        idx:SetWidth(16)
-        idx:SetText(tostring(i))
-        idx:SetTextColor(0.33, 0.35, 0.38)
-        slot.idx = idx
-
-        local icon = slot:CreateTexture(nil, "ARTWORK")
-        icon:SetWidth(28)
-        icon:SetHeight(28)
-        icon:SetPoint("LEFT", idx, "RIGHT", 8, 0)
+        local icon = slot:CreateTexture(slot:GetName() .. "Icon", "ARTWORK")
+        icon:SetWidth(HIT)
+        icon:SetHeight(HIT)
+        icon:SetPoint("CENTER", slot, "CENTER", 0, 0)
         icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         slot.icon = icon
 
-        local label = slot:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        label:SetPoint("LEFT", icon, "RIGHT", 10, 0)
-        label:SetPoint("RIGHT", slot, "RIGHT", -8, 0)
-        label:SetJustifyH("LEFT")
+        local label = slotPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("TOP", slot, "BOTTOM", 0, -2)
+        label:SetWidth(STEP - 8)
+        label:SetJustifyH("CENTER")
         slot.label = label
         if Rings.AttachCountBadge then
             Rings:AttachCountBadge(slot, icon)
         end
 
+        slot:SetScript("OnReceiveDrag", function()
+            Config:DropOnRingSlot(this, false)
+        end)
+        slot:SetScript("OnMouseUp", function()
+            if Rings and Rings.EntryFromCursor and Rings:EntryFromCursor() then
+                Config:DropOnRingSlot(this, false)
+            end
+        end)
         slot:SetScript("OnClick", function()
-            if not Config.selectedRingID or not Rings then return end
-            local entry = PickupToEntry()
-            if entry then
-                Rings:SetSlot(Config.selectedRingID, this.index, entry)
-                if ClearCursor then ClearCursor() end
-                Rings.lastPickup = nil
+            if arg1 == "RightButton" then
+                Config:ClearRingSlot(this)
+                return
+            end
+            Config:DropOnRingSlot(this, false)
+        end)
+        slot:SetScript("OnEnter", function()
+            local ring = Config.selectedRingID and Rings and Rings:GetRing(Config.selectedRingID)
+            local entry = ring and ring.slots and ring.slots[this.index]
+            local hover = Rings and ((Rings.CursorLooksHeld and Rings:CursorLooksHeld()) or (Rings.lastPickup and Rings.lastPickup.kind))
+            Config:PaintRingSlot(this, entry, hover)
+            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+            if entry and entry.name then
+                GameTooltip:SetText(entry.name, 1, 1, 1)
             else
-                Rings:SetSlot(Config.selectedRingID, this.index, nil)
+                GameTooltip:SetText(T("Empty"))
+                GameTooltip:AddLine(T("Drop a spell, item, or macro on a square. X or Clear empties it."), 0.7, 0.7, 0.7)
             end
-            Config:RefreshRingsEditor()
-            if ConsoleUI.proxied and ConsoleUI.config and ConsoleUI.config.RefreshProxiedDropdowns then
-                ConsoleUI.config:RefreshProxiedDropdowns()
-            end
+            GameTooltip:Show()
+            Config:ShowRingClearFor(this)
+        end)
+        slot:SetScript("OnLeave", function()
+            local ring = Config.selectedRingID and Rings and Rings:GetRing(Config.selectedRingID)
+            local entry = ring and ring.slots and ring.slots[this.index]
+            Config:PaintRingSlot(this, entry, false)
+            GameTooltip:Hide()
         end)
         slots[i] = slot
     end
     Config.ringSlotButtons = slots
+
+    local clearBtn = CreateFrame("Button", "ConsoleUIConfigRingClear", slotPanel)
+    clearBtn:SetWidth(HIT - 6)
+    clearBtn:SetHeight(16)
+    clearBtn:SetBackdrop(Config.BACKDROP_CARD)
+    clearBtn:SetBackdropColor(0.16, 0.06, 0.07, 0.96)
+    clearBtn:SetBackdropBorderColor(0.84, 0.30, 0.36, 0.35)
+    clearBtn:Hide()
+    local clearLabel = clearBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    clearLabel:SetPoint("CENTER", clearBtn, "CENTER", 0, 0)
+    clearLabel:SetText(T("Clear"))
+    clearLabel:SetTextColor(0.95, 0.55, 0.58)
+    clearBtn:SetScript("OnClick", function()
+        if this.owner then
+            Config:ClearRingSlot(this.owner)
+        end
+    end)
+    clearBtn:SetScript("OnEnter", function()
+        this:SetBackdropBorderColor(0.84, 0.30, 0.36, 0.70)
+    end)
+    clearBtn:SetScript("OnLeave", function()
+        this:SetBackdropBorderColor(0.84, 0.30, 0.36, 0.35)
+    end)
+    clearBtn:SetScript("OnUpdate", function()
+        local owner = this.owner
+        if not owner then
+            this:Hide()
+            return
+        end
+        local focus = GetMouseFocus()
+        if focus ~= this and focus ~= owner then
+            Config:HideRingClearChip()
+        end
+    end)
+    Config.ringClearBtn = clearBtn
 
     function Config:RefreshRingsEditor()
         if not Rings then return end
@@ -211,25 +393,15 @@ function ConsoleUI.BuildRingsSection(Config, content)
             local slot = Config.ringSlotButtons[i]
             if selected then
                 slot:Show()
-                local entry = selected.slots and selected.slots[i]
-                if entry then
-                    slot.icon:SetTexture(entry.texture)
-                    slot.icon:Show()
-                    slot.label:SetText(entry.name or "")
-                    slot.label:SetTextColor(0.90, 0.90, 0.91)
-                    slot:SetBackdropBorderColor(1, 1, 1, 0.08)
-                else
-                    slot.icon:SetTexture(nil)
-                    slot.icon:Hide()
-                    slot.label:SetText(T("Empty slot"))
-                    slot.label:SetTextColor(0.56, 0.57, 0.60)
-                    slot:SetBackdropBorderColor(0, 0, 0, 0)
+                if slot.label then
+                    slot.label:Show()
                 end
-                if Rings.SetCountBadge then
-                    Rings:SetCountBadge(slot, entry)
-                end
+                Config:PaintRingSlot(slot, selected.slots and selected.slots[i], false)
             else
                 slot:Hide()
+                if slot.label then
+                    slot.label:Hide()
+                end
             end
         end
     end

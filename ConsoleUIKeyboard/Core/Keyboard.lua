@@ -163,8 +163,52 @@ function Keyboard:SetEnabled(state)
     end
 end
 
+function Keyboard:ShowFor()
+    local db = ConsoleUIKeyboardDB
+    if db and db.showFor == "chat" then
+        return "chat"
+    end
+    return "everything"
+end
+
+function Keyboard:SetShowFor(value)
+    ConsoleUIKeyboardDB = ConsoleUIKeyboardDB or {}
+    if value == "chat" then
+        ConsoleUIKeyboardDB.showFor = "chat"
+    else
+        ConsoleUIKeyboardDB.showFor = "everything"
+    end
+    if self.Focus and not self:WantsBox(self.Focus) then
+        self:CLOSE()
+    end
+end
+
+function Keyboard:IsChatBox(box)
+    if not box then
+        return false
+    end
+    if ChatFrameEditBox and box == ChatFrameEditBox then
+        return true
+    end
+    local name = box.GetName and box:GetName()
+    return name == "ChatFrameEditBox"
+end
+
+function Keyboard:WantsBox(box)
+    if not box or not self:IsEnabled() then
+        return false
+    end
+    if self:ShowFor() == "chat" then
+        return self:IsChatBox(box)
+    end
+    return true
+end
+
 function Keyboard:LoadSettings()
     ConsoleUIKeyboardDB = ConsoleUIKeyboardDB or {}
+    if ConsoleUIKeyboardDB.showFor ~= "chat" then
+        ConsoleUIKeyboardDB.showFor = "everything"
+    end
     local ver = Language.LayoutVersion or 1
     if not ConsoleUIKeyboardLayout or ConsoleUIKeyboardDB.layoutVersion ~= ver then
         local locale = GetLocale and GetLocale() or "enUS"
@@ -593,7 +637,7 @@ end
 
 function Keyboard:SetFocus(box)
     if self.closing or self.settingFocus then return end
-    if not box or not self:IsEnabled() then return end
+    if not box or not self:WantsBox(box) then return end
     if self.Focus == box and self:IsShown() then
         self:SilenceBox(box)
         return

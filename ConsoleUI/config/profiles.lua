@@ -601,6 +601,21 @@ function Profiles:LoadProfile(profileName)
         if ConsoleUI.castbar and ConsoleUI.castbar.ReloadConfig then
             ConsoleUI.castbar:ReloadConfig()
         end
+        if ConsoleUI.loot and ConsoleUI.loot.ApplyEnabled then
+            ConsoleUI.loot:ApplyEnabled()
+        end
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then
+            ConsoleUI.actionbars.extra:Update()
+        end
+        if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
+            ConsoleUI.cursor.hintbar:Refresh()
+        end
+        if ConsoleUI.config.ApplyHudBorderChrome then
+            ConsoleUI.config:ApplyHudBorderChrome()
+        end
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.ApplyDefaultBarVisibility then
+            ConsoleUI.actionbars:ApplyDefaultBarVisibility()
+        end
 
         if ConsoleUI.config.ApplyUnitFrameScales then
             ConsoleUI.config:ApplyUnitFrameScales()
@@ -654,6 +669,9 @@ function Profiles:LoadProfile(profileName)
     -- Apply proxied bindings
     if ConsoleUI.proxied and ConsoleUI.proxied.ApplyAllBindings then
         ConsoleUI.proxied:ApplyAllBindings()
+    end
+    if ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then
+        ConsoleUI.keybindings:RepairPadGameplay()
     end
     
     -- Load action bars (with delay to ensure everything else is loaded first)
@@ -774,6 +792,9 @@ function Profiles:MigrateLegacyConfig()
         applyFrame:SetScript("OnUpdate", function()
             applyFrame:SetScript("OnUpdate", nil)
             ConsoleUI.proxied:ApplyAllBindings()
+            if ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then
+                ConsoleUI.keybindings:RepairPadGameplay()
+            end
             ConsoleUI_Debug("Profiles: Applied proxied bindings after migration")
         end)
     end

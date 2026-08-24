@@ -37,18 +37,20 @@ heldItemTexture:SetPoint("BOTTOM", CursorFrame, "TOP", 0, -4)
 heldItemTexture:Hide()
 CursorFrame.heldItemTexture = heldItemTexture
 
--- Create highlight texture for current button
+-- Selection chrome: 9-slice tooltip border. Stretched ActionButton-Border
+-- warps on bags, lists, and settings rows.
 local highlightFrame = CreateFrame("Frame", "ConsoleUICursorHighlight", UIParent)
 highlightFrame:SetFrameStrata("FULLSCREEN_DIALOG")
 highlightFrame:SetFrameLevel(1000)
 highlightFrame:Hide()
-
-local highlightTexture = highlightFrame:CreateTexture(nil, "OVERLAY")
-highlightTexture:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-highlightTexture:SetBlendMode("ADD")
-highlightTexture:SetAllPoints(highlightFrame)
-highlightTexture:SetVertexColor(1, 1, 0, 0.7)
-highlightFrame.texture = highlightTexture
+highlightFrame:SetBackdrop({
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true,
+    tileSize = 16,
+    edgeSize = 16,
+    insets = { left = 4, right = 4, top = 4, bottom = 4 },
+})
+highlightFrame:SetBackdropBorderColor(1.00, 0.82, 0.18, 1)
 
 -- Buttons to ignore (money frames, dropdown buttons, etc.)
 Cursor.buttonsToIgnore = {
@@ -442,14 +444,19 @@ function Cursor:UpdateCursorPosition(button)
     end
 end
 
--- Find the parent ScrollFrame of a button (if any)
-function Cursor:FindParentScrollFrame(button)
-    if not button then return nil end
+function Cursor:IsScrollFrame(frame)
+    return frame and frame.IsObjectType and frame:IsObjectType("ScrollFrame")
+end
 
+-- Innermost first. Bindings list is *Scroll, not *ScrollFrame.
+function Cursor:FindParentScrollFrame(button)
+    if not button or not button.GetParent then
+        return nil
+    end
     local parent = button:GetParent()
     local depth = 0
     while parent and depth < 20 do
-        if parent.GetScrollChild and parent.SetVerticalScroll and parent.GetVerticalScroll then
+        if self:IsScrollFrame(parent) then
             return parent
         end
         parent = parent:GetParent()
@@ -458,9 +465,40 @@ function Cursor:FindParentScrollFrame(button)
     return nil
 end
 
--- Auto-scroll a ScrollFrame to make a button visible
+function Cursor:ScrollBarOf(scrollFrame)
+    if not scrollFrame or not scrollFrame.GetName then
+        return nil
+    end
+    local name = scrollFrame:GetName()
+    if not name then
+        return nil
+    end
+    return getglobal(name .. "ScrollBar")
+end
+
+function Cursor:ScrollRange(scrollFrame)
+    local bar = self:ScrollBarOf(scrollFrame)
+    local minV, maxV = 0, 0
+    if bar and bar.GetMinMaxValues then
+        minV, maxV = bar:GetMinMaxValues()
+        minV = minV or 0
+        maxV = maxV or 0
+    end
+    if maxV <= 0 then
+        local child = scrollFrame.GetScrollChild and scrollFrame:GetScrollChild()
+        if child and child.GetHeight and scrollFrame.GetHeight then
+            maxV = (child:GetHeight() or 0) - (scrollFrame:GetHeight() or 0)
+            if maxV < 0 then
+                maxV = 0
+            end
+        end
+    end
+    return minV, maxV, bar
+end
+
+-- 1.12 UIPanel scroll: drive the slider. Engine range is often 0.
 function Cursor:ScrollToShowButton(button, scrollFrame)
-    if not button or not scrollFrame or not scrollFrame.GetVerticalScroll then
+    if not button or not self:IsScrollFrame(scrollFrame) then
         return
     end
 
@@ -473,30 +511,48 @@ function Cursor:ScrollToShowButton(button, scrollFrame)
     end
 
     local pad = 12
-    local current = scrollFrame:GetVerticalScroll()
-    local range = 0
-    if scrollFrame.GetVerticalScrollRange then
-        range = scrollFrame:GetVerticalScrollRange() or 0
-    end
-    local newScroll = current
+    local delta = 0
     if buttonBottom < frameBottom + pad then
-        newScroll = current + (frameBottom + pad - buttonBottom)
+        delta = frameBottom + pad - buttonBottom
     elseif buttonTop > frameTop - pad then
-        newScroll = current - (buttonTop - (frameTop - pad))
+        delta = -(buttonTop - (frameTop - pad))
     else
         return
     end
-    if newScroll < 0 then
-        newScroll = 0
+
+    local minV, maxV, bar = self:ScrollRange(scrollFrame)
+    local current = 0
+    if bar and bar.GetValue then
+        current = bar:GetValue() or 0
+    elseif scrollFrame.GetVerticalScroll then
+        current = scrollFrame:GetVerticalScroll() or 0
     end
-    if newScroll > range then
-        newScroll = range
+    local newScroll = current + delta
+    if newScroll < minV then
+        newScroll = minV
     end
-    scrollFrame:SetVerticalScroll(newScroll)
-    local barName = scrollFrame:GetName() and (scrollFrame:GetName() .. "ScrollBar")
-    local bar = barName and getglobal(barName)
-    if bar and bar.SetValue then
+    if newScroll > maxV then
+        newScroll = maxV
+    end
+    if bar and bar.SetValue and maxV > 0 then
         bar:SetValue(newScroll)
+    elseif scrollFrame.SetVerticalScroll then
+        scrollFrame:SetVerticalScroll(newScroll)
+    end
+end
+
+function Cursor:ScrollParentsToShow(button)
+    if not button or not button.GetParent then
+        return
+    end
+    local parent = button:GetParent()
+    local depth = 0
+    while parent and depth < 20 do
+        if self:IsScrollFrame(parent) then
+            self:ScrollToShowButton(button, parent)
+        end
+        parent = parent:GetParent()
+        depth = depth + 1
     end
 end
 
@@ -515,11 +571,8 @@ function Cursor:MoveCursorToButton(button)
         ConsoleUI.cursor.tooltip:HideButtonTooltip()
     end
     
-    -- Auto-scroll if button is inside a scroll frame and not fully visible
-    local scrollFrame = self:FindParentScrollFrame(button)
-    if scrollFrame then
-        self:ScrollToShowButton(button, scrollFrame)
-    end
+    -- Inner list first (bindings), then the settings page scroll.
+    self:ScrollParentsToShow(button)
     
     -- Update state
     self.navigationState.currentButton = button

@@ -38,6 +38,7 @@ Config.DEFAULTS = {
     barAppearance = "classic",
     -- controller = diamonds. flat = one row of squares. full = three diamond controller sets.
     barLayout = "controller",
+    barActionGlyphs = true,
     barGoldBorder = false,
     barGoldColorR = 1.00,
     barGoldColorG = 0.82,
@@ -95,10 +96,26 @@ Config.DEFAULTS = {
     -- Locale settings
     language = nil,  -- nil = use game locale, otherwise "enUS", "deDE", etc.
     -- Bag settings
+    alwaysOpenAllBags = true,
     openAllBagsAtVendor = true,  -- Open all bags when interacting with merchants/auction house
     -- Dropdown navigation settings
     dropdownNavEnabled = true,  -- Enable cursor navigation in dropdown menus
     hideBlizzardBars = true,  -- Hide Blizzard action/micro bars; uncheck to restore
+    stanceBarOffsetX = 0,
+    stanceBarOffsetY = -180,
+    stanceBarScale = 1.0,
+    petBarOffsetX = 0,
+    petBarOffsetY = 40,
+    petBarScale = 1.0,
+    petBarGrow = "right",
+    extraBarsUnlocked = false,
+    lootFrameEnabled = true,
+    lootRollEnabled = true,
+    hintBarEnabled = true,
+    hintBarPosition = "top",
+    hintBarOffsetX = 0,
+    hintBarOffsetY = 0,
+    hintBarScale = 1.0,
 }
 
 -- ============================================================================
@@ -176,6 +193,15 @@ function Config:InitializeDB()
         end
         ConsoleUIDB.config.castBarSlimV1 = true
     end
+    if ConsoleUIDB.config.extraBarScaleV1 and not ConsoleUIDB.config.extraBarScaleV2 then
+        if ConsoleUIDB.config.stanceBarScale == 0.8 then
+            ConsoleUIDB.config.stanceBarScale = 1.0
+        end
+        if ConsoleUIDB.config.petBarScale == 0.6 then
+            ConsoleUIDB.config.petBarScale = 1.0
+        end
+        ConsoleUIDB.config.extraBarScaleV2 = true
+    end
     
     -- Initialize locale if available
     if ConsoleUI.locale then
@@ -203,6 +229,12 @@ function Config:InitializeDB()
 
     if self.InitializeUnitFrameScales then
         self:InitializeUnitFrameScales()
+    end
+    if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then
+        ConsoleUI.actionbars.extra:Update()
+    end
+    if ConsoleUI.loot and ConsoleUI.loot.ApplyEnabled then
+        ConsoleUI.loot:ApplyEnabled()
     end
     
 end
@@ -244,6 +276,25 @@ function Config:HudOffset(key, fallback)
     return n
 end
 
+function Config:RefreshExtraOffsetBoxes()
+    local boxes = self.extraOffsetBoxes
+    if not boxes then
+        return
+    end
+    if boxes.stanceX then
+        boxes.stanceX:SetText(tostring(tonumber(self:Get("stanceBarOffsetX")) or 0))
+    end
+    if boxes.stanceY then
+        boxes.stanceY:SetText(tostring(tonumber(self:Get("stanceBarOffsetY")) or -180))
+    end
+    if boxes.petX then
+        boxes.petX:SetText(tostring(tonumber(self:Get("petBarOffsetX")) or 0))
+    end
+    if boxes.petY then
+        boxes.petY:SetText(tostring(tonumber(self:Get("petBarOffsetY")) or 40))
+    end
+end
+
 function Config:HudOffsetFromText(value)
     local n = tonumber(value) or 0
     if n < -500 then
@@ -255,35 +306,56 @@ function Config:HudOffsetFromText(value)
     return n
 end
 
-function Config:AddOffsetRow(box, anchor, xKey, yKey, onChange)
+function Config:AddOffsetRow(box, anchor, xKey, yKey, onChange, limit)
+    local function clip(value)
+        local n = tonumber(value) or 0
+        if limit == false then
+            return n
+        end
+        local cap = tonumber(limit) or 500
+        if n < -cap then
+            return -cap
+        end
+        if n > cap then
+            return cap
+        end
+        return n
+    end
+    local xTip = "Horizontal offset in pixels."
+    local yTip = "Vertical offset in pixels. Positive is up."
+    if limit ~= false then
+        local cap = tonumber(limit) or 500
+        xTip = xTip .. " Range: -" .. cap .. " to " .. cap .. "."
+        yTip = yTip .. " Range: -" .. cap .. " to " .. cap .. "."
+    end
     local xLabel = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     xLabel:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
     xLabel:SetText("X:")
     local xBox = self:CreateEditBox(box, 42,
-        function() return tostring(self:HudOffset(xKey, 0)) end,
+        function() return tostring(clip(self:Get(xKey))) end,
         function(value)
-            self:Set(xKey, self:HudOffsetFromText(value))
+            self:Set(xKey, clip(value))
             if onChange then
                 onChange()
             end
         end,
         "X Offset",
-        "Horizontal offset in pixels. Range: -500 to 500.",
+        xTip,
         self.NUDGE_MOVE)
     xBox:SetPoint("LEFT", xLabel, "RIGHT", 5, 0)
     local yLabel = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     yLabel:SetPoint("LEFT", xBox, "RIGHT", 12, 0)
     yLabel:SetText("Y:")
     local yBox = self:CreateEditBox(box, 42,
-        function() return tostring(self:HudOffset(yKey, 0)) end,
+        function() return tostring(clip(self:Get(yKey))) end,
         function(value)
-            self:Set(yKey, self:HudOffsetFromText(value))
+            self:Set(yKey, clip(value))
             if onChange then
                 onChange()
             end
         end,
         "Y Offset",
-        "Vertical offset in pixels. Positive is up. Range: -500 to 500.",
+        yTip,
         self.NUDGE_MOVE)
     yBox:SetPoint("LEFT", yLabel, "RIGHT", 5, 0)
     return xBox, yBox
@@ -396,6 +468,17 @@ function Config:ApplyControllerGlyphs()
     if ConsoleUI.cursor and ConsoleUI.cursor.tooltip and ConsoleUI.cursor.tooltip.ApplyGlyphSize then
         ConsoleUI.cursor.tooltip:ApplyGlyphSize()
     end
+    if ConsoleUI.loot and ConsoleUI.loot.PaintChrome then
+        ConsoleUI.loot:PaintChrome()
+    elseif ConsoleUI.loot and ConsoleUI.loot.PaintHints then
+        ConsoleUI.loot:PaintHints()
+    end
+    if ConsoleUI.unit and ConsoleUI.unit.PaintHints then
+        ConsoleUI.unit:PaintHints()
+    end
+    if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
+        ConsoleUI.cursor.hintbar:Refresh()
+    end
 end
 
 function Config:Paint(parent, layer, r, g, b, a)
@@ -424,21 +507,22 @@ function Config:GetHudBorderColor()
            clamp(self:Get("barGoldColorB"), 0.18)
 end
 
--- bars-plan.html Proposed: 400x16 inner trap, cut 14, 4px black rim, 2px gold ticks.
+-- bars-plan.html Proposed: 400x16 inner trap, cut 14, 4px black rim, gray ticks.
 -- White.tga is a solid texel. Tooltip-Background is dark — gold * dark = beige.
 -- Do not use ConsolePort XPBar.tga. Square backdrop hides the cut — no backdrop.
 Config.STATUS_BAR_FLAT = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\White"
 Config.STATUS_BAR_WHITE = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\White"
 Config.STATUS_BAR_WATCH_BACK = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\WatchRim"
-Config.STATUS_BAR_WATCH_FILL = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\WatchFill"
+Config.STATUS_BAR_WATCH_FILL = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\WatchFillShade"
+Config.WATCH_FILL_DIM = 0.78
 Config.STATUS_BAR_TRACK = "Interface\\AddOns\\ConsoleUI\\textures\\hud\\White"
 Config.STATUS_BAR_INSET = 0
 Config.WATCH_BORDER_PAD = 4
 Config.WATCH_GAP_COUNT = 9
 Config.WATCH_TICK_WIDTH = 1
-Config.WATCH_TICK_R = 0.42
-Config.WATCH_TICK_G = 0.42
-Config.WATCH_TICK_B = 0.42
+Config.WATCH_TICK_R = 0.2
+Config.WATCH_TICK_G = 0.2
+Config.WATCH_TICK_B = 0.2
 
 function Config:EnsureStatusBarChrome(frame)
     if not frame or frame.cuiChrome then
@@ -645,7 +729,8 @@ function Config:SyncWatchFill(statusBar)
     if statusBar.GetStatusBarColor then
         r, g, b, a = statusBar:GetStatusBarColor()
     end
-    fill:SetVertexColor(r or 1, g or 1, b or 1, 1)
+    local dim = self.WATCH_FILL_DIM or 0.78
+    fill:SetVertexColor((r or 1) * dim, (g or 1) * dim, (b or 1) * dim, 1)
     fill:Show()
 end
 
@@ -718,9 +803,9 @@ function Config:PaintStatusBarChrome(frame)
                 line:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", x, 0)
                 line:SetWidth(tw)
                 line:SetVertexColor(
-                    self.WATCH_TICK_R or 0.42,
-                    self.WATCH_TICK_G or 0.42,
-                    self.WATCH_TICK_B or 0.42,
+                    self.WATCH_TICK_R or 0.2,
+                    self.WATCH_TICK_G or 0.2,
+                    self.WATCH_TICK_B or 0.2,
                     1
                 )
                 line:Show()
@@ -754,6 +839,14 @@ function Config:ApplyHudBorderChrome()
         end
         paintSide(bars.sideBarLeftButtons)
         paintSide(bars.sideBarRightButtons)
+        paintSide(bars.fullLeft)
+        paintSide(bars.fullRight)
+        if bars.PaintModifierStates then
+            bars:PaintModifierStates()
+        end
+        if bars.extra and bars.extra.Update then
+            bars.extra:Update()
+        end
     end
     if ConsoleUI.xpbar then
         if ConsoleUI.xpbar.PaintChrome then
@@ -766,6 +859,12 @@ function Config:ApplyHudBorderChrome()
     end
     if ConsoleUI.castbar and ConsoleUI.castbar.PaintLook then
         ConsoleUI.castbar:PaintLook(ConsoleUI.castbar.castBar)
+    end
+    if ConsoleUI.loot and ConsoleUI.loot.PaintChrome then
+        ConsoleUI.loot:PaintChrome()
+    end
+    if self.RefreshRingsEditor then
+        self:RefreshRingsEditor()
     end
 end
 
@@ -957,20 +1056,12 @@ function Config:CreateMainFrame()
     contentHost:SetBackdrop(self.BACKDROP_FLAT)
     contentHost:SetBackdropColor(unpack(self.UI_COLORS.content))
 
-    local scroll = CreateFrame("ScrollFrame", "ConsoleUIConfigContentScroll", contentHost)
+    local scroll = CreateFrame("ScrollFrame", "ConsoleUIConfigContentScroll", contentHost, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", contentHost, "TOPLEFT", 4, -4)
-    scroll:SetPoint("BOTTOMRIGHT", contentHost, "BOTTOMRIGHT", -4, 4)
-    scroll:EnableMouseWheel(1)
-    scroll:SetScript("OnMouseWheel", function()
-        local cur = this:GetVerticalScroll()
-        local range = this:GetVerticalScrollRange() or 0
-        local next = cur - (arg1 * 40)
-        if next < 0 then next = 0 end
-        if next > range then next = range end
-        this:SetVerticalScroll(next)
-    end)
+    scroll:SetPoint("BOTTOMRIGHT", contentHost, "BOTTOMRIGHT", -26, 4)
+    self:HookScrollWheel(scroll, 40)
 
-    local childW = self.FRAME_WIDTH - self.SIDEBAR_WIDTH - 24
+    local childW = self.FRAME_WIDTH - self.SIDEBAR_WIDTH - 46
     local child = CreateFrame("Frame", "ConsoleUIConfigContentChild", scroll)
     child:SetWidth(childW)
     child:SetHeight(400)
@@ -992,6 +1083,16 @@ function Config:CreateMainFrame()
     
     local closeButton = self:MakePanelButton(frame, "ConsoleUIConfigCloseButton", 96, CLOSE or "Close")
     closeButton:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -16, 14)
+    local resetLabel = "Reset Bindings"
+    if ConsoleUI.locale and ConsoleUI.locale.T then
+        resetLabel = ConsoleUI.locale.T("Reset Bindings")
+    end
+    local resetBinds = self:MakePanelButton(frame, "ConsoleUIConfigFooterResetBinds", 130, resetLabel)
+    resetBinds:SetPoint("RIGHT", closeButton, "LEFT", -8, 0)
+    resetBinds:SetScript("OnClick", function()
+        Config:RunResetBindings()
+    end)
+    frame.resetBindingsButton = resetBinds
     closeButton:SetScript("OnClick", function()
         PlaySound("gsTitleOptionExit")
         if ConsoleUI.profiles and ConsoleUI.profiles.SaveCurrentProfile then
@@ -1156,7 +1257,7 @@ function Config:CreateInterfaceSection()
     -- ==================== General Settings Box ====================
     local generalBox = self:CreateSectionBox(section, T("General"))
     generalBox:SetPoint("TOP", section, "TOP", 0, -6)
-    generalBox:SetHeight(180)
+    generalBox:SetHeight(220)
     generalBox.heightCalculated = true
 
     local controllerTypeLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1271,13 +1372,22 @@ function Config:CreateInterfaceSection()
         end)
     healerModeCheck:SetPoint("TOPLEFT", generalBox, "TOP", 8, generalBox.contentTop)
 
+    local alwaysBagsCheck = self:CreateCheckbox(generalBox, T("Always open all bags"),
+        function() return Config:Get("alwaysOpenAllBags") ~= false end,
+        function(checked)
+            Config:Set("alwaysOpenAllBags", checked)
+            ConsoleUI_Debug("Always open all bags " .. (checked and "ENABLED" or "DISABLED"))
+        end,
+        T("Opening any bag opens every bag."))
+    alwaysBagsCheck:SetPoint("TOPLEFT", healerModeCheck, "BOTTOMLEFT", 0, 2)
+
     local openBagsCheck = self:CreateCheckbox(generalBox, T("Open all bags at vendor"),
         function() return Config:Get("openAllBagsAtVendor") end,
         function(checked)
             Config:Set("openAllBagsAtVendor", checked)
             ConsoleUI_Debug("Open all bags at vendor " .. (checked and "ENABLED" or "DISABLED"))
         end)
-    openBagsCheck:SetPoint("TOPLEFT", healerModeCheck, "BOTTOMLEFT", 0, 2)
+    openBagsCheck:SetPoint("TOPLEFT", alwaysBagsCheck, "BOTTOMLEFT", 0, 2)
 
     local dropdownNavCheck = self:CreateCheckbox(generalBox, T("Dropdown Navigation"),
         function() return Config:Get("dropdownNavEnabled") end,
@@ -1385,6 +1495,7 @@ function Config:CreateInterfaceSection()
         Config:Set("controllerType", Config.DEFAULTS.controllerType)
         Config:Set("controllerGlyphSize", Config.DEFAULTS.controllerGlyphSize)
         Config:Set("healerMode", Config.DEFAULTS.healerMode)
+        Config:Set("alwaysOpenAllBags", Config.DEFAULTS.alwaysOpenAllBags)
         Config:Set("openAllBagsAtVendor", Config.DEFAULTS.openAllBagsAtVendor)
         Config:Set("dropdownNavEnabled", Config.DEFAULTS.dropdownNavEnabled)
         Config:Set("hideBlizzardBars", Config.DEFAULTS.hideBlizzardBars)
@@ -1393,6 +1504,7 @@ function Config:CreateInterfaceSection()
         UIDropDownMenu_SetSelectedValue(glyphDropdown, Config.DEFAULTS.controllerGlyphSize)
         UIDropDownMenu_SetText(GlyphSizeLabel(Config.DEFAULTS.controllerGlyphSize), glyphDropdown)
         healerModeCheck:SetChecked(Config.DEFAULTS.healerMode and 1 or 0)
+        alwaysBagsCheck:SetChecked(Config.DEFAULTS.alwaysOpenAllBags ~= false and 1 or 0)
         openBagsCheck:SetChecked(Config.DEFAULTS.openAllBagsAtVendor and 1 or 0)
         dropdownNavCheck:SetChecked(Config.DEFAULTS.dropdownNavEnabled and 1 or 0)
         hideBarsCheck:SetChecked(Config.DEFAULTS.hideBlizzardBars ~= false and 1 or 0)
@@ -1407,10 +1519,84 @@ function Config:CreateInterfaceSection()
             ConsoleUI.actionbars:UpdateAllButtons()
         end
     end)
+
+    local keyboardAnchor = generalBox
+    if ConsoleUIKeyboard then
+        local keyboardBox = self:CreateSectionBox(section, T("Keyboard"))
+        keyboardBox:ClearAllPoints()
+        keyboardBox:SetPoint("TOPLEFT", generalBox, "BOTTOMLEFT", 0, -10)
+        keyboardBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
+        keyboardBox:SetHeight(78)
+        keyboardBox.heightCalculated = true
+
+        local showLabel = keyboardBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        showLabel:SetPoint("TOPLEFT", keyboardBox, "TOPLEFT", keyboardBox.contentLeft, keyboardBox.contentTop)
+        showLabel:SetText(T("Show Keyboard for") .. ":")
+        showLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+
+        local showDrop = CreateFrame("Frame", "ConsoleUIConfigKeyboardShowDropdown", keyboardBox, "UIDropDownMenuTemplate")
+        showDrop:SetPoint("LEFT", showLabel, "RIGHT", -12, -2)
+
+        local function ShowForLabel(value)
+            if value == "chat" then
+                return T("Chat Only")
+            end
+            return T("Everything")
+        end
+
+        local function CurrentShowFor()
+            if ConsoleUIKeyboard.ShowFor then
+                return ConsoleUIKeyboard:ShowFor()
+            end
+            return "everything"
+        end
+
+        local function InitShowFor()
+            local selected = UIDropDownMenu_GetSelectedValue(showDrop) or CurrentShowFor()
+            local info = {}
+            info.text = T("Everything")
+            info.value = "everything"
+            info.func = function()
+                UIDropDownMenu_SetSelectedValue(showDrop, "everything")
+                UIDropDownMenu_SetText(T("Everything"), showDrop)
+                if ConsoleUIKeyboard.SetShowFor then
+                    ConsoleUIKeyboard:SetShowFor("everything")
+                end
+            end
+            if info.value == selected then info.checked = 1 end
+            UIDropDownMenu_AddButton(info)
+            info = {}
+            info.text = T("Chat Only")
+            info.value = "chat"
+            info.func = function()
+                UIDropDownMenu_SetSelectedValue(showDrop, "chat")
+                UIDropDownMenu_SetText(T("Chat Only"), showDrop)
+                if ConsoleUIKeyboard.SetShowFor then
+                    ConsoleUIKeyboard:SetShowFor("chat")
+                end
+            end
+            if info.value == selected then info.checked = 1 end
+            UIDropDownMenu_AddButton(info)
+        end
+        UIDropDownMenu_Initialize(showDrop, InitShowFor)
+        UIDropDownMenu_SetWidth(140, showDrop)
+        local currentShow = CurrentShowFor()
+        UIDropDownMenu_SetSelectedValue(showDrop, currentShow)
+        UIDropDownMenu_SetText(ShowForLabel(currentShow), showDrop)
+
+        self:AddSectionReset(keyboardBox, function()
+            if ConsoleUIKeyboard.SetShowFor then
+                ConsoleUIKeyboard:SetShowFor("everything")
+            end
+            UIDropDownMenu_SetSelectedValue(showDrop, "everything")
+            UIDropDownMenu_SetText(T("Everything"), showDrop)
+        end)
+        keyboardAnchor = keyboardBox
+    end
     
     -- ==================== Crosshair Settings Box ====================
     local crosshairBox = self:CreateSectionBox(section, T("Crosshair"))
-    crosshairBox:SetPoint("TOP", generalBox, "BOTTOM", 0, -10)
+    crosshairBox:SetPoint("TOP", keyboardAnchor, "BOTTOM", 0, -10)
     crosshairBox:SetHeight(118)
     crosshairBox.heightCalculated = true
 
@@ -1759,7 +1945,7 @@ function Config:CreateBarsSection()
     goldCheck:SetHeight(24)
     goldCheck:SetPoint("LEFT", goldLabel, "RIGHT", 5, 0)
     goldCheck.label = T("HUD border")
-    goldCheck.tooltipText = T("Show a colored outline on action-bar diamonds, XP, and cast bars.")
+    goldCheck.tooltipText = T("Show a colored outline on action-bar diamonds, XP, cast bars, and loot.")
     goldCheck:SetChecked(Config:Get("barGoldBorder") and 1 or 0)
     goldCheck:SetScript("OnClick", function()
         Config:Set("barGoldBorder", this:GetChecked() == 1)
@@ -1771,7 +1957,7 @@ function Config:CreateBarsSection()
     goldColorBtn:SetHeight(20)
     goldColorBtn:SetPoint("LEFT", goldCheck, "RIGHT", 6, 0)
     goldColorBtn.label = T("HUD border color")
-    goldColorBtn.tooltipText = T("Outline color for action-bar diamonds, XP, and cast bars. Default is gold.")
+    goldColorBtn.tooltipText = T("Outline color for action-bar diamonds, XP, cast bars, and loot. Default is gold.")
 
     local goldColorPreview = goldColorBtn:CreateTexture(nil, "BACKGROUND")
     goldColorPreview:SetAllPoints()
@@ -1990,6 +2176,15 @@ function Config:CreateBarsSection()
             Config:UpdateActionBarLayout()
         end
     end)
+
+    local actionGlyphCheck = self:CreateCheckbox(generalBox, T("Action glyphs"),
+        function() return Config:Get("barActionGlyphs") ~= false end,
+        function(checked)
+            Config:Set("barActionGlyphs", checked)
+            Config:UpdateActionBarLayout()
+        end,
+        T("Show ABXY and D-pad glyphs on action buttons. LB, LT, RB, and RT stay visible."))
+    actionGlyphCheck:SetPoint("TOPLEFT", generalBox, "TOPLEFT", generalBox.contentLeft + 520, generalBox.contentTop - 61)
     
     self:AddSectionReset(generalBox, function()
         Config:Set("barButtonSize", Config.DEFAULTS.barButtonSize)
@@ -1999,6 +2194,7 @@ function Config:CreateBarsSection()
         Config:Set("barYOffset", Config.DEFAULTS.barYOffset)
         Config:Set("barAppearance", Config.DEFAULTS.barAppearance)
         Config:Set("barLayout", Config.DEFAULTS.barLayout)
+        Config:Set("barActionGlyphs", Config.DEFAULTS.barActionGlyphs)
         Config:Set("barGoldBorder", Config.DEFAULTS.barGoldBorder)
         Config:Set("barGoldColorR", Config.DEFAULTS.barGoldColorR)
         Config:Set("barGoldColorG", Config.DEFAULTS.barGoldColorG)
@@ -2016,6 +2212,7 @@ function Config:CreateBarsSection()
         goldCheck:SetChecked(Config.DEFAULTS.barGoldBorder and 1 or 0)
         autoRankCheck:SetChecked(Config.DEFAULTS.autoRankEnabled and 1 or 0)
         druidStealthCheck:SetChecked(Config.DEFAULTS.druidStealth and 1 or 0)
+        actionGlyphCheck:SetChecked(Config.DEFAULTS.barActionGlyphs and 1 or 0)
         UpdateGoldColorPreview()
         local defLayout = Config.DEFAULTS.barLayout or "controller"
         UIDropDownMenu_SetSelectedValue(layoutDropdown, defLayout)
@@ -2053,7 +2250,7 @@ function Config:CreateBarsSection()
     scaleBox:ClearAllPoints()
     scaleBox:SetPoint("TOPLEFT", generalBox, "BOTTOMLEFT", 0, -6)
     scaleBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
-    scaleBox:SetHeight(78)
+    scaleBox:SetHeight(148)
     scaleBox.heightCalculated = true
 
     local function CreateScaleField(parent, key, applyFunc, x)
@@ -2088,6 +2285,16 @@ function Config:CreateBarsSection()
             ConsoleUI.actionbars:UpdateSideBars()
         end
     end
+    local function ApplyExtraScale()
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then
+            ConsoleUI.actionbars.extra:Update()
+        end
+    end
+    local function ApplyHintScale()
+        if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
+            ConsoleUI.cursor.hintbar:Refresh()
+        end
+    end
 
     local mainScaleLabel = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     mainScaleLabel:SetPoint("TOPLEFT", scaleBox, "TOPLEFT", scaleBox.contentLeft, scaleBox.contentTop)
@@ -2110,19 +2317,50 @@ function Config:CreateBarsSection()
     rightScaleBox:ClearAllPoints()
     rightScaleBox:SetPoint("LEFT", rightScaleTitle, "RIGHT", 8, 0)
 
-    self.scaleEditBoxes = { main = mainScaleBox, left = leftScaleBox, right = rightScaleBox }
+    local stanceScaleTitle = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    stanceScaleTitle:SetPoint("TOPLEFT", mainScaleLabel, "BOTTOMLEFT", 0, -14)
+    stanceScaleTitle:SetText(T("Stance bar"))
+    local stanceScaleBox = CreateScaleField(scaleBox, "stanceBarScale", ApplyExtraScale, 0)
+    stanceScaleBox:ClearAllPoints()
+    stanceScaleBox:SetPoint("LEFT", stanceScaleTitle, "RIGHT", 8, 0)
+
+    local petScaleTitle = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    petScaleTitle:SetPoint("LEFT", stanceScaleBox, "RIGHT", 28, 0)
+    petScaleTitle:SetText(T("Pet bar"))
+    local petScaleBox = CreateScaleField(scaleBox, "petBarScale", ApplyExtraScale, 0)
+    petScaleBox:ClearAllPoints()
+    petScaleBox:SetPoint("LEFT", petScaleTitle, "RIGHT", 8, 0)
+
+    local hintScaleTitle = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hintScaleTitle:SetPoint("TOPLEFT", stanceScaleTitle, "BOTTOMLEFT", 0, -14)
+    hintScaleTitle:SetText(T("Hint bar"))
+    local hintScaleBox = CreateScaleField(scaleBox, "hintBarScale", ApplyHintScale, 0)
+    hintScaleBox:ClearAllPoints()
+    hintScaleBox:SetPoint("LEFT", hintScaleTitle, "RIGHT", 8, 0)
+
+    self.scaleEditBoxes = { main = mainScaleBox, left = leftScaleBox, right = rightScaleBox, stance = stanceScaleBox, pet = petScaleBox, hint = hintScaleBox }
 
     self:AddSectionReset(scaleBox, function()
         Config:Set("barScale", Config.DEFAULTS.barScale)
         Config:Set("sideBarLeftScale", Config.DEFAULTS.sideBarLeftScale)
         Config:Set("sideBarRightScale", Config.DEFAULTS.sideBarRightScale)
+        Config:Set("stanceBarScale", Config.DEFAULTS.stanceBarScale)
+        Config:Set("petBarScale", Config.DEFAULTS.petBarScale)
+        Config:Set("hintBarScale", Config.DEFAULTS.hintBarScale)
         mainScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.barScale))
         leftScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.sideBarLeftScale))
         rightScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.sideBarRightScale))
+        stanceScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.stanceBarScale))
+        petScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.petBarScale))
+        hintScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.hintBarScale))
         Config:UpdateActionBarLayout()
         if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
             ConsoleUI.actionbars:UpdateSideBars()
         end
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then
+            ConsoleUI.actionbars.extra:Update()
+        end
+        ApplyHintScale()
     end)
     
     -- ==================== Left Side Bar Box ====================
@@ -2397,10 +2635,127 @@ function Config:CreateBarsSection()
         end
     end)
 
+    local function ApplyExtraBars()
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then
+            ConsoleUI.actionbars.extra:Update()
+        end
+    end
+
+    local stanceBox = self:CreateSectionBox(section, T("Stance bar"))
+    stanceBox:ClearAllPoints()
+    stanceBox:SetPoint("TOPLEFT", leftSideBox, "BOTTOMLEFT", 0, -6)
+    stanceBox:SetPoint("RIGHT", section, "CENTER", -6, 0)
+    stanceBox:SetHeight(88)
+    stanceBox.heightCalculated = true
+
+    local stanceUnlock = self:CreateCheckbox(stanceBox, T("Unlock move"),
+        function() return Config:Get("extraBarsUnlocked") end,
+        function(checked)
+            Config:Set("extraBarsUnlocked", checked)
+            if Config.extraUnlockPet then
+                Config.extraUnlockPet:SetChecked(checked and 1 or 0)
+            end
+            ApplyExtraBars()
+        end,
+        T("Drag the bar. Locked in combat."))
+    stanceUnlock:SetPoint("TOPLEFT", stanceBox, "TOPLEFT", stanceBox.contentLeft, stanceBox.contentTop)
+    self.extraUnlockStance = stanceUnlock
+
+    local stanceXBox, stanceYBox = self:AddOffsetRow(stanceBox, stanceUnlock, "stanceBarOffsetX", "stanceBarOffsetY", ApplyExtraBars, false)
+
+    self:AddSectionReset(stanceBox, function()
+        Config:Set("stanceBarOffsetX", Config.DEFAULTS.stanceBarOffsetX)
+        Config:Set("stanceBarOffsetY", Config.DEFAULTS.stanceBarOffsetY)
+        stanceXBox:SetText(tostring(Config.DEFAULTS.stanceBarOffsetX))
+        stanceYBox:SetText(tostring(Config.DEFAULTS.stanceBarOffsetY))
+        ApplyExtraBars()
+    end)
+
+    local petBox = self:CreateSectionBox(section, T("Pet bar"))
+    petBox:ClearAllPoints()
+    petBox:SetPoint("TOPRIGHT", rightSideBox, "BOTTOMRIGHT", 0, -6)
+    petBox:SetPoint("LEFT", section, "CENTER", 6, 0)
+    petBox:SetHeight(110)
+    petBox.heightCalculated = true
+
+    local petUnlock = self:CreateCheckbox(petBox, T("Unlock move"),
+        function() return Config:Get("extraBarsUnlocked") end,
+        function(checked)
+            Config:Set("extraBarsUnlocked", checked)
+            if Config.extraUnlockStance then
+                Config.extraUnlockStance:SetChecked(checked and 1 or 0)
+            end
+            ApplyExtraBars()
+        end,
+        T("Drag the bar. Locked in combat."))
+    petUnlock:SetPoint("TOPLEFT", petBox, "TOPLEFT", petBox.contentLeft, petBox.contentTop)
+    self.extraUnlockPet = petUnlock
+
+    local growLabel = petBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    growLabel:SetPoint("LEFT", petUnlock, "RIGHT", 80, 0)
+    growLabel:SetText(T("Grow") .. ":")
+    growLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+
+    local growDrop = CreateFrame("Frame", "ConsoleUIConfigPetBarGrowDropdown", petBox, "UIDropDownMenuTemplate")
+    growDrop:SetPoint("LEFT", growLabel, "RIGHT", -16, -2)
+
+    local function GrowLabel(value)
+        if value == "left" then
+            return T("Left")
+        end
+        return T("Right")
+    end
+
+    local function InitPetGrow()
+        local selected = UIDropDownMenu_GetSelectedValue(growDrop) or (Config:Get("petBarGrow") or "right")
+        local info = {}
+        info.text = T("Right")
+        info.value = "right"
+        info.func = function()
+            UIDropDownMenu_SetSelectedValue(growDrop, "right")
+            UIDropDownMenu_SetText(T("Right"), growDrop)
+            Config:Set("petBarGrow", "right")
+            ApplyExtraBars()
+        end
+        if info.value == selected then info.checked = 1 end
+        UIDropDownMenu_AddButton(info)
+        info = {}
+        info.text = T("Left")
+        info.value = "left"
+        info.func = function()
+            UIDropDownMenu_SetSelectedValue(growDrop, "left")
+            UIDropDownMenu_SetText(T("Left"), growDrop)
+            Config:Set("petBarGrow", "left")
+            ApplyExtraBars()
+        end
+        if info.value == selected then info.checked = 1 end
+        UIDropDownMenu_AddButton(info)
+    end
+    UIDropDownMenu_Initialize(growDrop, InitPetGrow)
+    UIDropDownMenu_SetWidth(100, growDrop)
+    local currentGrow = Config:Get("petBarGrow") or "right"
+    UIDropDownMenu_SetSelectedValue(growDrop, currentGrow)
+    UIDropDownMenu_SetText(GrowLabel(currentGrow), growDrop)
+
+    local petXBox, petYBox = self:AddOffsetRow(petBox, petUnlock, "petBarOffsetX", "petBarOffsetY", ApplyExtraBars, false)
+
+    self:AddSectionReset(petBox, function()
+        Config:Set("petBarOffsetX", Config.DEFAULTS.petBarOffsetX)
+        Config:Set("petBarOffsetY", Config.DEFAULTS.petBarOffsetY)
+        Config:Set("petBarGrow", Config.DEFAULTS.petBarGrow)
+        petXBox:SetText(tostring(Config.DEFAULTS.petBarOffsetX))
+        petYBox:SetText(tostring(Config.DEFAULTS.petBarOffsetY))
+        UIDropDownMenu_SetSelectedValue(growDrop, Config.DEFAULTS.petBarGrow)
+        UIDropDownMenu_SetText(GrowLabel(Config.DEFAULTS.petBarGrow), growDrop)
+        ApplyExtraBars()
+    end)
+
+    self.extraOffsetBoxes = { stanceX = stanceXBox, stanceY = stanceYBox, petX = petXBox, petY = petYBox }
+
     -- ==================== XP Bar Box ====================
     local xpBox = self:CreateSectionBox(section, T("XP Bar"))
     xpBox:ClearAllPoints()
-    xpBox:SetPoint("TOPLEFT", leftSideBox, "BOTTOMLEFT", 0, -6)
+    xpBox:SetPoint("TOPLEFT", stanceBox, "BOTTOMLEFT", 0, -6)
     xpBox:SetPoint("RIGHT", section, "CENTER", -6, 0)
     xpBox:SetHeight(132)
     xpBox.heightCalculated = true  -- Don't auto-calculate
@@ -2543,7 +2898,7 @@ function Config:CreateBarsSection()
     -- ==================== Rep Bar Box ====================
     local repBox = self:CreateSectionBox(section, T("Rep Bar"))
     repBox:ClearAllPoints()
-    repBox:SetPoint("TOPRIGHT", rightSideBox, "BOTTOMRIGHT", 0, -6)
+    repBox:SetPoint("TOPRIGHT", petBox, "BOTTOMRIGHT", 0, -6)
     repBox:SetPoint("LEFT", section, "CENTER", 6, 0)
     repBox:SetHeight(132)
     repBox.heightCalculated = true  -- Don't auto-calculate
@@ -2884,6 +3239,132 @@ function Config:CreateBarsSection()
             ConsoleUI.castbar:ReloadConfig()
         end
     end)
+
+    local lootBox = self:CreateSectionBox(section, T("Loot"))
+    lootBox:ClearAllPoints()
+    lootBox:SetPoint("TOPLEFT", castBox, "BOTTOMLEFT", 0, -6)
+    lootBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
+    lootBox:SetHeight(64)
+    lootBox.heightCalculated = true
+
+    local function ApplyLoot()
+        if ConsoleUI.loot and ConsoleUI.loot.ApplyEnabled then
+            ConsoleUI.loot:ApplyEnabled()
+        end
+    end
+
+    local lootFrameCheck = self:CreateCheckbox(lootBox, T("Loot frame"),
+        function() return Config:Get("lootFrameEnabled") ~= false end,
+        function(checked)
+            Config:Set("lootFrameEnabled", checked)
+            ApplyLoot()
+        end,
+        T("Custom loot window. Uncheck to use Blizzard loot."))
+    lootFrameCheck:SetPoint("TOPLEFT", lootBox, "TOPLEFT", lootBox.contentLeft, lootBox.contentTop)
+
+    local lootRollCheck = self:CreateCheckbox(lootBox, T("Group rolls"),
+        function() return Config:Get("lootRollEnabled") ~= false end,
+        function(checked)
+            Config:Set("lootRollEnabled", checked)
+            ApplyLoot()
+        end,
+        T("Custom group roll window. Uncheck to use Blizzard rolls."))
+    lootRollCheck:SetPoint("LEFT", lootFrameCheck, "RIGHT", 160, 0)
+
+    self:AddSectionReset(lootBox, function()
+        Config:Set("lootFrameEnabled", Config.DEFAULTS.lootFrameEnabled)
+        Config:Set("lootRollEnabled", Config.DEFAULTS.lootRollEnabled)
+        lootFrameCheck:SetChecked(Config.DEFAULTS.lootFrameEnabled and 1 or 0)
+        lootRollCheck:SetChecked(Config.DEFAULTS.lootRollEnabled and 1 or 0)
+        ApplyLoot()
+    end)
+
+    local hintBox = self:CreateSectionBox(section, T("Hint bar"))
+    hintBox:ClearAllPoints()
+    hintBox:SetPoint("TOPLEFT", lootBox, "BOTTOMLEFT", 0, -6)
+    hintBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
+    hintBox:SetHeight(110)
+    hintBox.heightCalculated = true
+
+    local function ApplyHintBar()
+        if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
+            ConsoleUI.cursor.hintbar:Refresh()
+        end
+    end
+
+    local hintCheck = self:CreateCheckbox(hintBox, T("Enable"),
+        function() return Config:Get("hintBarEnabled") ~= false end,
+        function(checked)
+            Config:Set("hintBarEnabled", checked)
+            ApplyHintBar()
+        end,
+        T("Show A/B/X/Y prompts on screen while the cursor is active."))
+    hintCheck:SetPoint("TOPLEFT", hintBox, "TOPLEFT", hintBox.contentLeft, hintBox.contentTop)
+
+    local posLabel = hintBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    posLabel:SetPoint("LEFT", hintCheck, "RIGHT", 80, 0)
+    posLabel:SetText(T("Position") .. ":")
+    posLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+
+    local posDrop = CreateFrame("Frame", "ConsoleUIConfigHintBarPosDropdown", hintBox, "UIDropDownMenuTemplate")
+    posDrop:SetPoint("LEFT", posLabel, "RIGHT", -16, -2)
+
+    local function PosLabel(value)
+        if value == "bottom" then
+            return T("Bottom")
+        end
+        return T("Top")
+    end
+
+    local function InitHintPos()
+        local selected = UIDropDownMenu_GetSelectedValue(posDrop) or (Config:Get("hintBarPosition") or "top")
+        local info = {}
+        info.text = T("Bottom")
+        info.value = "bottom"
+        info.func = function()
+            UIDropDownMenu_SetSelectedValue(posDrop, "bottom")
+            UIDropDownMenu_SetText(T("Bottom"), posDrop)
+            Config:Set("hintBarPosition", "bottom")
+            ApplyHintBar()
+        end
+        if info.value == selected then info.checked = 1 end
+        UIDropDownMenu_AddButton(info)
+        info = {}
+        info.text = T("Top")
+        info.value = "top"
+        info.func = function()
+            UIDropDownMenu_SetSelectedValue(posDrop, "top")
+            UIDropDownMenu_SetText(T("Top"), posDrop)
+            Config:Set("hintBarPosition", "top")
+            ApplyHintBar()
+        end
+        if info.value == selected then info.checked = 1 end
+        UIDropDownMenu_AddButton(info)
+    end
+    UIDropDownMenu_Initialize(posDrop, InitHintPos)
+    UIDropDownMenu_SetWidth(100, posDrop)
+    local currentPos = Config:Get("hintBarPosition") or "top"
+    UIDropDownMenu_SetSelectedValue(posDrop, currentPos)
+    UIDropDownMenu_SetText(PosLabel(currentPos), posDrop)
+
+    local hintXBox, hintYBox = self:AddOffsetRow(hintBox, hintCheck, "hintBarOffsetX", "hintBarOffsetY", ApplyHintBar)
+
+    self:AddSectionReset(hintBox, function()
+        Config:Set("hintBarEnabled", Config.DEFAULTS.hintBarEnabled)
+        Config:Set("hintBarPosition", Config.DEFAULTS.hintBarPosition)
+        Config:Set("hintBarOffsetX", Config.DEFAULTS.hintBarOffsetX)
+        Config:Set("hintBarOffsetY", Config.DEFAULTS.hintBarOffsetY)
+        Config:Set("hintBarScale", Config.DEFAULTS.hintBarScale)
+        hintCheck:SetChecked(Config.DEFAULTS.hintBarEnabled and 1 or 0)
+        UIDropDownMenu_SetSelectedValue(posDrop, Config.DEFAULTS.hintBarPosition)
+        UIDropDownMenu_SetText(PosLabel(Config.DEFAULTS.hintBarPosition), posDrop)
+        hintXBox:SetText(tostring(Config.DEFAULTS.hintBarOffsetX))
+        hintYBox:SetText(tostring(Config.DEFAULTS.hintBarOffsetY))
+        if self.scaleEditBoxes and self.scaleEditBoxes.hint then
+            self.scaleEditBoxes.hint:SetText(string.format("%.1f", Config.DEFAULTS.hintBarScale))
+        end
+        ApplyHintBar()
+    end)
     
     self.contentSections["bars"] = section
 end
@@ -3066,7 +3547,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4.5"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC5"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -3217,6 +3698,14 @@ function Config:CreateDebugSection()
         end
     end)
 
+    local testBtn = self:MakePanelButton(section, "ConsoleUIConfigDebugTest", 80, T("Test"))
+    testBtn:SetPoint("LEFT", snapBtn, "RIGHT", 8, 0)
+    testBtn:SetScript("OnClick", function()
+        if ConsoleUI.RunAudit then
+            ConsoleUI:RunAudit()
+        end
+    end)
+
     local box = CreateFrame("Frame", "ConsoleUIConfigDebugLogBox", section)
     box:SetPoint("TOPLEFT", selectBtn, "BOTTOMLEFT", 0, -10)
     box:SetPoint("BOTTOMRIGHT", section, "BOTTOMRIGHT", -8, 8)
@@ -3226,13 +3715,13 @@ function Config:CreateDebugSection()
 
     local scroll = CreateFrame("ScrollFrame", "ConsoleUIConfigDebugLogScroll", box, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", box, "TOPLEFT", 8, -8)
-    scroll:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -28, 8)
+    scroll:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -14, 8)
 
     local edit = CreateFrame("EditBox", "ConsoleUIConfigDebugLogEdit", scroll)
     edit:SetMultiLine(true)
     edit:SetAutoFocus(false)
     edit:SetFontObject(ChatFontNormal)
-    edit:SetMaxLetters(20000)
+    edit:SetMaxLetters(40000)
     edit:SetWidth(480)
     edit:SetHeight(400)
     edit:SetTextInsets(4, 4, 4, 4)
@@ -3240,6 +3729,7 @@ function Config:CreateDebugSection()
         this:ClearFocus()
     end)
     scroll:SetScrollChild(edit)
+    self:HookScrollWheel(scroll, 30)
 
     self.debugEditBox = edit
     self.debugScroll = scroll
@@ -3279,10 +3769,17 @@ function Config:RefreshDebugLog()
     local height = count * 14 + 24
     if height < 220 then height = 220 end
     self.debugEditBox:SetHeight(height)
-    if self.debugScroll and self.debugScroll.GetVerticalScrollRange then
-        local range = self.debugScroll:GetVerticalScrollRange()
-        if range then
-            self.debugScroll:SetVerticalScroll(range)
+    self:SyncScrollBar(self.debugScroll)
+    if self.debugScroll and self.debugScroll.GetVerticalScroll then
+        local bar = self:ScrollBarOf(self.debugScroll)
+        local maxV = 0
+        if bar and bar.GetMinMaxValues then
+            local _, hi = bar:GetMinMaxValues()
+            maxV = hi or 0
+        end
+        self.debugScroll:SetVerticalScroll(maxV)
+        if bar and bar.SetValue then
+            bar:SetValue(maxV)
         end
     end
 end
@@ -3557,13 +4054,255 @@ end
 -- Section Management
 -- ============================================================================
 
+function Config:ScrollBarOf(scroll)
+    if not scroll or not scroll.GetName then
+        return nil
+    end
+    local name = scroll:GetName()
+    if not name then
+        return nil
+    end
+    return getglobal(name .. "ScrollBar")
+end
+
+function Config:ScrollBarThumb(bar)
+    if not bar or not bar.GetName then
+        return nil
+    end
+    local name = bar:GetName()
+    if not name then
+        return nil
+    end
+    return getglobal(name .. "ThumbTexture")
+end
+
+function Config:SectionFillsPage()
+    return self.currentSection == "bindings"
+end
+
+-- Stock UIPanel scroll is the silver 1.12 widget. Hide arrows and
+-- the knob, keep a 3px White.tga rail.
+function Config:SkinScrollBar(scroll)
+    local bar = self:ScrollBarOf(scroll)
+    if not bar then
+        return
+    end
+    local thumb = self:ScrollBarThumb(bar)
+    if bar.GetChildren then
+        local kids = { bar:GetChildren() }
+        local i
+        for i = 1, table.getn(kids) do
+            local kid = kids[i]
+            if kid and kid.IsObjectType and kid:IsObjectType("Button") then
+                if not kid.consoleUIHidden then
+                    kid.consoleUIHidden = true
+                    kid:SetScript("OnShow", function()
+                        this:Hide()
+                    end)
+                end
+                kid:Hide()
+                kid:EnableMouse(nil)
+            end
+        end
+    end
+    if bar.GetRegions then
+        local regions = { bar:GetRegions() }
+        local i
+        for i = 1, table.getn(regions) do
+            local r = regions[i]
+            if r and r ~= thumb and r.GetObjectType and r:GetObjectType() == "Texture" then
+                r:SetTexture(nil)
+                r:Hide()
+            end
+        end
+    end
+    bar:SetWidth(6)
+    bar:ClearAllPoints()
+    bar:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", 8, 0)
+    bar:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 8, 0)
+    if not bar.cuiTrack then
+        local track = bar:CreateTexture((bar:GetName() or "ConsoleUIScroll") .. "CuiTrack", "BACKGROUND")
+        track:SetTexture("Interface\\AddOns\\ConsoleUI\\textures\\hud\\White.tga")
+        track:SetVertexColor(1, 1, 1)
+        track:SetAlpha(0.10)
+        track:SetWidth(3)
+        track:ClearAllPoints()
+        track:SetPoint("TOP", bar, "TOP", 0, 0)
+        track:SetPoint("BOTTOM", bar, "BOTTOM", 0, 0)
+        bar.cuiTrack = track
+    end
+    if thumb then
+        thumb:SetTexture("Interface\\AddOns\\ConsoleUI\\textures\\hud\\White.tga")
+        thumb:SetVertexColor(1, 1, 1)
+        thumb:SetAlpha(0.28)
+        thumb:SetWidth(3)
+        if thumb.SetTexCoord then
+            thumb:SetTexCoord(0, 1, 0, 1)
+        end
+    end
+end
+
+-- 1.12 GetVerticalScrollRange is often 0 until UpdateScrollChildRect.
+-- OnScrollRangeChanged then SetMinMaxValues(0,0) and the knob dies.
+-- D-pad still scrolls the child. We keep the slider range ourselves.
+function Config:EnsureScrollBarHook(scroll)
+    if not scroll or scroll.consoleUIBarHooked then
+        return
+    end
+    scroll.consoleUIBarHooked = true
+    scroll.scrollBarHideable = nil
+    scroll:SetScript("OnScrollRangeChanged", function()
+        if this.consoleUIScrollBusy then
+            return
+        end
+        this.consoleUIScrollBusy = true
+        Config:SyncScrollBar(this)
+        this.consoleUIScrollBusy = nil
+    end)
+end
+
+function Config:HookScrollWheel(scroll, step)
+    if not scroll then
+        return
+    end
+    self:EnsureScrollBarHook(scroll)
+    step = step or 40
+    scroll:EnableMouseWheel(1)
+    scroll:SetScript("OnMouseWheel", function()
+        local bar = Config:ScrollBarOf(this)
+        local cur = this:GetVerticalScroll() or 0
+        local minV, maxV = 0, 0
+        if bar and bar.GetMinMaxValues then
+            minV, maxV = bar:GetMinMaxValues()
+        end
+        if (maxV or 0) <= 0 then
+            maxV = this:GetVerticalScrollRange() or 0
+        end
+        local next = cur - (arg1 * step)
+        if next < (minV or 0) then
+            next = minV or 0
+        end
+        if next > (maxV or 0) then
+            next = maxV or 0
+        end
+        this:SetVerticalScroll(next)
+        if bar and bar.SetValue then
+            bar:SetValue(next)
+        end
+    end)
+end
+
+function Config:SyncScrollBar(scroll)
+    if not scroll then
+        return
+    end
+    self:EnsureScrollBarHook(scroll)
+    if scroll.UpdateScrollChildRect and not scroll.consoleUIScrollBusy then
+        scroll:UpdateScrollChildRect()
+    end
+    local bar = self:ScrollBarOf(scroll)
+    local child = scroll.GetScrollChild and scroll:GetScrollChild()
+    local viewH = scroll.GetHeight and (scroll:GetHeight() or 0) or 0
+    local need = 0
+    if child and child.GetHeight then
+        need = child:GetHeight() or 0
+    end
+    local range = need - viewH
+    if range < 0 then
+        range = 0
+    end
+    if bar and bar.SetMinMaxValues then
+        bar:SetMinMaxValues(0, range)
+    end
+    local cur = 0
+    if scroll.GetVerticalScroll then
+        cur = scroll:GetVerticalScroll() or 0
+    end
+    if cur > range then
+        cur = range
+    end
+    if scroll.SetVerticalScroll then
+        scroll:SetVerticalScroll(cur)
+    end
+    if bar and bar.SetValue then
+        bar:SetValue(cur)
+    end
+    self:SkinScrollBar(scroll)
+    if bar then
+        if range > 1 then
+            bar:Show()
+            bar:EnableMouse(1)
+            local thumb = self:ScrollBarThumb(bar)
+            if thumb then
+                local track = viewH - 8
+                local th = 24
+                if need > 0 and track > 24 then
+                    th = track * viewH / need
+                    if th < 24 then
+                        th = 24
+                    end
+                    if th > track then
+                        th = track
+                    end
+                end
+                if thumb.SetHeight then
+                    thumb:SetHeight(th)
+                end
+                thumb:Show()
+            end
+        else
+            bar:Hide()
+            bar:EnableMouse(nil)
+        end
+    end
+end
+
+function Config:RunResetBindings()
+    PlaySound("igMainMenuOptionCheckBoxOn")
+    if ConsoleUIKeybindings and ConsoleUIKeybindings.ResetAllBindings then
+        ConsoleUIKeybindings:ResetAllBindings()
+    end
+    if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
+        ConsoleUI.actionbars:UpdateAllButtons()
+    end
+    if self.RefreshBindingWorkspace then
+        self:RefreshBindingWorkspace()
+    end
+end
+
 function Config:FitContentScroll()
     local scroll = self.frame and self.frame.contentScroll
     local child = self.frame and self.frame.content
+    local host = self.frame and self.frame.contentHost
     if not scroll or not child then
         return
     end
     local viewH = scroll:GetHeight() or 400
+    if host then
+        scroll:ClearAllPoints()
+        scroll:SetPoint("TOPLEFT", host, "TOPLEFT", 4, -4)
+        if self:SectionFillsPage() then
+            scroll:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -4, 4)
+        else
+            scroll:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -16, 4)
+        end
+    end
+    viewH = scroll:GetHeight() or viewH
+    if self:SectionFillsPage() then
+        child:SetHeight(viewH)
+        if scroll.UpdateScrollChildRect then
+            scroll:UpdateScrollChildRect()
+        end
+        if scroll.SetVerticalScroll then
+            scroll:SetVerticalScroll(0)
+        end
+        local bar = self:ScrollBarOf(scroll)
+        if bar then
+            bar:Hide()
+            bar:EnableMouse(nil)
+        end
+        return
+    end
     local need = viewH
     local section = self.currentSection and self.contentSections[self.currentSection]
     if section and section.GetTop and section:GetTop() then
@@ -3583,9 +4322,13 @@ function Config:FitContentScroll()
         need = viewH
     end
     child:SetHeight(need)
+    if scroll.UpdateScrollChildRect then
+        scroll:UpdateScrollChildRect()
+    end
     if scroll.SetVerticalScroll then
         scroll:SetVerticalScroll(0)
     end
+    self:SyncScrollBar(scroll)
 end
 
 function Config:ShowSection(sectionId)
@@ -3653,6 +4396,9 @@ function Config:ShowSection(sectionId)
     end
     
     self.currentSection = sectionId
+    if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
+        ConsoleUI.cursor.hintbar:Refresh()
+    end
     
     -- Refresh cursor navigation to detect dropdown buttons and other elements
     if ConsoleUI.cursor and ConsoleUI.cursor.RefreshFrame then
@@ -4244,12 +4990,12 @@ Config:CreateCrosshair()
 
 -- Kept as id lists for anything still reading these tables.
 Config.BUTTON_LAYOUT = {
-    { id = 10, star = "left" },  -- RT
     { id = 7,  star = "left" },
     { id = 5,  star = "left" },
     { id = 6,  star = "left" },
     { id = 8,  star = "left" },
     { id = 9,  star = "right" }, -- RB
+    { id = 10, star = "right" }, -- RT
     { id = 3,  star = "right" },
     { id = 1,  star = "right" },
     { id = 2,  star = "right" },
@@ -4257,16 +5003,16 @@ Config.BUTTON_LAYOUT = {
 }
 
 Config.FLAT_LAYOUT = {
-    { id = 6,  star = "left",  slot = 0 },
-    { id = 7,  star = "left",  slot = 1 },
-    { id = 5,  star = "left",  slot = 2 },
-    { id = 8,  star = "left",  slot = 3 },
-    { id = 10, star = "left",  slot = 4 }, -- RT
+    { id = 6,  star = "left",  slot = 2 },
+    { id = 7,  star = "left",  slot = 3 },
+    { id = 5,  star = "left",  slot = 4 },
+    { id = 8,  star = "left",  slot = 5 },
     { id = 2,  star = "right", slot = 0 },
     { id = 3,  star = "right", slot = 1 },
     { id = 1,  star = "right", slot = 2 },
     { id = 4,  star = "right", slot = 3 },
     { id = 9,  star = "right", slot = 4 }, -- RB
+    { id = 10, star = "right", slot = 5 }, -- RT
 }
 
 function Config:UpdateActionBarLayout()
@@ -4361,6 +5107,28 @@ function Config:UpdateActionBarLayout()
         button:Show()
     end
 
+    local function placeModifier(button, modifier, col)
+        if not button or not Layout or not Layout.ModifierWorld then
+            return
+        end
+        local world = Layout.ModifierWorld(modifier, layout, metrics, padding, starPadding, xOffset, yOffset, col)
+        button:ClearAllPoints()
+        button:SetPoint("BOTTOM", UIParent, "BOTTOM", world.x, world.y)
+        button:SetWidth(buttonSize)
+        button:SetHeight(buttonSize)
+        button:SetScale(1)
+        if bars and bars.PaintModifierButton then
+            local active = modifier == "lb" and IsControlKeyDown and IsControlKeyDown()
+                or modifier == "lt" and IsShiftKeyDown and IsShiftKeyDown()
+            bars:PaintModifierButton(button, active)
+        end
+        button:Show()
+    end
+
+    if bars and bars.EnsureModifierButtons then
+        bars:EnsureModifierButtons()
+    end
+
     if layout == "full" then
         if bars and bars.EnsureFullButtons then
             bars:EnsureFullButtons()
@@ -4370,6 +5138,15 @@ function Config:UpdateActionBarLayout()
             if bars and bars.fullLeft then
                 place(bars.fullLeft[id], id, -1)
                 place(bars.fullRight[id], id, 1)
+            end
+        end
+        if bars and bars.modifierButtons then
+            local cols = { -1, 0, 1 }
+            local ci
+            for ci = 1, 3 do
+                local col = cols[ci]
+                placeModifier(bars.modifierButtons[col].lb, "lb", col)
+                placeModifier(bars.modifierButtons[col].lt, "lt", col)
             end
         end
         if bars and bars.ApplyFullAlpha then
@@ -4385,6 +5162,15 @@ function Config:UpdateActionBarLayout()
                     bars.fullRight[id]:Hide()
                 end
             end
+        end
+        if bars and bars.modifierButtons then
+            bars.modifierButtons[-1].lb:Hide()
+            bars.modifierButtons[-1].lt:Hide()
+            bars.modifierButtons[1].lb:Hide()
+            bars.modifierButtons[1].lt:Hide()
+            placeModifier(bars.modifierButtons[0].lb, "lb", 0)
+            placeModifier(bars.modifierButtons[0].lt, "lt", 0)
+            bars:SetModifierColumnAlpha(0, 1)
         end
         for id = 1, 10 do
             local button = getglobal("ConsoleActionButton" .. id)
@@ -4420,7 +5206,13 @@ SLASH_CONSOLEUI1 = "/cui"
 SLASH_CONSOLEUI2 = "/consoleui"
 SlashCmdList["CONSOLEUI"] = function(msg)
     local command = string.lower(string.gsub(msg or "", "^%s*(.-)%s*$", "%1"))
-    if command == "debug" or command == "diag" or command == "diagnostics" then
+    if command == "test" or command == "audit" then
+        if ConsoleUI.RunAudit then
+            ConsoleUI:RunAudit()
+        else
+            ConsoleUI_Print("Audit is not loaded.")
+        end
+    elseif command == "debug" or command == "diag" or command == "diagnostics" or command == "verify" then
         if ConsoleUI.ReportDiagnostics then
             ConsoleUI:ReportDiagnostics()
         end
@@ -4443,7 +5235,7 @@ SlashCmdList["CONSOLEUI"] = function(msg)
         Config:UpdateActionBarLayout()
         ConsoleUI_Print("Action-bar gold border: off")
     elseif command == "help" then
-        ConsoleUI_Print("/cui - settings; /cui debug; /cui gold|gold off; /cui modern|classic")
+        ConsoleUI_Print("/cui - settings; /cui test; /cui debug; /cui gold|gold off; /cui modern|classic")
     else
         Config:Toggle()
     end

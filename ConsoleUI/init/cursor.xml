@@ -1,6 +1,9 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
   <Include file="..\cursor\cursor.lua"/>
   <Include file="..\cursor\tooltip.lua"/>
+  <Include file="..\cursor\hints.lua"/>
+  <Include file="..\cursor\hintbar.lua"/>
+  <Include file="..\cursor\unit.lua"/>
   <Include file="..\cursor\actions.lua"/>
   <Include file="..\cursor\keybindings.lua"/>
   <Include file="..\cursor\hooks.lua"/>

@@ -235,6 +235,7 @@ function Config:LayoutBindingInputs()
         if y < 200 then y = 200 end
         self.bindingListChild:SetHeight(y + 8)
     end
+    self:SyncScrollBar(getglobal("ConsoleUIBindInputScroll"))
 end
 
 function Config:LayoutBindingActions()
@@ -252,6 +253,7 @@ function Config:LayoutBindingActions()
     end
     if y < 200 then y = 200 end
     self.actionListChild:SetHeight(y + 8)
+    self:SyncScrollBar(getglobal("ConsoleUIBindActionScroll"))
 end
 
 function Config:UpdateSidebarBindingVisibility()
@@ -282,16 +284,10 @@ function Config:CreateBindingsSection()
     title:SetText(T("Bindings"))
     title:SetTextColor(unpack(self.UI_COLORS.text))
 
-    local resetBtn = self:MakePanelButton(section, "ConsoleUIConfigResetBindings", 120, T("Reset Bindings"), "ghost")
+    local resetBtn = self:MakePanelButton(section, "ConsoleUIConfigResetBindings", 120, T("Reset Bindings"))
     resetBtn:SetPoint("TOPRIGHT", section, "TOPRIGHT", -4, -2)
     resetBtn:SetScript("OnClick", function()
-        if ConsoleUIKeybindings and ConsoleUIKeybindings.ResetAllBindings then
-            ConsoleUIKeybindings:ResetAllBindings()
-        end
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
-            ConsoleUI.actionbars:UpdateAllButtons()
-        end
-        Config:RefreshBindingWorkspace()
+        Config:RunResetBindings()
     end)
 
     local placeBtn = self:MakePanelButton(section, "ConsoleUIConfigShowPlacement", 120, T("Spell Placement"))
@@ -318,11 +314,13 @@ function Config:CreateBindingsSection()
 
     local leftScroll = CreateFrame("ScrollFrame", "ConsoleUIBindInputScroll", leftPanel, "UIPanelScrollFrameTemplate")
     leftScroll:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 6, -24)
-    leftScroll:SetPoint("BOTTOMRIGHT", leftPanel, "BOTTOMRIGHT", -26, 6)
+    leftScroll:SetPoint("BOTTOMRIGHT", leftPanel, "BOTTOMRIGHT", -12, 6)
     local leftChild = CreateFrame("Frame", "ConsoleUIBindInputChild", leftScroll)
     leftChild:SetWidth(300)
     leftChild:SetHeight(400)
     leftScroll:SetScrollChild(leftChild)
+    self:HookScrollWheel(leftScroll, 28)
+    self.bindInputScroll = leftScroll
     self.bindingListChild = leftChild
 
     local rightPanel = CreateFrame("Frame", "ConsoleUIBindActionPanel", section)
@@ -367,11 +365,13 @@ function Config:CreateBindingsSection()
 
     local actionScroll = CreateFrame("ScrollFrame", "ConsoleUIBindActionScroll", rightPanel, "UIPanelScrollFrameTemplate")
     actionScroll:SetPoint("TOPLEFT", selected, "BOTTOMLEFT", 0, -4)
-    actionScroll:SetPoint("BOTTOMRIGHT", rightPanel, "BOTTOMRIGHT", -26, 6)
+    actionScroll:SetPoint("BOTTOMRIGHT", rightPanel, "BOTTOMRIGHT", -12, 6)
     local actionChild = CreateFrame("Frame", "ConsoleUIBindActionChild", actionScroll)
     actionChild:SetWidth(300)
     actionChild:SetHeight(400)
     actionScroll:SetScrollChild(actionChild)
+    self:HookScrollWheel(actionScroll, 28)
+    self.bindActionScroll = actionScroll
     self.actionListChild = actionChild
 
     self.bindingInputRows = {}
@@ -528,6 +528,9 @@ function Config:CreateBindingsSection()
     section:SetScript("OnShow", function()
         Config:RefreshBindingActionList()
         Config:RefreshBindingWorkspace()
+        if Config.FitContentScroll then
+            Config:FitContentScroll()
+        end
     end)
 
     self.contentSections["bindings"] = section

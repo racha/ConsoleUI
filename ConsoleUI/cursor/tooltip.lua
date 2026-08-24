@@ -188,27 +188,7 @@ TooltipHookFrame:SetScript("OnShow", function()
         GameTooltip:AddLine(button.tooltipText, 1, 1, 1, true)
     end
     
-    local actions = Tooltip:GetActions(buttonName, elementType)
-    
-    -- If keyboard is visible, add X = Send action
-    if ConsoleUI.keyboard and ConsoleUI.keyboard.frame and ConsoleUI.keyboard.frame:IsVisible() then
-        -- Add X = Send action to any button when keyboard is visible
-        if not actions then
-            actions = {}
-        end
-        -- Check if X action already exists
-        local hasXAction = false
-        for _, action in ipairs(actions) do
-            if action.icon == "x" then
-                hasXAction = true
-                break
-            end
-        end
-        if not hasXAction then
-            table.insert(actions, {icon = "x", prompt = L("Send")})
-        end
-    end
-    
+    local actions = Tooltip:ActionsForButton(button)
     if actions then
         AddPrompts(actions)
     end
@@ -351,10 +331,31 @@ function Tooltip:Initialize()
             actions = {{icon = "a", prompt = L("Select")}},
             bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
         },
+        -- Pet / stance. Must be before ConsoleUI.* or they inherit Select / checkbox.
+        {
+            pattern = "ConsoleUIPetButton%d+",
+            actions = {{icon = "a", prompt = L("Cast")}, {icon = "b", prompt = L("Autocast")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}, {key = "4", action = "ConsoleUI_CURSOR_CLICK_RIGHT"}}
+        },
+        {
+            pattern = "ConsoleUIStanceButton%d+",
+            actions = {{icon = "a", prompt = L("Select")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
+        },
+        {
+            pattern = "ConsoleUIPetHub",
+            actions = {{icon = "a", prompt = L("Select")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
+        },
         -- Spell placement. Must be before ConsoleUI.* or B stays Close and X never binds.
         {
             pattern = "ConsoleUIPlacementButton%d+",
             actions = {{icon = "a", prompt = L("Pickup / Place")}, {icon = "x", prompt = L("Clear")}, {icon = "b", prompt = L("Close")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}, {key = "2", action = "ConsoleUI_PLACEMENT_CLEAR"}}
+        },
+        {
+            pattern = "ConsoleUIConfigRingSlot%d+",
+            actions = {{icon = "a", prompt = L("Select")}, {icon = "x", prompt = L("Clear")}},
             bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}, {key = "2", action = "ConsoleUI_PLACEMENT_CLEAR"}}
         },
         -- ConsoleUI config buttons
@@ -423,6 +424,31 @@ function Tooltip:Initialize()
             actions = {{icon = "a", prompt = L("Loot")}},
             bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
         },
+        {
+            pattern = "ConsoleUILootButton%d+",
+            actions = {{icon = "a", prompt = L("Loot")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
+        },
+        {
+            pattern = "ConsoleUILootRow%d+",
+            actions = {{icon = "a", prompt = L("Loot")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
+        },
+        {
+            pattern = "ConsoleUIRollNeed%d+",
+            actions = {{icon = "a", prompt = L("Need")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
+        },
+        {
+            pattern = "ConsoleUIRollGreed%d+",
+            actions = {{icon = "a", prompt = L("Greed")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
+        },
+        {
+            pattern = "ConsoleUIRollPass%d+",
+            actions = {{icon = "a", prompt = L("Pass")}},
+            bindings = {{key = "1", action = "ConsoleUI_CURSOR_CLICK_LEFT"}}
+        },
         -- Keyboard keys
         {
             pattern = "ConsoleUIKeyboardKey.*",
@@ -449,6 +475,44 @@ function Tooltip:Initialize()
         slider = {{icon = "a", prompt = L("Increase")}, {icon = "b", prompt = L("Decrease")}},
         checkbox = {{icon = "a", prompt = L("Toggle")}},
     }
+end
+
+function Tooltip:ActionsForButton(button)
+    if not button then
+        return nil
+    end
+    local buttonName = ""
+    if button.GetName then
+        buttonName = button:GetName() or ""
+    end
+    local elementType = nil
+    if button.IsObjectType then
+        if button:IsObjectType("EditBox") then
+            elementType = "editbox"
+        elseif button:IsObjectType("Slider") then
+            elementType = "slider"
+        elseif button:IsObjectType("CheckButton") then
+            elementType = "checkbox"
+        end
+    end
+    local actions = self:GetActions(buttonName, elementType)
+    if ConsoleUI.keyboard and ConsoleUI.keyboard.frame and ConsoleUI.keyboard.frame:IsVisible() then
+        if not actions then
+            actions = {}
+        end
+        local hasX = false
+        local i
+        for i = 1, table.getn(actions) do
+            if actions[i].icon == "x" then
+                hasX = true
+                break
+            end
+        end
+        if not hasX then
+            table.insert(actions, { icon = "x", prompt = L("Send") })
+        end
+    end
+    return actions
 end
 
 function Tooltip:GetActions(buttonName, elementType)
@@ -731,6 +795,23 @@ function Tooltip:ShowButtonTooltip(button)
             onEnterScript()
             this = oldThis
         end
+    elseif string.find(buttonName, "ConsoleUIPetButton%d+") or string.find(buttonName, "ConsoleUIStanceButton%d+") or buttonName == "ConsoleUIPetHub" then
+        local extra = ConsoleUI.actionbars and ConsoleUI.actionbars.extra
+        if extra then
+            if button.extraKind == "pet" and extra.PetTooltip then
+                extra:PetTooltip(button)
+            elseif button.extraKind == "stance" and extra.StanceTooltip then
+                extra:StanceTooltip(button)
+            elseif button.extraKind == "hub" then
+                GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+                if GameTooltip.SetUnit then
+                    GameTooltip:SetUnit("pet")
+                else
+                    GameTooltip:SetText((UnitName and UnitName("pet")) or "Pet", 1, 1, 1)
+                end
+                GameTooltip:Show()
+            end
+        end
     else
         -- Check element types for generic UI elements
         -- Determine element type
@@ -849,12 +930,18 @@ function Tooltip:ShowButtonTooltip(button)
     end
     
     -- Note: Action prompts are added automatically via TooltipHookFrame OnShow
+    if ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
+        ConsoleUI.cursor.hintbar:Refresh()
+    end
 end
 
 function Tooltip:HideButtonTooltip()
     HideAllIcons()
     if GameTooltip then
         GameTooltip:Hide()
+    end
+    if ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
+        ConsoleUI.cursor.hintbar:Refresh()
     end
 end
 

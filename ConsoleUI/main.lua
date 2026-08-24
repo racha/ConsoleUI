@@ -36,6 +36,10 @@ ConsoleUI:SetScript("OnEvent", function()
         if ConsoleUI.config and ConsoleUI.config.InitializeDB then
             ConsoleUI.config:InitializeDB()
         end
+        if ConsoleUIDB and ConsoleUIDB.config then
+            ConsoleUIDB.config.autoSellGreys = nil
+            ConsoleUIDB.config.autoRepair = nil
+        end
         
         -- Initialize action bars after saved variables are loaded
         if ConsoleUI.actionbars and ConsoleUI.actionbars.Initialize then
@@ -77,6 +81,10 @@ ConsoleUI:SetScript("OnEvent", function()
         -- Initialize cast bar module
         if ConsoleUI.castbar and ConsoleUI.castbar.Initialize then
             ConsoleUI.castbar:Initialize()
+        end
+
+        if ConsoleUI.loot and ConsoleUI.loot.Initialize then
+            ConsoleUI.loot:Initialize()
         end
         
         ConsoleUI_Debug("ConsoleUI loaded!")
@@ -205,11 +213,21 @@ function ConsoleUI_SaveBindings()
     -- leaves the player unable to walk.
     local radial = ConsoleUI.radial
     local rings = ConsoleUI.rings
+    local loot = ConsoleUI.loot
+    local unit = ConsoleUI.unit
     local stickWasOn = radial and radial.stickBindings
     local menuOpen = radial and radial.IsOpen and radial:IsOpen()
     local ringOpen = rings and rings.IsVisible and rings:IsVisible()
+    local lootPadWasStolen = loot and loot._padStolen ~= nil
+    local unitPadWasStolen = unit and unit._padStolen ~= nil
     if stickWasOn then
         radial:RestoreStickNavigation()
+    end
+    if lootPadWasStolen and loot.RestorePad then
+        loot:RestorePad()
+    end
+    if unitPadWasStolen and unit.RestorePad then
+        unit:RestorePad()
     end
     local padSnap
     if ConsoleUI_ParkTransientPadKeys then
@@ -226,6 +244,13 @@ function ConsoleUI_SaveBindings()
     elseif stickWasOn and ringOpen then
         radial:ActivateRingNavigation()
     end
+    if lootPadWasStolen and loot.SyncPad then
+        loot:SyncPad()
+    end
+    if unitPadWasStolen and unit.SyncPad then
+        unit:SyncPad()
+    end
+    return true
 end
 
 function ConsoleUI_WarnIfDualAddonLoaded()
@@ -264,7 +289,7 @@ end
 function ConsoleUI_Welcome()
     if ConsoleUI.welcomed then return end
     ConsoleUI.welcomed = true
-    local version = "1.0.0-RC4.5"
+    local version = "1.0.0-RC5"
     if GetAddOnMetadata then
         version = GetAddOnMetadata("ConsoleUI", "Version") or version
     end
@@ -280,17 +305,41 @@ end
 function ConsoleUI:ReportDiagnostics()
     local version, build, date, toc = GetBuildInfo()
     local cfg = self.config
+    local addonVersion = "1.0.0-RC5"
+    if GetAddOnMetadata then
+        addonVersion = GetAddOnMetadata("ConsoleUI", "Version") or addonVersion
+    end
     ConsoleUI_Print("ConsoleUI-DIAG|BEGIN")
-    ConsoleUI_Print("ConsoleUI-DIAG|client=" .. tostring(version) .. "|build=" .. tostring(build) .. "|toc=" .. tostring(toc))
+    ConsoleUI_Print("ConsoleUI-DIAG|addon=" .. tostring(addonVersion) .. "|client=" .. tostring(version) .. "|build=" .. tostring(build) .. "|toc=" .. tostring(toc))
     ConsoleUI_Print("ConsoleUI-DIAG|appearance=" .. tostring(cfg and cfg:Get("barAppearance")) .. "|layout=" .. tostring(cfg and cfg:Get("barLayout")) .. "|gold=" .. tostring(cfg and cfg:Get("barGoldBorder")) .. "|controller=" .. tostring(cfg and cfg:Get("controllerType")) .. "|debug=" .. tostring(cfg and cfg:Get("debugEnabled")))
+    local chatBlock = ConsoleUI_ChatBlocksActions and ConsoleUI_ChatBlocksActions()
+    local lootBusy = self.loot and self.loot.Busy and self.loot:Busy()
+    local unitBusy = self.unit and self.unit.Busy and self.unit:Busy()
+    ConsoleUI_Print("ConsoleUI-DIAG|gate chat=" .. tostring(chatBlock) .. "|loot=" .. tostring(lootBusy) .. "|unit=" .. tostring(unitBusy) .. "|keystate=" .. tostring(keystate))
+    if IsAddOnLoaded then
+        ConsoleUI_Print("ConsoleUI-DIAG|opt Quiver=" .. tostring(IsAddOnLoaded("Quiver")) .. "|SAS=" .. tostring(IsAddOnLoaded("SimpleActionSets")) .. "|MMM=" .. tostring(IsAddOnLoaded("ModernMapMarkers")) .. "|CEC=" .. tostring(IsAddOnLoaded("ConsoleExperienceClassic")))
+    end
     if self.actionbars and self.actionbars.SelfCheckLayout then
         ConsoleUI_Print("ConsoleUI-DIAG|layoutCheck=" .. tostring(self.actionbars:SelfCheckLayout()))
     end
-    ConsoleUI_Print("ConsoleUI-DIAG|modules=bars:" .. tostring(self.actionbars ~= nil) .. ",cursor:" .. tostring(self.cursor ~= nil) .. ",radial:" .. tostring(self.radial ~= nil) .. ",xpbar:" .. tostring(self.xpbar ~= nil) .. ",castbar:" .. tostring(self.castbar ~= nil))
+    ConsoleUI_Print("ConsoleUI-DIAG|modules=bars:" .. tostring(self.actionbars ~= nil) .. ",cursor:" .. tostring(self.cursor ~= nil) .. ",radial:" .. tostring(self.radial ~= nil) .. ",rings:" .. tostring(self.rings ~= nil) .. ",loot:" .. tostring(self.loot ~= nil) .. ",unit:" .. tostring(self.unit ~= nil) .. ",hintbar:" .. tostring(self.cursor and self.cursor.hintbar ~= nil) .. ",xpbar:" .. tostring(self.xpbar ~= nil) .. ",castbar:" .. tostring(self.castbar ~= nil))
     local radial = self.radial
     ConsoleUI_Print("ConsoleUI-DIAG|radial=vis:" .. tostring(radial and radial:IsVisible()) .. ",dir:" .. tostring(radial and radial.GetSelectedDirectionID and radial:GetSelectedDirectionID() or "none"))
     ConsoleUI_Print("ConsoleUI-DIAG|bind W=" .. tostring(GetBindingAction("W")) .. "|A=" .. tostring(GetBindingAction("A")) .. "|S=" .. tostring(GetBindingAction("S")) .. "|D=" .. tostring(GetBindingAction("D")) .. "|1=" .. tostring(GetBindingAction("1")))
     ConsoleUI_Print("ConsoleUI-DIAG|pad 5=" .. tostring(GetBindingAction("5")) .. "|6=" .. tostring(GetBindingAction("6")) .. "|7=" .. tostring(GetBindingAction("7")) .. "|8=" .. tostring(GetBindingAction("8")))
+    ConsoleUI_Print("ConsoleUI-DIAG|mod SHIFT-1=" .. tostring(GetBindingAction("SHIFT-1")) .. "|CTRL-1=" .. tostring(GetBindingAction("CTRL-1")) .. "|SHIFT-5=" .. tostring(GetBindingAction("SHIFT-5")) .. "|CTRL-5=" .. tostring(GetBindingAction("CTRL-5")) .. "|CTRL-SHIFT-1=" .. tostring(GetBindingAction("CTRL-SHIFT-1")) .. "|CTRL-SHIFT-5=" .. tostring(GetBindingAction("CTRL-SHIFT-5")) .. "|page=" .. tostring(self.actionbars and self.actionbars.currentPage))
+    local modSlots = { 11, 15, 21, 25, 31, 35 }
+    local modKeys = { "SHIFT-1", "SHIFT-5", "CTRL-1", "CTRL-5", "CTRL-SHIFT-1", "CTRL-SHIFT-5" }
+    local mi
+    for mi = 1, 6 do
+        local slot = modSlots[mi]
+        local key = modKeys[mi]
+        local proxy = ConsoleUIDB and ConsoleUIDB.proxiedActions and ConsoleUIDB.proxiedActions[slot]
+        local has = HasAction and HasAction(slot)
+        local tex = GetActionTexture and GetActionTexture(slot)
+        ConsoleUI_Print("ConsoleUI-DIAG|modslot slot=" .. slot .. "|key=" .. key .. "|bind=" .. tostring(GetBindingAction(key)) .. "|has=" .. tostring(has) .. "|tex=" .. tostring(tex) .. "|proxy=" .. tostring(proxy))
+    end
+    ConsoleUI_Print("ConsoleUI-DIAG|features loot=" .. tostring(cfg and cfg:Get("lootFrameEnabled")) .. "|roll=" .. tostring(cfg and cfg:Get("lootRollEnabled")) .. "|hints=" .. tostring(cfg and cfg:Get("hintBarEnabled")) .. "|actionGlyphs=" .. tostring(cfg and cfg:Get("barActionGlyphs")) .. "|bags=" .. tostring(cfg and cfg:Get("alwaysOpenAllBags")) .. "|vendorBags=" .. tostring(cfg and cfg:Get("openAllBagsAtVendor")))
     local box = ChatFrameEditBox
     if box then
         ConsoleUI_Print("ConsoleUI-DIAG|chat shown=" .. tostring(box:IsShown()) .. "|focus=" .. tostring(box.HasFocus and box:HasFocus()) .. "|shagu=" .. tostring(ShaguTweaks ~= nil))
@@ -302,6 +351,11 @@ function ConsoleUI:ReportDiagnostics()
     if ConsoleUIKeyboard then
         ConsoleUI_Print("ConsoleUI-DIAG|kb=" .. tostring(ConsoleUIKeyboard:IsShown()) .. "|stolen=" .. tostring(ConsoleUIKeyboard.stolen ~= nil))
     end
+    local fullL = getglobal("ConsoleActionButtonFullL1")
+    local fullR = getglobal("ConsoleActionButtonFullR1")
+    if fullL or fullR then
+        ConsoleUI_Print("ConsoleUI-DIAG|full L1=" .. tostring(fullL and self.actionbars:GetActionID(fullL)) .. "|R1=" .. tostring(fullR and self.actionbars:GetActionID(fullR)) .. "|kind=" .. tostring(self.actionbars:BarLayoutKind()))
+    end
     for id = 1, 10 do
         local button = getglobal("ConsoleActionButton" .. id)
         if button then
@@ -312,6 +366,41 @@ function ConsoleUI:ReportDiagnostics()
         else
             ConsoleUI_Print("ConsoleUI-DIAG|button=" .. id .. "|MISSING")
         end
+    end
+    local verifyFail = 0
+    if chatBlock or lootBusy or unitBusy then
+        ConsoleUI_Print("ConsoleUI-VERIFY|gates=FAIL")
+        verifyFail = verifyFail + 1
+    else
+        ConsoleUI_Print("ConsoleUI-VERIFY|gates=PASS")
+    end
+    for mi = 1, 6 do
+        local slot = modSlots[mi]
+        local key = modKeys[mi]
+        local bind = GetBindingAction(key) or ""
+        local proxy = ConsoleUIDB and ConsoleUIDB.proxiedActions and ConsoleUIDB.proxiedActions[slot]
+        local bindOk = bind == ("ConsoleUI_ACTION_" .. slot) or (proxy and bind == proxy)
+        if bind ~= "" and ConsoleUI_IsTransientPadAction and ConsoleUI_IsTransientPadAction(bind) then
+            bindOk = false
+        end
+        local hasOk = HasAction and HasAction(slot)
+        if not bindOk then
+            verifyFail = verifyFail + 1
+        end
+        local bindMark = "FAIL"
+        local hasMark = "EMPTY"
+        if bindOk then
+            bindMark = "PASS"
+        end
+        if hasOk then
+            hasMark = "PASS"
+        end
+        ConsoleUI_Print("ConsoleUI-VERIFY|" .. key .. " bind=" .. bindMark .. " has=" .. hasMark .. " action=" .. bind)
+    end
+    if verifyFail > 0 then
+        ConsoleUI_Print("ConsoleUI-VERIFY|RESULT=FAIL")
+    else
+        ConsoleUI_Print("ConsoleUI-VERIFY|RESULT=BINDS_OK cast the six spells")
     end
     ConsoleUI_Print("ConsoleUI-DIAG|END")
 end

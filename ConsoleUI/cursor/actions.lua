@@ -1035,14 +1035,19 @@ function ConsoleUI_PLACEMENT_CLEAR()
     end
     
     local buttonName = button:GetName()
-    if not buttonName or not string.find(buttonName, "ConsoleUIPlacementButton%d+") then
-        ConsoleUI_Debug("ConsoleUI_PLACEMENT_CLEAR: Not a placement button: " .. (buttonName or "nil"))
+    if buttonName and string.find(buttonName, "ConsoleUIPlacementButton%d+") then
+        if ConsoleUI.placement and ConsoleUI.placement.ClearSlot then
+            ConsoleUI.placement:ClearSlot(button)
+        end
         return
     end
-
-    if ConsoleUI.placement and ConsoleUI.placement.ClearSlot then
-        ConsoleUI.placement:ClearSlot(button)
+    if buttonName and string.find(buttonName, "ConsoleUIConfigRingSlot%d+") then
+        if ConsoleUI.config and ConsoleUI.config.ClearRingSlot then
+            ConsoleUI.config:ClearRingSlot(button)
+        end
+        return
     end
+    ConsoleUI_Debug("ConsoleUI_PLACEMENT_CLEAR: Not a clearable slot: " .. (buttonName or "nil"))
 end
 
 -- ============================================================================

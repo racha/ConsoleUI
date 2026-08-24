@@ -11,6 +11,27 @@ local CL = ConsoleUI.changelog
 -- Newest first. version must match the TOC Version string.
 ConsoleUI.CHANGELOG = {
     {
+        version = "1.0.0-RC5",
+        lines = {
+            "New stance bar",
+            "New pet bar",
+            "New hint bar",
+            "New hint bar scale",
+            "New loot frame",
+            "New group rolls",
+            "New unit menu",
+            "New ring macros",
+            "New XP percentage",
+            "New /cui test",
+            "Fixed Paladin world load",
+            "Fixed pet Follow",
+            "Fixed overlay binds",
+            "Fixed ring /cast",
+            "BREAKING: loot frame",
+            "BREAKING: group rolls",
+        },
+    },
+    {
         version = "1.0.0-RC4.5",
         lines = {
             "New cast bar",
@@ -118,9 +139,9 @@ end
 
 function CL.CurrentVersion()
     if GetAddOnMetadata then
-        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC4.5"
+        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC5"
     end
-    return "1.0.0-RC4.5"
+    return "1.0.0-RC5"
 end
 
 function CL.EntriesSince(last, all)
@@ -317,6 +338,10 @@ function CL:Fill(all)
     if self.scroll and self.scroll.SetVerticalScroll then
         self.scroll:SetVerticalScroll(0)
     end
+    local cfg = C()
+    if cfg and cfg.SyncScrollBar then
+        cfg:SyncScrollBar(self.scroll)
+    end
 end
 
 function CL:Create()
@@ -373,18 +398,12 @@ function CL:Create()
     host:SetBackdrop(cfg.BACKDROP_FLAT)
     host:SetBackdropColor(unpack(cfg.UI_COLORS.content))
 
-    local scroll = CreateFrame("ScrollFrame", "ConsoleUIChangelogScroll", host)
+    local scroll = CreateFrame("ScrollFrame", "ConsoleUIChangelogScroll", host, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", host, "TOPLEFT", 8, -8)
-    scroll:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -8, 8)
-    scroll:EnableMouseWheel(1)
-    scroll:SetScript("OnMouseWheel", function()
-        local cur = this:GetVerticalScroll()
-        local range = this:GetVerticalScrollRange() or 0
-        local next = cur - (arg1 * 30)
-        if next < 0 then next = 0 end
-        if next > range then next = range end
-        this:SetVerticalScroll(next)
-    end)
+    scroll:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -14, 8)
+    if cfg.HookScrollWheel then
+        cfg:HookScrollWheel(scroll, 30)
+    end
     local child = CreateFrame("Frame", "ConsoleUIChangelogChild", scroll)
     child:SetWidth(416)
     child:SetHeight(160)

@@ -237,6 +237,9 @@ function CursorKeys:RestoreOriginalBindings()
     end
     
     ConsoleUI_Debug("Cursor bindings deactivated")
+    if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
+        ConsoleUI.cursor.hintbar:Refresh()
+    end
 end
 
 function CursorKeys:IsCursorModeActive()

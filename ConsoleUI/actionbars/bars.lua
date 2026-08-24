@@ -148,6 +148,17 @@ local function PaintTex(tex, r, g, b, a)
     end
 end
 
+local function HideStockTex(button, getter)
+    if not button or not getter or not button[getter] then
+        return
+    end
+    local tex = button[getter](button)
+    if tex then
+        tex:SetTexture(nil)
+        tex:Hide()
+    end
+end
+
 local function ButtonHasIcon(button)
     if not button or not button.GetName then
         return false
@@ -403,21 +414,9 @@ function ActionBars:ApplyDiamondAppearance(button)
         normalTex:Hide()
     end
 
-    local highlightTex = button:GetHighlightTexture()
-    if highlightTex then
-        highlightTex:SetTexture(nil)
-        highlightTex:Hide()
-    end
-    local pushedTex = button:GetPushedTexture()
-    if pushedTex then
-        pushedTex:SetTexture(nil)
-        pushedTex:Hide()
-    end
-    local checkedTex = button:GetCheckedTexture()
-    if checkedTex then
-        checkedTex:SetTexture(nil)
-        checkedTex:Hide()
-    end
+    HideStockTex(button, "GetHighlightTexture")
+    HideStockTex(button, "GetPushedTexture")
+    HideStockTex(button, "GetCheckedTexture")
 
     self:SetThinOutline(button, false)
     local overlay = getglobal(button:GetName() .. "Overlay")
@@ -482,6 +481,12 @@ function ActionBars:PlaceControllerPip(button, buttonSize, kind)
     if not controllerIcon then
         return
     end
+    local id = button:GetID()
+    if id and id >= 1 and id <= 8 and ConsoleUI.config and ConsoleUI.config.Get
+        and ConsoleUI.config:Get("barActionGlyphs") == false then
+        controllerIcon:Hide()
+        return
+    end
     local Layout = self.Layout
     local pip = 22
     local point, px, py = "BOTTOM", 0, 2
@@ -540,21 +545,9 @@ function ActionBars:ApplySquareAppearance(button)
         normalTex:Hide()
     end
 
-    local highlightTex = button:GetHighlightTexture()
-    if highlightTex then
-        highlightTex:SetTexture(nil)
-        highlightTex:Hide()
-    end
-    local pushedTex = button:GetPushedTexture()
-    if pushedTex then
-        pushedTex:SetTexture(nil)
-        pushedTex:Hide()
-    end
-    local checkedTex = button:GetCheckedTexture()
-    if checkedTex then
-        checkedTex:SetTexture(nil)
-        checkedTex:Hide()
-    end
+    HideStockTex(button, "GetHighlightTexture")
+    HideStockTex(button, "GetPushedTexture")
+    HideStockTex(button, "GetCheckedTexture")
 
     self:SetThinOutline(button, false)
     local overlay = getglobal(button:GetName() .. "Overlay")
@@ -638,11 +631,15 @@ function ActionBars:Initialize()
     self:ApplyDefaultBarVisibility()
     self:CreateModifierFrame()
     self:EnsureFullButtons()
+    self:EnsureModifierButtons()
     if ConsoleUI.config and ConsoleUI.config.UpdateActionBarLayout then
         ConsoleUI.config:UpdateActionBarLayout()
     end
     self:UpdateAllButtons()
     self:CreateSideBars()
+    if self.extra and self.extra.Initialize then
+        self.extra:Initialize()
+    end
     self:InitializeBagBar()
     self:HookCooldownFrame()
 end
@@ -870,6 +867,100 @@ function ActionBars:EnsureFullButtons()
     end
 end
 
+function ActionBars:EnsureModifierButtons()
+    if self.modifierButtons then
+        return
+    end
+    self.modifierButtons = {}
+    local cols = { -1, 0, 1 }
+    local mods = { "lb", "lt" }
+    local ci, mi
+    for ci = 1, 3 do
+        local col = cols[ci]
+        self.modifierButtons[col] = {}
+        local suffix = col == -1 and "L" or (col == 1 and "R" or "M")
+        for mi = 1, 2 do
+            local modifier = mods[mi]
+            local name = "ConsoleUIModifier" .. string.upper(modifier) .. suffix
+            local button = CreateFrame("Frame", name, UIParent)
+            button:SetWidth(56)
+            button:SetHeight(56)
+            button:EnableMouse(false)
+            button.modifierKind = modifier
+            button.modifierColumn = col
+            button:Hide()
+            self:EnsureDiamond(button)
+            local glyph = button.diamondChrome:CreateTexture(name .. "ControllerIcon", "OVERLAY")
+            glyph:SetPoint("CENTER", button, "CENTER", 0, 0)
+            button.modifierGlyph = glyph
+            self.modifierButtons[col][modifier] = button
+        end
+    end
+end
+
+function ActionBars:PaintModifierButton(button, active)
+    if not button then
+        return
+    end
+    self:EnsureDiamond(button)
+    local layout = self:BarLayoutKind()
+    local dir = layout == "flat" and "Q" or "W"
+    local lay = self.Layout
+    button.diamondPlate:SetTexture(lay.KeyPath(dir, nil))
+    button.diamondRim:SetTexture(lay.KeyPath(dir, "in"))
+    button.diamondRing:SetTexture(lay.KeyPath(dir, 1))
+    if active then
+        PaintTex(button.diamondPlate, self.DIAMOND_ACTIVE[1], self.DIAMOND_ACTIVE[2], self.DIAMOND_ACTIVE[3], 1)
+        PaintTex(button.diamondRim, self.DIAMOND_ACTIVE[1], self.DIAMOND_ACTIVE[2], self.DIAMOND_ACTIVE[3], 1)
+    else
+        PaintTex(button.diamondPlate, self.DIAMOND_FILL[1], self.DIAMOND_FILL[2], self.DIAMOND_FILL[3], 1)
+        PaintTex(button.diamondRim, 0, 0, 0, 1)
+    end
+    button.diamondPlate:Show()
+    button.diamondRim:Show()
+    local gold = ConsoleUI.config and ConsoleUI.config.Get and ConsoleUI.config:Get("barGoldBorder")
+    if gold then
+        local r, g, b = 1.00, 0.82, 0.18
+        if ConsoleUI.config.GetHudBorderColor then
+            r, g, b = ConsoleUI.config:GetHudBorderColor()
+        end
+        PaintTex(button.diamondRing, r, g, b, 1)
+        button.diamondRing:Show()
+    else
+        button.diamondRing:Hide()
+    end
+    local size = button:GetWidth()
+    local glyphSize = lay.Metrics(size, lay.FLANK_GAP).icon
+    button.modifierGlyph:SetWidth(glyphSize)
+    button.modifierGlyph:SetHeight(glyphSize)
+    button.modifierGlyph:SetTexture(self:GetControllerIconPath(button.modifierKind))
+    button.modifierGlyph:Show()
+    self:RaiseDiamondChrome(button)
+end
+
+function ActionBars:PaintModifierStates()
+    if not self.modifierButtons then
+        return
+    end
+    local lb = IsControlKeyDown and IsControlKeyDown()
+    local lt = IsShiftKeyDown and IsShiftKeyDown()
+    local cols = { -1, 0, 1 }
+    local i
+    for i = 1, 3 do
+        local row = self.modifierButtons[cols[i]]
+        self:PaintModifierButton(row.lb, lb)
+        self:PaintModifierButton(row.lt, lt)
+    end
+end
+
+function ActionBars:SetModifierColumnAlpha(col, alpha)
+    local row = self.modifierButtons and self.modifierButtons[col]
+    if row then
+        row.lb:SetAlpha(alpha)
+        row.lt:SetAlpha(alpha)
+    end
+end
+
 function ActionBars:IdleFullClone(i)
     local left = self.fullLeft and self.fullLeft[i]
     local right = self.fullRight and self.fullRight[i]
@@ -922,6 +1013,9 @@ function ActionBars:ApplyFullAlpha()
             self.fullRight[i]:SetAlpha(rightA)
         end
     end
+    self:SetModifierColumnAlpha(-1, leftA)
+    self:SetModifierColumnAlpha(0, midA)
+    self:SetModifierColumnAlpha(1, rightA)
 end
 
 function ActionBars:CreateModifierFrame()
@@ -1036,6 +1130,7 @@ function ActionBars:CheckModifiers()
         -- Debug message (optional)
         -- DEFAULT_CHAT_FRAME:AddMessage("|cffffd12e[ConsoleUI]|r Switched to page " .. newPage)
     end
+    self:PaintModifierStates()
 end
 
 function ActionBars:GetPage1Offset()
@@ -1088,9 +1183,16 @@ function ActionBars:GetPage1Offset()
 end
 
 function ActionBars:GetActionOffset()
-    -- If using modifier keys (pages 2-4), use those offsets
-    if self.currentPage > 1 then
-        return self.PAGE_OFFSETS[self.currentPage] or self.PAGE_OFFSETS[1]
+    -- Live modifiers. currentPage lags the 50ms poll and used to drop
+    -- LT/LB clicks and slot 1-10 keys onto page 1.
+    local page = 1
+    if self.GetCurrentModifierPage then
+        page = self:GetCurrentModifierPage() or 1
+    elseif self.currentPage then
+        page = self.currentPage
+    end
+    if page > 1 then
+        return self.PAGE_OFFSETS[page] or self.PAGE_OFFSETS[1]
     end
     return self:GetPage1Offset()
 end
@@ -1098,6 +1200,13 @@ end
 -- ============================================================================
 -- Hide Default Action Bars
 -- ============================================================================
+
+local STAY_HIDDEN = {
+    PetActionBarFrame = true,
+    PossessBarFrame = true,
+    ShapeshiftBarFrame = true,
+    StanceBarFrame = true,
+}
 
 local DEFAULT_BAR_FRAMES = {
     "MainMenuBar",
@@ -1112,6 +1221,8 @@ local DEFAULT_BAR_FRAMES = {
     "MultiBarRight",
     "BonusActionBarFrame",
     "ShapeshiftBarFrame",
+    "StanceBarFrame",
+    "PossessBarFrame",
     "PetActionBarFrame",
     "CharacterMicroButton",
     "SpellbookMicroButton",
@@ -1123,21 +1234,142 @@ local DEFAULT_BAR_FRAMES = {
     "HelpMicroButton",
 }
 
+function ActionBars:StayHiddenParent()
+    if not self.stayHiddenParent then
+        local hider = CreateFrame("Frame", "ConsoleUIStayHidden", UIParent)
+        hider:Hide()
+        self.stayHiddenParent = hider
+    end
+    return self.stayHiddenParent
+end
+
+function ActionBars:MuteStockBarButtons(frame)
+    if not frame or not frame.GetName then
+        return
+    end
+    local name = frame:GetName()
+    local prefix
+    if name == "ShapeshiftBarFrame" then
+        prefix = "ShapeshiftButton"
+    elseif name == "StanceBarFrame" then
+        prefix = "StanceButton"
+    elseif name == "PossessBarFrame" then
+        prefix = "PossessButton"
+    elseif name == "PetActionBarFrame" then
+        prefix = "PetActionButton"
+    else
+        return
+    end
+    local i
+    for i = 1, 10 do
+        local button = getglobal(prefix .. i)
+        if button then
+            if button.UnregisterAllEvents then
+                button:UnregisterAllEvents()
+            end
+            button:Hide()
+        end
+    end
+end
+
+function ActionBars:MuteStockExtraUpdates()
+    if self._stockExtraMuted then
+        return
+    end
+    self._stockExtraMuted = true
+    self._stockShapeshiftUpdate = ShapeshiftBar_Update
+    self._stockStanceUpdate = StanceBar_Update
+    self._stockPetUpdate = PetActionBar_Update
+    if ShapeshiftBar_Update then
+        ShapeshiftBar_Update = function() end
+    end
+    if StanceBar_Update then
+        StanceBar_Update = function() end
+    end
+    if PetActionBar_Update then
+        PetActionBar_Update = function() end
+    end
+    if UIPARENT_MANAGED_FRAME_POSITIONS then
+        UIPARENT_MANAGED_FRAME_POSITIONS["ShapeshiftBarFrame"] = nil
+        UIPARENT_MANAGED_FRAME_POSITIONS["StanceBarFrame"] = nil
+        UIPARENT_MANAGED_FRAME_POSITIONS["PETACTIONBAR_YPOS"] = nil
+        UIPARENT_MANAGED_FRAME_POSITIONS["PossessBarFrame"] = nil
+    end
+end
+
+function ActionBars:RestoreStockExtraUpdates()
+    if not self._stockExtraMuted then
+        return
+    end
+    if self._stockShapeshiftUpdate then
+        ShapeshiftBar_Update = self._stockShapeshiftUpdate
+    end
+    if self._stockStanceUpdate then
+        StanceBar_Update = self._stockStanceUpdate
+    end
+    if self._stockPetUpdate then
+        PetActionBar_Update = self._stockPetUpdate
+    end
+    self._stockExtraMuted = nil
+    self._stockShapeshiftUpdate = nil
+    self._stockStanceUpdate = nil
+    self._stockPetUpdate = nil
+end
+
+function ActionBars:PinStayHidden(frame)
+    if not frame or frame._cuiStayHidden then
+        return
+    end
+    frame._cuiStayHidden = true
+    frame._cuiStayHiddenParent = frame:GetParent()
+    if frame.UnregisterAllEvents then
+        frame:UnregisterAllEvents()
+    end
+    frame:SetParent(self:StayHiddenParent())
+    frame:Hide()
+    self:MuteStockBarButtons(frame)
+end
+
+function ActionBars:UnpinStayHidden(frame)
+    if not frame or not frame._cuiStayHidden then
+        return
+    end
+    local parent = frame._cuiStayHiddenParent
+    if parent then
+        frame:SetParent(parent)
+    else
+        frame:SetParent(UIParent)
+    end
+    frame._cuiStayHidden = nil
+    frame._cuiStayHiddenParent = nil
+end
+
 function ActionBars:HideDefaultBars()
+    self:MuteStockExtraUpdates()
     local i
     for i = 1, table.getn(DEFAULT_BAR_FRAMES) do
-        local frame = getglobal(DEFAULT_BAR_FRAMES[i])
+        local name = DEFAULT_BAR_FRAMES[i]
+        local frame = getglobal(name)
         if frame then
-            frame:Hide()
+            if STAY_HIDDEN[name] then
+                self:PinStayHidden(frame)
+            else
+                frame:Hide()
+            end
         end
     end
 end
 
 function ActionBars:RestoreDefaultBars()
+    self:RestoreStockExtraUpdates()
     local i
     for i = 1, table.getn(DEFAULT_BAR_FRAMES) do
-        local frame = getglobal(DEFAULT_BAR_FRAMES[i])
+        local name = DEFAULT_BAR_FRAMES[i]
+        local frame = getglobal(name)
         if frame then
+            if STAY_HIDDEN[name] then
+                self:UnpinStayHidden(frame)
+            end
             frame:Show()
         end
     end
@@ -1172,7 +1404,13 @@ function ActionBars:GetActionID(button)
         id = tonumber(num) or 0
     end
     if self:BarLayoutKind() == "full" then
-        if self.currentPage == 4 then
+        local page = 1
+        if self.GetCurrentModifierPage then
+            page = self:GetCurrentModifierPage() or 1
+        else
+            page = self.currentPage or 1
+        end
+        if page == 4 then
             return (self.PAGE_OFFSETS[4] or 30) + id
         end
         return self:GetPage1Offset() + id
@@ -2022,8 +2260,15 @@ function ActionBars:ButtonOnClick(button, mouseButton)
                 DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[ConsoleUI]|r " .. actionName .. " can only be used via keyboard binding, not mouse click.")
                 return
             end
-            -- Non-protected proxied actions (like UI toggles) might work, but we'll let them try
-            -- If they fail, it's not a protected function issue
+        end
+        if self.extra and self.extra.RunProxiedPetBind and self.extra:RunProxiedPetBind(bindingID) then
+            self:UpdateButtonState(button)
+            return
+        end
+        if bindingID and string.find(bindingID, "^PET") and RunBinding then
+            RunBinding(bindingID)
+            self:UpdateButtonState(button)
+            return
         end
     end
     
@@ -2031,7 +2276,7 @@ function ActionBars:ButtonOnClick(button, mouseButton)
     local bonusBar = GetBonusBarOffset() or 0
     local currentPage = self.currentPage or 0
     local offset = self:GetActionOffset()
-    local actionID = offset + buttonID
+    local actionID = self:GetActionID(button)
 
     -- Debug output for stance issues
     ConsoleUI_Debug("Click: Btn=" .. buttonID .. " Page=" .. currentPage .. " Bonus=" .. bonusBar .. " Off=" .. offset .. " Slot=" .. actionID .. " Has=" .. tostring(HasAction(actionID)))
@@ -2188,6 +2433,7 @@ function ActionBars:UpdateAllButtons()
             self:UpdateButton(self.fullRight[i])
         end
     end
+    self:PaintModifierStates()
     self:ApplyFullAlpha()
 end
 
@@ -2623,9 +2869,9 @@ function ActionBars:SideBarButtonOnClick(button, mouseButton)
     if button.isProxiedAction then
         local bindingID = button.isProxiedAction.id
         ConsoleUI_Debug("SideBar: Executing proxied action: " .. bindingID)
-        
-        -- Execute the binding
-        -- RunBinding() triggers the WoW binding action
+        if self.extra and self.extra.RunProxiedPetBind and self.extra:RunProxiedPetBind(bindingID) then
+            return
+        end
         if RunBinding then
             RunBinding(bindingID)
         end

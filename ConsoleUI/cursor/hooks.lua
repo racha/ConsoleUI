@@ -115,69 +115,7 @@ function Hooks:Initialize()
     -- Hook Bagnon frames if Bagnon is loaded (these are created dynamically)
     self:HookBagnonFrames()
     
-    -- Also hook ToggleBackpack to catch when bags are opened (pfUI and Bagshui)
-    if not Hooks.backpackHooked then
-        Hooks.oldToggleBackpack = _G.ToggleBackpack
-        local oldToggleBackpack = Hooks.oldToggleBackpack
-        if oldToggleBackpack then
-            _G.ToggleBackpack = function()
-                oldToggleBackpack()
-                -- Small delay to let bag addons show their frames
-                local checkFrame = CreateFrame("Frame")
-                checkFrame:SetScript("OnUpdate", function()
-                    this.elapsed = (this.elapsed or 0) + arg1
-                    if this.elapsed > 0.1 then
-                        this:SetScript("OnUpdate", nil)
-                        -- Try to hook pfUI frames if not already hooked
-                        Hooks:HookPfUIFrames()
-                        -- Check if pfBag is visible and trigger OnFrameShow
-                        if pfUI and pfUI.bag and pfUI.bag.right then
-                            local frame = pfUI.bag.right
-                            if frame:IsVisible() then
-                                if frame.ceHooked then
-                                    local Cursor = ConsoleUI.cursor
-                                    if not Cursor.navigationState.activeFrames[frame] then
-                                        ConsoleUI_Debug("Hooks: Triggering OnFrameShow for pfBag after ToggleBackpack")
-                                        Hooks:OnFrameShow(frame)
-                                    end
-                                else
-                                    ConsoleUI_Debug("Hooks: pfBag not hooked yet, hooking now")
-                                    Hooks:HookFrame(frame, "pfUI Bag")
-                                    Hooks:OnFrameShow(frame)
-                                end
-                            end
-                        end
-                        
-                        -- Try to hook Bagshui frames if not already hooked
-                        Hooks:HookBagshuiFrames()
-                        -- Check if BagshuiBagsFrame is visible and trigger OnFrameShow
-                        local bagsFrame = getglobal("BagshuiBagsFrame")
-                        if bagsFrame and bagsFrame:IsVisible() then
-                            if bagsFrame.ceHooked then
-                                local Cursor = ConsoleUI.cursor
-                                if not Cursor.navigationState.activeFrames[bagsFrame] then
-                                    ConsoleUI_Debug("Hooks: Triggering OnFrameShow for BagshuiBagsFrame after ToggleBackpack")
-                                    Hooks:OnFrameShow(bagsFrame)
-                                end
-                            else
-                                ConsoleUI_Debug("Hooks: BagshuiBagsFrame not hooked yet, hooking now")
-                                Hooks:HookFrame(bagsFrame, "Bagshui Bags")
-                                Hooks:OnFrameShow(bagsFrame)
-                            end
-                        end
-                        
-                        -- Try to hook Bagnon frames if not already hooked
-                        Hooks:HookBagnonFrames()
-                        Hooks:TryHookNamedFrame("Bagnon", "Bagnon")
-                        Hooks:TryHookNamedFrame("BagnonFrame", "Bagnon")
-                        Hooks:TryHookNamedFrame("BagnonInventory", "Bagnon")
-                        Hooks:TryHookNamedFrame("BagnonFrame1", "Bagnon")
-                    end
-                end)
-            end
-            Hooks.backpackHooked = true
-        end
-    end
+    self:HookBagToggles()
     
     -- Hook dropdown menus (DropDownList1, DropDownList2, etc.)
     self:HookDropdownMenus()
@@ -780,11 +718,136 @@ function Hooks:ProcessFrameHide(frame)
     end
 end
 
+function Hooks:AlwaysOpenBags()
+    local Config = ConsoleUI.config
+    if Config and Config.Get then
+        return Config:Get("alwaysOpenAllBags") ~= false
+    end
+    return true
+end
+
+function Hooks:ToggleAllBags()
+    if self._bagBusy or not self:AlwaysOpenBags() or not OpenAllBags then
+        return false
+    end
+    OpenAllBags()
+    return true
+end
+
+function Hooks:AfterBagToggle()
+    local checkFrame = CreateFrame("Frame")
+    checkFrame:SetScript("OnUpdate", function()
+        this.elapsed = (this.elapsed or 0) + arg1
+        if this.elapsed > 0.1 then
+            this:SetScript("OnUpdate", nil)
+            Hooks:HookPfUIFrames()
+            if pfUI and pfUI.bag and pfUI.bag.right then
+                local frame = pfUI.bag.right
+                if frame:IsVisible() then
+                    if frame.ceHooked then
+                        local Cursor = ConsoleUI.cursor
+                        if Cursor and Cursor.navigationState and not Cursor.navigationState.activeFrames[frame] then
+                            ConsoleUI_Debug("Hooks: Triggering OnFrameShow for pfBag after bag toggle")
+                            Hooks:OnFrameShow(frame)
+                        end
+                    else
+                        ConsoleUI_Debug("Hooks: pfBag not hooked yet, hooking now")
+                        Hooks:HookFrame(frame, "pfUI Bag")
+                        Hooks:OnFrameShow(frame)
+                    end
+                end
+            end
+            Hooks:HookBagshuiFrames()
+            local bagsFrame = getglobal("BagshuiBagsFrame")
+            if bagsFrame and bagsFrame:IsVisible() then
+                if bagsFrame.ceHooked then
+                    local Cursor = ConsoleUI.cursor
+                    if Cursor and Cursor.navigationState and not Cursor.navigationState.activeFrames[bagsFrame] then
+                        ConsoleUI_Debug("Hooks: Triggering OnFrameShow for BagshuiBagsFrame after bag toggle")
+                        Hooks:OnFrameShow(bagsFrame)
+                    end
+                else
+                    ConsoleUI_Debug("Hooks: BagshuiBagsFrame not hooked yet, hooking now")
+                    Hooks:HookFrame(bagsFrame, "Bagshui Bags")
+                    Hooks:OnFrameShow(bagsFrame)
+                end
+            end
+            Hooks:HookBagnonFrames()
+            Hooks:TryHookNamedFrame("Bagnon", "Bagnon")
+            Hooks:TryHookNamedFrame("BagnonFrame", "Bagnon")
+            Hooks:TryHookNamedFrame("BagnonInventory", "Bagnon")
+            Hooks:TryHookNamedFrame("BagnonFrame1", "Bagnon")
+        end
+    end)
+end
+
+function Hooks:HookBagToggles()
+    if not self.allBagsHooked and _G.OpenAllBags then
+        self.oldOpenAllBags = _G.OpenAllBags
+        local oldOpen = self.oldOpenAllBags
+        _G.OpenAllBags = function(force)
+            if Hooks._bagBusy then
+                return oldOpen(force)
+            end
+            Hooks._bagBusy = true
+            oldOpen(force)
+            Hooks._bagBusy = nil
+        end
+        self.allBagsHooked = true
+    end
+    if not self.backpackHooked then
+        self.oldToggleBackpack = _G.ToggleBackpack
+        local oldToggleBackpack = self.oldToggleBackpack
+        if oldToggleBackpack then
+            _G.ToggleBackpack = function()
+                local opened = Hooks:ToggleAllBags()
+                if not opened then
+                    oldToggleBackpack()
+                end
+                if opened or not Hooks._bagBusy then
+                    Hooks:AfterBagToggle()
+                end
+            end
+            self.backpackHooked = true
+        end
+    end
+    if not self.bagToggleHooked then
+        self.oldToggleBag = _G.ToggleBag
+        local oldToggleBag = self.oldToggleBag
+        if oldToggleBag then
+            _G.ToggleBag = function(id)
+                if id and id >= 1 and id <= 4 then
+                    local opened = Hooks:ToggleAllBags()
+                    if opened then
+                        Hooks:AfterBagToggle()
+                        return
+                    end
+                end
+                oldToggleBag(id)
+                if not Hooks._bagBusy then
+                    Hooks:AfterBagToggle()
+                end
+            end
+            self.bagToggleHooked = true
+        end
+    end
+end
+
 function Hooks:UnhookToggleBackpack()
-    if Hooks.backpackHooked and Hooks.oldToggleBackpack then
-        _G.ToggleBackpack = Hooks.oldToggleBackpack
-        Hooks.oldToggleBackpack = nil
-        Hooks.backpackHooked = nil
+    if self.allBagsHooked and self.oldOpenAllBags then
+        _G.OpenAllBags = self.oldOpenAllBags
+        self.oldOpenAllBags = nil
+        self.allBagsHooked = nil
+    end
+    if self.backpackHooked and self.oldToggleBackpack then
+        _G.ToggleBackpack = self.oldToggleBackpack
+        self.oldToggleBackpack = nil
+        self.backpackHooked = nil
+    end
+    if self.bagToggleHooked and self.oldToggleBag then
+        _G.ToggleBag = self.oldToggleBag
+        self.oldToggleBag = nil
+        self.bagToggleHooked = nil
     end
 end
 

@@ -92,4 +92,26 @@
     
     <!-- Interact Binding -->
     <Binding name="ConsoleUI_INTERACT" header="CONSOLEUIINTERACT">ConsoleUI_InteractNearest()</Binding>
+    <Binding name="ConsoleUI_UNIT_MENU">ConsoleUI_UnitMenu()</Binding>
+
+    <Binding name="ConsoleUI_STANCE_1" header="CONSOLEUISTANCE">ConsoleUI_StanceButton(1)</Binding>
+    <Binding name="ConsoleUI_STANCE_2">ConsoleUI_StanceButton(2)</Binding>
+    <Binding name="ConsoleUI_STANCE_3">ConsoleUI_StanceButton(3)</Binding>
+    <Binding name="ConsoleUI_STANCE_4">ConsoleUI_StanceButton(4)</Binding>
+    <Binding name="ConsoleUI_STANCE_5">ConsoleUI_StanceButton(5)</Binding>
+    <Binding name="ConsoleUI_STANCE_6">ConsoleUI_StanceButton(6)</Binding>
+    <Binding name="ConsoleUI_STANCE_7">ConsoleUI_StanceButton(7)</Binding>
+    <Binding name="ConsoleUI_STANCE_8">ConsoleUI_StanceButton(8)</Binding>
+
+    <Binding name="ConsoleUI_PET_1" header="CONSOLEUIPET">ConsoleUI_PetButton(1)</Binding>
+    <Binding name="ConsoleUI_PET_2">ConsoleUI_PetButton(2)</Binding>
+    <Binding name="ConsoleUI_PET_3">ConsoleUI_PetButton(3)</Binding>
+    <Binding name="ConsoleUI_PET_4">ConsoleUI_PetButton(4)</Binding>
+    <Binding name="ConsoleUI_PET_5">ConsoleUI_PetButton(5)</Binding>
+    <Binding name="ConsoleUI_PET_6">ConsoleUI_PetButton(6)</Binding>
+    <Binding name="ConsoleUI_PET_7">ConsoleUI_PetButton(7)</Binding>
+    <Binding name="ConsoleUI_PET_8">ConsoleUI_PetButton(8)</Binding>
+    <Binding name="ConsoleUI_PET_9">ConsoleUI_PetButton(9)</Binding>
+    <Binding name="ConsoleUI_PET_10">ConsoleUI_PetButton(10)</Binding>
+    <Binding name="ConsoleUI_PET_FOLLOW">ConsoleUI_PetFollow()</Binding>
 </Bindings>

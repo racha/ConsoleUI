@@ -59,6 +59,12 @@ Proxied.ACTIONS = {
         icon = "Interface\\Icons\\Ability_Eyeoftheowl",
         descKey = "Interact with nearest target"
     },
+    {
+        id = "ConsoleUI_UNIT_MENU",
+        nameKey = "Unit Menu",
+        icon = "Interface\\Icons\\Ability_Warrior_BattleShout",
+        descKey = "Open the unit menu"
+    },
     { 
         id = "TARGETSELF", 
         nameKey = "Target Self", 
@@ -165,16 +171,49 @@ Proxied.ACTIONS = {
         descKey = "Start auto-attack"
     },
     { 
-        id = "PETATTACK", 
-        nameKey = "Pet Attack", 
-        icon = "Interface\\Icons\\Ability_Hunter_Pet_Wolf",
-        descKey = "Command pet to attack"
-    },
-    { 
         id = "STOPATTACK", 
         nameKey = "Stop Attack", 
         icon = "Interface\\Icons\\Spell_Frost_Stun",
         descKey = "Stop attacking"
+    },
+
+    -- Pet commands. Spells stay on Spell Placement.
+    { headerKey = "Pet Abilities" },
+    {
+        id = "PETATTACK",
+        nameKey = "Pet Attack",
+        icon = "Interface\\Icons\\Ability_GhoulFrenzy",
+        descKey = "Command pet to attack"
+    },
+    {
+        id = "PETFOLLOW",
+        nameKey = "Pet Follow",
+        icon = "Interface\\Icons\\Ability_Tracking",
+        descKey = "Command pet to follow"
+    },
+    {
+        id = "PETWAIT",
+        nameKey = "Pet Stay",
+        icon = "Interface\\Icons\\Spell_Nature_TimeStop",
+        descKey = "Command pet to stay"
+    },
+    {
+        id = "PETPASSIVE",
+        nameKey = "Pet Passive",
+        icon = "Interface\\Icons\\Ability_Seal",
+        descKey = "Set pet to passive"
+    },
+    {
+        id = "PETDEFENSIVE",
+        nameKey = "Pet Defensive",
+        icon = "Interface\\Icons\\Ability_Defend",
+        descKey = "Set pet to defensive"
+    },
+    {
+        id = "PETAGGRESSIVE",
+        nameKey = "Pet Aggressive",
+        icon = "Interface\\Icons\\Ability_Racial_BloodRage",
+        descKey = "Set pet to aggressive"
     },
 }
 
@@ -630,6 +669,9 @@ function Proxied:ApplySlotBinding(slot)
     
     -- Target action to bind
     local targetAction = bindingID or ("ConsoleUI_ACTION_" .. slot)
+    if ConsoleUI_LivePetFollowBind then
+        targetAction = ConsoleUI_LivePetFollowBind(targetAction)
+    end
     
     -- Debug output
     local currentBinding = GetBindingAction(key)
@@ -888,14 +930,18 @@ function Proxied:FillSlotDropdown(dropdown, slot)
     end
     local actionRows = table.getn(self.ACTIONS)
     local skip = {}
-    -- ponytail: Combat is 4 rows, Camera is 3. Recount if those sections change.
+    -- ponytail: Combat 3, Camera 3, Pet 7. Recount if those sections change.
     if used + ringRows + actionRows > 32 then
         skip["Combat"] = true
-        actionRows = actionRows - 4
+        actionRows = actionRows - 3
     end
     if used + ringRows + actionRows > 32 then
         skip["Camera"] = true
         actionRows = actionRows - 3
+    end
+    if used + ringRows + actionRows > 32 then
+        skip["Pet Abilities"] = true
+        actionRows = actionRows - 7
     end
 
     if rings then
