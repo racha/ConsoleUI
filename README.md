@@ -1,342 +1,133 @@
-# ConsoleUI
+<p align="center">
+  <img src="docs/assets/images/brand/consoleui-wordmark-light.png" width="560" alt="ConsoleUI.">
+</p>
 
-**Play Vanilla WoW with a controller.** Built for phones, Steam Deck, Steam Link, and the couch.
+<p align="center"><strong>Play Vanilla with a controller.</strong></p>
 
-ConsoleUI is a controller interface for the **original 1.12 Vanilla client**. It puts your spells on the face buttons, opens bags and menus from a stick wheel, and lets you type in chat without a keyboard.
+<p align="center">
+  Original Vanilla · 1.12
+</p>
 
-This release is **v1.0.0-RC6** — ready to try, still a release candidate.
+<p align="center">
+  <a href="https://github.com/racha/ConsoleUI/releases/latest">Download latest</a> ·
+  <a href="https://racha.github.io/ConsoleUI/">Guide</a> ·
+  <a href="https://github.com/racha/ConsoleUI/issues">Issues</a>
+</p>
 
----
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-e8be46" alt="Version 1.0.0">
+  <img src="https://img.shields.io/badge/Vanilla-1.12-e8be46" alt="Vanilla 1.12">
+</p>
 
-## Who this is for
+Action bars, Mouse Look, Quick Menu, Rings, a virtual cursor, touch bars, and a radial keyboard. Built for the original 1.12 client.
 
-You are playing Vanilla on a **private server** and you do not want to sit at a keyboard.
+OctoWoW, TurtleWoW, RavenCraft, Capybara Paradise. Not Retail, not modern Classic.
 
-- **OctoWoW**
-- **TurtleWoW**
-- **RavenCraft**
-- **Capybara Paradise**
-- other 1.12 / Interface `11200` clients
+<p align="center">
+  <img src="docs/assets/images/gameplay/consoleui-gameplay-overview.png" width="900" alt="ConsoleUI Controller action bars, player and target frames, and XP bar during outdoor Vanilla gameplay.">
+</p>
 
-If the server asks for a **1.12 Vanilla** client, this addon is for that. It will not work on Retail, Classic Era (modern), Wrath, or Cata.
+## Start here
 
----
-
-## What you get
-
-Two folders. One download.
-
-| Addon | What it does |
-| --- | --- |
-| **ConsoleUI** | Action bars, stance, pet, Quick Menu, Rings, loot, hint bar, cursor, settings |
-| **ConsoleUI Keyboard** | On-screen chat keyboard. Turns on when a text box opens |
-
----
-
-## Highly recommended: Interact
-
-ConsoleUI gives you the pad. **[Interact](https://github.com/vargv666/Interact)** gives you the world.
-
-Vanilla has no “press one button to loot” key. On a phone, Steam Deck, or the couch, that means fishing for herbs, veins, corpses, and NPCs with the right stick. Interact is a small 1.12 client mod that adds the same **Interact** key modern WoW has.
-
-**We strongly recommend installing it with ConsoleUI.** Press one spare button to:
-
-- loot a corpse (press again to take all)
-- pick a herb or mine a vein
-- skin
-- talk to an NPC next to you
-
-It is **not** inside the ConsoleUI zip. Get it from the author:
-
-**https://github.com/vargv666/Interact**
-
-Follow their install notes (it is a client mod, not only an AddOns folder). Then bind **Interact** in the game’s keybindings to a free pad button.
-
----
-
-## Screenshots
-
-### Settings
-
-Open with `/cui`. Interface, Mouse, Bars, Bindings, Rings, Blizz Frames, Profiles, About, Debug.
-
-![Settings](screenshots/settings.png)
-
-![Bindings](screenshots/bindings.png)
-
-### Quick Menu
-
-Hold the menu bind, tilt the stick, press **A** to open that panel.
-
-![Quick Menu](screenshots/quick-menu.png)
-
-### Rings
-
-Your own 8-slice wheels — hearthstone, potions, food, a mount. Hold the bind, aim, release.
-
-![Rings](screenshots/user-ring.png)
-
-![Ring editor](screenshots/rings-settings.png)
-
-### Action bars and touch bars
-
-Face buttons and D-pad on screen. Extra buttons on the left and right for a phone or Steam Deck.
-
-![Action bars](screenshots/action-bars.png)
-
-### Chat keyboard
-
-Point at a cluster, press a face button, type. **A** sends, **B** closes, **X** erases, **Y** is space.
-
-![Keyboard](screenshots/keyboard.png)
-
----
+1. [Install both folders](https://racha.github.io/ConsoleUI/getting-started/install/)
+2. [Pick a camera](https://racha.github.io/ConsoleUI/getting-started/controller-setup/)
+3. [First launch](https://racha.github.io/ConsoleUI/getting-started/first-launch/)
 
 ## Install
 
-1. Download **ConsoleUI-1.0.0-RC6.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
-2. Quit the game.
-3. Open the zip. You will see two folders: `ConsoleUI` and `ConsoleUIKeyboard`.
-4. Replace **both** in:
+1. [Download latest](https://github.com/racha/ConsoleUI/releases/latest) from GitHub Releases.
+2. Quit WoW completely.
+3. Copy both `ConsoleUI` and `ConsoleUIKeyboard` into `Interface/AddOns/`.
+4. Enable both addons at character selection.
+5. Log in and type `/cui`.
 
-   `World of Warcraft/Interface/AddOns/`
+The final paths must be `Interface/AddOns/ConsoleUI/` and `Interface/AddOns/ConsoleUIKeyboard/`. Do not put the ZIP’s outer folder inside `AddOns`.
 
-5. Start the client. At character select, enable **ConsoleUI** and **ConsoleUI Keyboard**.
-6. Log in. Type `/cui` to open settings.
+The file you add to Steam is the one you actually start: `WoW.exe`, `Wow.exe`, or `VanillaTweaks.exe`. Full steps are on [Install](https://racha.github.io/ConsoleUI/getting-started/install/).
 
-Turn **off** any other controller bar addon while you use this. Two addons fighting over the same bars will make a mess.
+## Two cameras. Same addon.
 
-**Also install [Interact](https://github.com/vargv666/Interact).** Loot, herbs, veins, and NPCs become one button. We recommend it for every controller or phone setup.
+Both styles use the same addons. Pick the mapper layout that matches how you want to look around.
 
-If you used an older name (`ConsolePortClassic`), delete that folder first. This one is **ConsoleUI**.
+<table>
+  <tr>
+    <td width="50%" align="center"><strong>Standard</strong></td>
+    <td width="50%" align="center"><strong>MouseLOCK</strong></td>
+  </tr>
+  <tr>
+    <td><a href="https://racha.github.io/ConsoleUI/controller/steam-standard/"><img src="docs/assets/images/controller-setup/steam-community-layout-standard.png" alt="HouseLegend Standard ConsoleUI controller layout. Right-stick move parks the cursor top-left and holds right-click."></a></td>
+    <td><a href="https://racha.github.io/ConsoleUI/controller/steam-mouselock/"><img src="docs/assets/images/controller-setup/steam-community-layout-mouselock.png" alt="HouseLegend MouseLOCK ConsoleUI controller layout. WASD also sends F9. R3 unlocks."></a></td>
+  </tr>
+  <tr>
+    <td>Right-stick move parks the cursor top-left and holds right-click. Mouse Look stays off. Center the stick to use the cursor.</td>
+    <td>WASD also starts Mouse Look. R3 unlocks. Unlock before using touch.</td>
+  </tr>
+</table>
 
----
+Vanilla has no gamepad API. Steam Input or another mapper turns the pad into keys. F9 is only the MouseLOCK WASD companion. Do not add mapper commands for jump, casts, or UI actions.
 
-## First-time setup (Steam Link)
+Use the [Steam Standard](https://racha.github.io/ConsoleUI/controller/steam-standard/) or [Steam MouseLOCK](https://racha.github.io/ConsoleUI/controller/steam-mouselock/) guide. Other tools: [Other mappers](https://racha.github.io/ConsoleUI/controller/other-mappers/).
 
-Vanilla has no real gamepad support. Steam turns the pad into keyboard keys. ConsoleUI then reads those keys. Use the **ConsoleUI** community layout (HouseLegend).
+## In the guide
 
-Do this on the **PC that runs the game**. The phone or TV only runs **Steam Link**.
+- **[Action bars](https://racha.github.io/ConsoleUI/features/action-bars/)** — Controller, Flat, and Full. Modifier pages, stance, pet.
+- **[Mouse Look](https://racha.github.io/ConsoleUI/features/mouse-look/)** — Lock the camera. Unlock with right-click.
+- **[Quick Menu](https://racha.github.io/ConsoleUI/features/quick-menu/)** — Bags, map, spellbook, quests, social, chat, settings.
+- **[Rings](https://racha.github.io/ConsoleUI/features/rings/)** — Your eight-slice spell and item wheels.
+- **[Cursor and touch](https://racha.github.io/ConsoleUI/features/touch-cursor/)** — Stick through Blizzard panels. Optional phone and Deck bars.
+- **[Keyboard](https://racha.github.io/ConsoleUI/features/keyboard/)** — Radial chat. Y space, X erase, A send, B close.
 
-### 1. Add the game to Steam
+Also: [Bindings](https://racha.github.io/ConsoleUI/features/bindings/), [HUD and Frames](https://racha.github.io/ConsoleUI/features/hud-frames/), [Profiles](https://racha.github.io/ConsoleUI/features/profiles/), [Settings](https://racha.github.io/ConsoleUI/reference/settings/), [Commands](https://racha.github.io/ConsoleUI/reference/commands/).
 
-The community layout is attached to **TurtleWoW**, **OctoWoW**, **RavenCraft**, and **Cappy**. Name the library entry any of those four. `WoW` or `Wow.exe` will not find it.
+## Mapping
 
-1. Open **Steam** on the PC.
-2. **Games** → **Add a Non-Steam Game to My Library**.
-3. **Browse** to your Vanilla `.exe` and add it.
-4. In the library, right-click that game → **Properties**.
-5. If the name is not already one of **TurtleWoW**, **OctoWoW**, **RavenCraft**, or **Cappy**, set it to whichever server you play.
-6. Under **Controller**, turn **Enable Steam Input** on.
+The shared table lives in [Mapping reference](https://racha.github.io/ConsoleUI/controller/mapping-reference/).
 
-### 2. Choose and apply a ConsoleUI layout
-
-1. Still in Properties, open **Controller Layout** (or start the game once, then use the Steam overlay → Controller).
-2. Open **Community** layouts.
-3. Search for **`ConsoleUI`** by **HouseLegend**.
-4. Apply either the standard layout or the MouseLOCK layout described below.
-
-Both layouts work with the same addon and can be switched whenever needed. Match the selected Steam layout with `/cui` → **Mouse**:
-
-| Steam community layout | Mouse Look System | Camera behavior | Use it when |
-| --- | --- | --- | --- |
-| **ConsoleUI - WoW 1.12 - OctoWoW - TurtleWoW - RavenCraft - Cappy** | **Off** | Traditional Steam camera look. The right stick supplies mouse movement with held right mouse instead of leaving the cursor locked. | You want immediate mouse/touch access and do not want persistent Mouse Look. |
-| **ConsoleUI - MouseLOCK - OctoWoW - TurtleWoW - RavenCraft - Cappy** | **On** | The right stick stays mouse movement. WASD also sends F9 to **Mouse Look Start (Mapper)**, so movement locks the camera without holding right mouse. R3/right-click unlocks it. | You want controller-style camera movement and are comfortable unlocking before using touch. |
-
-The MouseLOCK layout sends F9 only as an additional WASD command. Normal movement remains bound directly to WoW. ConsoleUI action and spell bindings can lock Mouse Look through their own hardware path; no extra Steam commands are required for them.
-
-### 3. Fix the right stick for your screen
-
-The right stick is the mouse. TVs, phones, and Steam Link all need a different speed.
-
-1. Edit the layout → **Right Joystick**.
-2. Raise or lower **sensitivity** until the cursor is usable on *your* screen.
-3. Leave it as mouse movement, not a D-pad. The standard layout handles traditional held-RMB look; MouseLOCK leaves locking to ConsoleUI.
-
-### 4. Launch from Steam, then Steam Link
-
-1. On the phone / TV, open **Steam Link** and sign into the same Steam account.
-2. Connect to the PC.
-3. Start that game from the Steam library — not a desktop shortcut.
-
-If you start the game outside Steam, the pad will do nothing. Not using Steam? [WoWpadX](https://github.com/leoaviana/WoWpadX) can send the pad instead.
-
-### Shared layout controls
-
-This is what that community config sends. Copy it if you use Steam Deck, reWASD, or Octo instead.
-
-Steam owns the **base keys**. The addon only writes the **modifier chords**, so your keyboard `1–0`, map, and Escape stay yours.
-
-| Pad | Key | What it does |
+| Controller | Output | Role |
 | --- | --- | --- |
-| A X Y B | `1` `2` `3` `4` | Face buttons |
-| D-pad Down / Left / Up / Right | `5` `6` `7` `8` | Left cluster |
-| RB | `9` | Right bumper |
-| RT | `0` | Right trigger (tenth diamond) |
-| **LT** | **Shift** | Page 2 (hold) |
-| **LB** | **Ctrl** | Page 3 (hold) |
-| Back | `M` | Map (WoW bind, not ours) |
-| Start | `Escape` | Game menu (WoW bind, not ours) |
-| Left stick | WASD | Walk / strafe (see below) |
-| Right stick | Mouse | Standard: traditional held-RMB look. MouseLOCK: move cursor/camera while addon lock is active. |
-| Touchscreen | Left mouse | Blizzard left click. Does not unlock look. |
-| **L3** (click left stick) | unbound, or **Mouse Look** | Do not hold left mouse for camera if Mouse Lock is on |
-| **R3** (click right stick) | **Right mouse** | Unlock look. Do not hold for look if Mouse Lock is on. |
+| A / X / Y / B | `1` / `2` / `3` / `4` | Face action slots |
+| D-pad Down / Left / Up / Right | `5` / `6` / `7` / `8` | D-pad action slots |
+| RB / RT | `9` / `0` | Extra action slots |
+| LT / LB | Shift / Ctrl | Modifier pages |
+| Left stick | W/A/S/D | Movement |
+| Right stick | Mouse | Camera or cursor |
+| Start / Back | Escape / M | Game menu / map |
 
-`/cui` → **Mouse** controls the entire Mouse Look system. It includes separate lock triggers, optional unlock rules for menus and interface windows, X/Y inversion, and mouse speed. **Right mouse button is the only automatic unlock enabled by default.** Key Bindings → **ConsoleUI Mouse** → **Mouse Look**, or `/cui look`, manually toggles it.
+Hold LT, LB, or both for the four action pages. A/D may stay Turn or be rebound to Strafe; Quick Menu and Rings support both. Strafe usually feels better on a pad.
 
-Touch bars and touchscreen buttons cannot work while Mouse Look is locked. Unlock with right-click/R3 first, then tap. If you prefer touch-first play, switch to the standard Steam layout and turn the Mouse Look System off.
+## Repository
 
-**Rebind A and D to strafe.** Vanilla defaults are Turn Left / Turn Right. On a pad that feels wrong: the right stick already turns the camera. In WoW keybinds, set **A = Strafe Left** and **D = Strafe Right**. Leave W / S as forward / back. The left stick then moves like a normal controller.
-
-Four pages of ten buttons:
-
-- nothing held — base page (your existing `1–0` binds)
-- hold **LT** — page 2 (`SHIFT-1`…`SHIFT-0`)
-- hold **LB** — page 3 (`CTRL-1`…`CTRL-0`)
-- hold **LT + LB** — page 4 (`CTRL-SHIFT-1`…`CTRL-SHIFT-0`)
-
-Put spells on the bars like a normal action bar, or use `/cui` → **Bindings** → **Spell Placement**.
-
-Open `/cui` → **Interface** and pick **Xbox** or **PlayStation** so the on-screen icons match your pad.
-
----
-
-## How to play
-
-### Action bars
-
-Ten face / D-pad slots. Hold **LT** or **LB** to change page.
-
-`/cui` → **Bars** → **Layout**:
-
-- **Controller Style** — diamond clusters like the pad
-- **Flat** — one row of squares, active page only
-- **Full** — three controller diamond sets at once (LB | default or LB+LT | LT). The live page is solid; the others fade
-
-`/cui` → **Bars** if you want them bigger, gold-edged, or moved. `/cui` → **Blizz Frames** to scale the minimap, buffs, debuffs, player, target, party, and pets.
-
-### Quick Menu (the Radial Menu)
-
-This is the big gold wheel in the middle of the screen.
-
-1. Bind **Toggle Radial Menu** in `/cui` → **Bindings** (many people put it on a spare button).
-2. Hold it. Tilt the **left stick** (or WASD) toward a slice.
-3. **A** opens that window (Character, bags, spellbook, quests, map, social, chat, settings).
-4. Center buttons while it is open:
-   - **Y** — game menu
-   - **X** — reload the UI
-   - **A** — confirm the highlighted slice
-   - **B** — close
-
-Walk keys come back when you close it.
-
-### Rings (your own wheels)
-
-Rings are extra wheels you fill yourself. Eight slices each. Spells or bag items.
-
-**Make one**
-
-1. `/cui` → **Rings** → **New Ring**.
-2. Pick the ring on the left.
-3. Pick up a spell or an item (from the spellbook or a bag).
-4. Drop it on an empty slice.
-
-**Use one**
-
-1. `/cui` → **Bindings**.
-2. Select a button (for example LT + D-pad Up).
-3. On the right, pick your ring.
-4. In the world: **hold** that button, tilt toward a slice, **let go** to use it.
-
-Do not put a ring on **B**. B is also “cancel”, so that fight never ends well. Use an **LT** or **RT** page, or the D-pad.
-
-### Touch bars (phone and Steam Deck)
-
-Two optional strips on the left and right edge of the screen. Tap them with a thumb.
-
-`/cui` → **Bars** → turn **Left touch bar** / **Right touch bar** on. Set how many buttons (1–5) and how far from the edge.
-
-Then `/cui` → **Bindings** → **Touch bars** and give each slot a spell, a jump, a ring, or whatever you want.
-
-### Cursor
-
-When a bag, vendor, or other window is open, the stick can move a cursor around the slots. **A** clicks, **B** closes. Turn pieces of this on or off under Bindings if it gets in the way.
-
-For corpses, herbs, veins, and talking to NPCs in the world, use **[Interact](https://github.com/vargv666/Interact)** — one key, no mouse aim. Highly recommended. See the section above.
-
-### Chat keyboard
-
-Install **ConsoleUI Keyboard** next to ConsoleUI.
-
-Open chat (Quick Menu → Chat, or your chat bind). The gold wheel appears.
-
-- Tilt toward a cluster of four letters.
-- Press **Y / X / A / B** for the letter in that diamond.
-- **Y** in the center = space
-- **X** = erase
-- **A** = send
-- **B** = close
-
-`/cuik off` turns the keyboard off. `/cuik on` turns it back on.
-
----
-
-## If something breaks
-
-Do this before you write a report. It saves everyone a lot of guesswork.
-
-1. Type `/cui`
-2. Click **Debug**
-3. Turn **Debug: ON** at the bottom
-4. Do the thing that broke (open the menu, try to walk, open chat…)
-5. Go back to **Debug**
-6. Press **Select All**, copy (**Ctrl+C** or your paste bind)
-7. Paste that into the GitHub issue
-
-Also send:
-
-- the **first red error** on screen, if there is one
-- a **screenshot**
-- which client you are on (OctoWoW, Turtle, RavenCraft, Capybara…)
-
-Useful extras:
-
-- `/cui debug` — prints the same report in chat
-- After you replace addon files: quit the game, then start it again
-
-If you **cannot walk** after closing a menu or the keyboard, `/reload` once. If it happens again, send the Debug copy.
-
----
-
-## Commands
-
-| Command | What it does |
+| Path | Role |
 | --- | --- |
-| `/cui` | Open settings |
-| `/cui debug` | Print a diagnostic report |
-| `/cui debug on` / `off` | Extra debug messages |
-| `/cui look` | Toggle Mouse Look |
-| `/cui modern` / `classic` | Action-bar look |
-| `/cui gold` / `gold off` | Gold border on the bars |
-| `/cuik` | Keyboard status |
-| `/cuik on` / `off` | Enable or disable the chat keyboard |
+| [`ConsoleUI/`](ConsoleUI/) | Action bars, stance/pet, Mouse Look, Quick Menu, Rings, cursor, touch bars, HUD, loot, bindings, settings, frames, and profiles. |
+| [`ConsoleUIKeyboard/`](ConsoleUIKeyboard/) | Optional radial keyboard for chat and text fields. Requires `ConsoleUI`. |
+| [`docs/`](docs/) | Guide source. |
+| [`web/`](web/) | GitHub Pages site. |
+| [Releases](https://github.com/racha/ConsoleUI/releases/latest) | Download latest ZIP. |
+| [Issues](https://github.com/racha/ConsoleUI/issues) | Bugs and questions. |
 
----
+## Interact
+
+[Interact](https://github.com/vargv666/Interact) is a separate client mod for loot, herbs, veins, and NPCs. It is not in the ZIP.
+
+## Support
+
+Version notes: [Changelog](https://racha.github.io/ConsoleUI/reference/changelog/). If something fails, start with [Troubleshooting](https://racha.github.io/ConsoleUI/reference/troubleshooting/) or [FAQ](https://racha.github.io/ConsoleUI/reference/faq/). Include the client, mapper/layout, exact steps, first error, a screenshot, and `/cui test` output. Remove private names, paths, and chat before posting logs.
+
+Supported clients: [Compatibility](https://racha.github.io/ConsoleUI/reference/compatibility/).
+
+## For developers
+
+Extend it from the [developer overview](https://racha.github.io/ConsoleUI/development/overview/), [public API](https://racha.github.io/ConsoleUI/development/api/), and [cursor integrations](https://racha.github.io/ConsoleUI/development/cursor-integrations/). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Credits
 
-ConsoleUI stands on work a lot of people already did.
+Made by **HouseLegend**. Same names as `/cui` → About on [Credits](https://racha.github.io/ConsoleUI/reference/credits/).
 
-- [ConsoleExperience Classic](https://github.com/pepordev/ConsoleExperienceClassic) — Pedro / pepordev
+World of Warcraft is a trademark of Blizzard Entertainment. This project is for educational purposes only. It is not affiliated with Blizzard or any private server.
+
+- [World of Warcraft](https://www.blizzard.com) — Blizzard Entertainment
+- [ConsoleExperience Classic](https://github.com/pepordev/ConsoleExperienceClassic) — Pedro · pepordev
 - [ConsolePortLK](https://github.com/leoaviana/ConsolePortLK) — leoaviana
-- [ConsolePort](https://github.com/seblindfors/ConsolePort) — Sebastian Lindfors / MunkDev
-- [Interact](https://github.com/vargv666/Interact) — vargv666 (strongly recommended companion)
-
-Made by **HouseLegend**.
-
----
-
-## License
-
-Use it, share it, fix it. If you publish a change, keep the credits above.
+- [ConsolePort](https://github.com/seblindfors/ConsolePort) — Sebastian Lindfors · MunkDev
+- [Cursor](https://cursor.com) — development assistance

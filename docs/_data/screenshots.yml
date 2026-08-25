@@ -1,0 +1,53 @@
+- id: gameplay-overview
+  file: /assets/images/gameplay/consoleui-gameplay-overview.png
+  source_file: consoleui-gameplay-overview.jpg
+  feature: Action bars and HUD
+  addon_version: 1.0.0
+  captured: 2026-08-25
+  client: OctoWoW
+  resolution: 1024x472
+  ui_scale: not recorded
+  controller_icons: Xbox
+  crop_class: wide
+  annotated: false
+  alt: "Owner-provided screenshot of ConsoleUI action bars and HUD during Vanilla WoW gameplay."
+  used_in:
+    - README.md
+    - docs/index.md
+  status: approved
+- id: controller-layout-standard
+  file: /assets/images/controller-setup/steam-community-layout-standard.png
+  source_file: CUI-002-original.png
+  feature: Standard mapper layout reference
+  addon_version: not visible
+  captured: 2026-08-25
+  client: mapper reference
+  resolution: 2896x1418-original; 1440x810-final
+  ui_scale: not applicable
+  controller_icons: Xbox
+  crop_class: wide-16x9
+  annotated: false
+  alt: "HouseLegend Standard ConsoleUI controller layout. Right-stick move parks the cursor top-left and holds right-click."
+  used_in:
+    - README.md
+    - docs/index.md
+    - docs/controller/steam-standard.md
+  status: approved
+- id: controller-layout-mouselock
+  file: /assets/images/controller-setup/steam-community-layout-mouselock.png
+  source_file: CUI-003-original.png
+  feature: MouseLOCK mapper layout reference
+  addon_version: not visible
+  captured: 2026-08-25
+  client: mapper reference
+  resolution: 2806x1422-original; 1440x810-final
+  ui_scale: not applicable
+  controller_icons: Xbox
+  crop_class: wide-16x9
+  annotated: false
+  alt: "HouseLegend MouseLOCK ConsoleUI controller layout. WASD also sends F9. R3 unlocks."
+  used_in:
+    - README.md
+    - docs/index.md
+    - docs/controller/steam-mouselock.md
+  status: approved

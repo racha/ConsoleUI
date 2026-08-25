@@ -1,0 +1,23 @@
+title: ConsoleUI
+description: A controller interface for the original World of Warcraft Vanilla 1.12 client.
+url: https://racha.github.io
+baseurl: /ConsoleUI
+theme: null
+markdown: kramdown
+permalink: pretty
+kramdown:
+  input: GFM
+  hard_wrap: false
+exclude:
+  - README.md
+  - preview.html
+  - Gemfile
+  - Gemfile.lock
+  - tools
+  - _preview
+  - vendor
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: page

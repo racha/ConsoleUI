@@ -2,3 +2,7 @@
 *.plan.html
 AGENTS.md
 TESTING.md
+web/node_modules
+web/dist
+web/public/assets
+docs/_preview

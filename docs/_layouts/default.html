@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if page.url == '/' %}ConsoleUI - By HouseLegend{% elsif page.title %}ConsoleUI - {{ page.title }}{% else %}ConsoleUI - By HouseLegend{% endif %}</title>
+  <meta name="description" content="{{ page.description | default: site.description }}">
+  <link rel="icon" type="image/svg+xml" href="{{ '/assets/icons/favicon.svg' | relative_url }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ '/assets/icons/favicon.png' | relative_url }}">
+  <link rel="apple-touch-icon" href="{{ '/assets/icons/apple-touch-icon.png' | relative_url }}">
+  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
+  <meta property="og:title" content="{% if page.title %}{{ page.title }}{% else %}{{ site.title }}{% endif %}">
+  <meta property="og:description" content="{{ page.description | default: site.description }}">
+  <meta property="og:image" content="{{ '/assets/images/gameplay/consoleui-gameplay-overview.png' | absolute_url }}">
+</head>
+<body>
+  {% include header.html %}
+  <div class="site-shell">
+    {% include navigation.html %}
+    <main class="content" id="content">
+      {{ content }}
+    </main>
+  </div>
+  {% include footer.html %}
+  <script src="{{ '/assets/js/site.js' | relative_url }}"></script>
+</body>
+</html>

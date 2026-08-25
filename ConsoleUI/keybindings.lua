@@ -604,7 +604,7 @@ function ConsoleUIKeybindings:RecoverOrphanPetFollow()
 end
 
 -- MouseLOCK's WASD mapper emits F9 alongside normal movement. Reserve that
--- key after Blizzard has loaded the active binding set so every RC6 install
+-- key after Blizzard has loaded the active binding set so every 1.0 install
 -- works without a manual Key Bindings step. This intentionally replaces any
 -- previous F9 action; the mapper binding is Start-only and never toggles off.
 function ConsoleUIKeybindings:ClaimMouseLookMapperKey()

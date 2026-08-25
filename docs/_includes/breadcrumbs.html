@@ -1,0 +1,7 @@
+{% unless page.url == '/' %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ '/' | relative_url }}">Guide</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ page.title }}</span>
+</nav>
+{% endunless %}

@@ -3580,7 +3580,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC6"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -3641,14 +3641,15 @@ function Config:CreateAboutSection()
     credits:ClearAllPoints()
     credits:SetPoint("TOPLEFT", showOnboard, "BOTTOMLEFT", 0, -10)
     credits:SetPoint("TOPRIGHT", link, "BOTTOMRIGHT", 0, -10)
-    credits:SetHeight(230)
+    credits:SetHeight(278)
     credits.heightCalculated = true
 
     local rows = {
-        { "ConsoleExperience Classic", "Pedro · pepordev", "github.com/pepordev/ConsoleExperienceClassic" },
-        { "ConsolePortLK", "leoaviana", "github.com/leoaviana/ConsolePortLK" },
-        { "ConsolePort", "Sebastian Lindfors · MunkDev", "github.com/seblindfors/ConsolePort" },
-        { "Cursor", "Development assistance", "cursor.com" },
+        { "World of Warcraft", "Blizzard Entertainment", "www.blizzard.com", "Website" },
+        { "ConsoleExperience Classic", "Pedro · pepordev", "github.com/pepordev/ConsoleExperienceClassic", "GitHub" },
+        { "ConsolePortLK", "leoaviana", "github.com/leoaviana/ConsolePortLK", "GitHub" },
+        { "ConsolePort", "Sebastian Lindfors · MunkDev", "github.com/seblindfors/ConsolePort", "GitHub" },
+        { "Cursor", "Development assistance", "cursor.com", "Website" },
     }
     local i
     for i = 1, table.getn(rows) do
@@ -3675,7 +3676,7 @@ function Config:CreateAboutSection()
         who:SetTextColor(unpack(self.UI_COLORS.muted))
         local href = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         href:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-        href:SetText(i == 4 and "Website" or "GitHub")
+        href:SetText(info[4])
         href:SetTextColor(unpack(self.UI_COLORS.gold))
         local url = "https://" .. info[3]
         row:SetScript("OnClick", function()
@@ -3688,6 +3689,13 @@ function Config:CreateAboutSection()
             DEFAULT_CHAT_FRAME:AddMessage("|cffffd12eConsoleUI|r " .. url)
         end)
     end
+
+    local legal = section:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    legal:SetPoint("TOPLEFT", credits, "BOTTOMLEFT", 4, -10)
+    legal:SetPoint("TOPRIGHT", credits, "BOTTOMRIGHT", -4, -10)
+    legal:SetJustifyH("LEFT")
+    legal:SetText("World of Warcraft is a trademark of Blizzard Entertainment. This project is for educational purposes only. It is not affiliated with Blizzard or any private server.")
+    legal:SetTextColor(unpack(self.UI_COLORS.muted))
 
     self.contentSections["about"] = section
 end

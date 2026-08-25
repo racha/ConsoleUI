@@ -7,9 +7,9 @@
 ## Title-zhTW: |cfff1f2f4Console|r|cffffd12eUI|r |cff8b8f98by HouseLegend|r
 ## Author: HouseLegend
 # x-release-please-start-version
-## Version: 1.0.0-RC6
+## Version: 1.0.0
 # x-release-please-end
-## Notes: Game controller UI for WoW Vanilla (Interface 11200)
+## Notes: Game controller UI for WoW Vanilla 1.12
 ## Notes-esES: Interfaz de mando para WoW Vanilla
 ## Notes-frFR: Interface manette pour WoW Vanilla
 ## Notes-koKR: WoW Vanilla 컨트롤러 UI

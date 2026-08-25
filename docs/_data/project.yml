@@ -1,0 +1,34 @@
+name: ConsoleUI
+tagline: Play original Vanilla WoW with a controller.
+version: 1.0.0
+interface: "11200"
+client: "1.12"
+author: HouseLegend
+repository: https://github.com/racha/ConsoleUI
+releases: https://github.com/racha/ConsoleUI/releases
+download: https://github.com/racha/ConsoleUI/releases/latest
+issues: https://github.com/racha/ConsoleUI/issues
+pages: https://racha.github.io/ConsoleUI/
+interact: https://github.com/vargv666/Interact
+blizzard: https://www.blizzard.com
+legal: World of Warcraft is a trademark of Blizzard Entertainment. This project is for educational purposes only. It is not affiliated with Blizzard or any private server.
+settings:
+  - General
+  - Mouse
+  - Action Bars
+  - HUD
+  - Bindings
+  - Rings
+  - Frames
+  - Profiles
+  - About
+clients:
+  - OctoWoW
+  - TurtleWoW
+  - RavenCraft
+  - Capybara Paradise
+unsupported:
+  - Retail
+  - modern Classic Era
+  - Wrath
+  - Cataclysm
