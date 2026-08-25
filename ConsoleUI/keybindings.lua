@@ -113,6 +113,10 @@ _G["BINDING_HEADER_CONSOLEUIINTERACT"] = L("ConsoleUI Interact")
 _G["BINDING_NAME_ConsoleUI_INTERACT"] = L("Interact with Target")
 _G["BINDING_NAME_ConsoleUI_UNIT_MENU"] = L("Unit Menu")
 
+_G["BINDING_HEADER_CONSOLEUIMOUSE"] = L("ConsoleUI Mouse")
+_G["BINDING_NAME_ConsoleUI_MOUSELOOK"] = L("Mouse Look")
+_G["BINDING_NAME_ConsoleUI_MOUSELOOK_START"] = L("Mouse Look Start (Mapper)")
+
 _G["BINDING_HEADER_CONSOLEUISTANCE"] = L("ConsoleUI Stance")
 _G["BINDING_HEADER_CONSOLEUIPET"] = L("ConsoleUI Pet")
 local extraI
@@ -204,6 +208,13 @@ function ConsoleUI_ActionButton(slot)
         end
         
         ConsoleUI_PrintDebug("Action fire slot=" .. tostring(slot) .. " actual=" .. tostring(actualSlot) .. " has=" .. tostring(HasAction and HasAction(actualSlot)) .. " keystate=" .. tostring(keystate))
+
+        -- This is the original ConsoleUI hardware binding stack. Mouse Look
+        -- starts independently; the existing action execution remains intact.
+        if HasAction and HasAction(actualSlot)
+            and ConsoleUI.mouselook and ConsoleUI.mouselook.OnActionBinding then
+            ConsoleUI.mouselook:OnActionBinding()
+        end
         
         -- Check if healer mode is enabled and cursor is over a party/raid/player frame
         local ActionBars = ConsoleUI.actionbars
@@ -592,6 +603,21 @@ function ConsoleUIKeybindings:RecoverOrphanPetFollow()
     return true
 end
 
+-- MouseLOCK's WASD mapper emits F9 alongside normal movement. Reserve that
+-- key after Blizzard has loaded the active binding set so every RC6 install
+-- works without a manual Key Bindings step. This intentionally replaces any
+-- previous F9 action; the mapper binding is Start-only and never toggles off.
+function ConsoleUIKeybindings:ClaimMouseLookMapperKey()
+    if not GetBindingAction or not SetBinding then
+        return false
+    end
+    if GetBindingAction("F9") == "ConsoleUI_MOUSELOOK_START" then
+        return false
+    end
+    SetBinding("F9", "ConsoleUI_MOUSELOOK_START")
+    return true
+end
+
 function ConsoleUIKeybindings:SetupDefaultBindings()
     if ConsoleUI_BindingsReady and not ConsoleUI_BindingsReady() then
         return false
@@ -670,8 +696,10 @@ function ConsoleUIKeybindings:FinishInitialize()
     local claimed = self:ClaimPetFollowKeys()
     local recovered = self:RecoverOrphanPetFollow()
     local repaired = self:RepairPadGameplay()
+    local mapperClaimed = self:ClaimMouseLookMapperKey()
 
-    if claimed or recovered or repaired or (ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings()) then
+    if claimed or recovered or repaired or mapperClaimed
+        or (ConsoleUI_RepairCameraBindings and ConsoleUI_RepairCameraBindings()) then
         ConsoleUI_SaveBindings()
     end
 

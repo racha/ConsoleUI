@@ -620,6 +620,9 @@ function Profiles:LoadProfile(profileName)
         if ConsoleUI.config.ApplyUnitFrameScales then
             ConsoleUI.config:ApplyUnitFrameScales()
         end
+        if ConsoleUI.mouselook and ConsoleUI.mouselook.ApplySettings then
+            ConsoleUI.mouselook:ApplySettings()
+        end
         
         -- Update sidebar binding visibility in config UI
         if ConsoleUI.config.UpdateSidebarBindingVisibility then

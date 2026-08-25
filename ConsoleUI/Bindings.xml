@@ -94,6 +94,10 @@
     <Binding name="ConsoleUI_INTERACT" header="CONSOLEUIINTERACT">ConsoleUI_InteractNearest()</Binding>
     <Binding name="ConsoleUI_UNIT_MENU">ConsoleUI_UnitMenu()</Binding>
 
+    <!-- Manual only; never claimed automatically. -->
+    <Binding name="ConsoleUI_MOUSELOOK" header="CONSOLEUIMOUSE">ConsoleUI_MouseLook()</Binding>
+    <Binding name="ConsoleUI_MOUSELOOK_START">ConsoleUI_MouseLookStart()</Binding>
+
     <Binding name="ConsoleUI_STANCE_1" header="CONSOLEUISTANCE">ConsoleUI_StanceButton(1)</Binding>
     <Binding name="ConsoleUI_STANCE_2">ConsoleUI_StanceButton(2)</Binding>
     <Binding name="ConsoleUI_STANCE_3">ConsoleUI_StanceButton(3)</Binding>

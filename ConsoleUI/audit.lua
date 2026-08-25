@@ -135,7 +135,7 @@ function ConsoleUI:RunAudit()
     line("CUI-AUDIT COPY_START")
 
     run("core", function()
-        local addonVersion = "1.0.0-RC5"
+        local addonVersion = "1.0.0-RC6"
         if GetAddOnMetadata then
             addonVersion = GetAddOnMetadata("ConsoleUI", "Version") or addonVersion
         end

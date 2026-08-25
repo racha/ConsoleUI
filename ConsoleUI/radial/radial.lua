@@ -99,9 +99,50 @@ Radial.SLICE_MIDS = { 90, 45, 0, 315, 270, 225, 180, 135 }
 local MOVEMENT_MAP = {
     { action = "MOVEFORWARD", radialAction = "ConsoleUI_RADIAL_UP", keys = {"W", "UP"} },
     { action = "MOVEBACKWARD", radialAction = "ConsoleUI_RADIAL_DOWN", keys = {"S", "DOWN"} },
-    { action = "STRAFELEFT", radialAction = "ConsoleUI_RADIAL_LEFT", keys = {"A", "LEFT"} },
-    { action = "STRAFERIGHT", radialAction = "ConsoleUI_RADIAL_RIGHT", keys = {"D", "RIGHT"} },
+    { action = "TURNLEFT", alternateAction = "STRAFELEFT", radialAction = "ConsoleUI_RADIAL_LEFT", keys = {"A", "LEFT"} },
+    { action = "TURNRIGHT", alternateAction = "STRAFERIGHT", radialAction = "ConsoleUI_RADIAL_RIGHT", keys = {"D", "RIGHT"} },
 }
+
+local function AddMovementActionKeys(keys, seen, action)
+    if not action then return end
+    local primaryKey, secondaryKey = GetBindingKey(action)
+    if primaryKey and not seen[primaryKey] then
+        table.insert(keys, primaryKey)
+        seen[primaryKey] = true
+    end
+    if secondaryKey and not seen[secondaryKey] then
+        table.insert(keys, secondaryKey)
+        seen[secondaryKey] = true
+    end
+end
+
+local function GetMovementKeys(mapping)
+    local keys = {}
+    local seen = {}
+    AddMovementActionKeys(keys, seen, mapping.action)
+    AddMovementActionKeys(keys, seen, mapping.alternateAction)
+    if table.getn(keys) == 0 then
+        local i
+        for i = 1, table.getn(mapping.keys) do
+            local key = mapping.keys[i]
+            if not seen[key] then
+                table.insert(keys, key)
+                seen[key] = true
+            end
+        end
+    end
+    return keys
+end
+
+local function HasMovementKey(mapping)
+    if GetBindingKey(mapping.action) then
+        return true
+    end
+    if mapping.alternateAction and GetBindingKey(mapping.alternateAction) then
+        return true
+    end
+    return false
+end
 
 local FACE_MAP = {
     { key = "1", action = "ConsoleUI_RADIAL_ACTION_A", restore = "ConsoleUI_ACTION_1" },
@@ -423,13 +464,7 @@ function Radial:ActivateStickNavigation()
     local i
     for i = 1, table.getn(MOVEMENT_MAP) do
         local mapping = MOVEMENT_MAP[i]
-        local keys = {}
-        local primaryKey, secondaryKey = GetBindingKey(mapping.action)
-        if primaryKey then table.insert(keys, primaryKey) end
-        if secondaryKey then table.insert(keys, secondaryKey) end
-        if table.getn(keys) == 0 then
-            keys = mapping.keys
-        end
+        local keys = GetMovementKeys(mapping)
         local k
         for k = 1, table.getn(keys) do
             local key = keys[k]
@@ -440,6 +475,8 @@ function Radial:ActivateStickNavigation()
                 else
                     self.stickBindings[key] = previousAction
                 end
+                self.lastMovementBindings = self.lastMovementBindings or {}
+                self.lastMovementBindings[key] = self.stickBindings[key]
                 SetBinding(key, mapping.radialAction)
             end
         end
@@ -472,13 +509,7 @@ function Radial:ActivateRingNavigation()
     local i
     for i = 1, table.getn(MOVEMENT_MAP) do
         local mapping = MOVEMENT_MAP[i]
-        local keys = {}
-        local primaryKey, secondaryKey = GetBindingKey(mapping.action)
-        if primaryKey then table.insert(keys, primaryKey) end
-        if secondaryKey then table.insert(keys, secondaryKey) end
-        if table.getn(keys) == 0 then
-            keys = mapping.keys
-        end
+        local keys = GetMovementKeys(mapping)
         local k
         for k = 1, table.getn(keys) do
             local key = keys[k]
@@ -489,6 +520,8 @@ function Radial:ActivateRingNavigation()
                 else
                     self.stickBindings[key] = previousAction
                 end
+                self.lastMovementBindings = self.lastMovementBindings or {}
+                self.lastMovementBindings[key] = self.stickBindings[key]
                 SetBinding(key, mapping.radialAction)
             end
         end
@@ -587,7 +620,12 @@ function Radial:ClearStolenBindings()
         for k = 1, table.getn(mapping.keys) do
             local key = mapping.keys[k]
             if IsTransientBinding(GetBindingAction(key)) then
-                SetBinding(key, mapping.action)
+                local previousAction = self.lastMovementBindings and self.lastMovementBindings[key]
+                if previousAction and not IsTransientBinding(previousAction) then
+                    SetBinding(key, previousAction)
+                else
+                    SetBinding(key, mapping.action)
+                end
             end
         end
     end
@@ -624,7 +662,12 @@ function Radial:RepairMovementBindings()
                 local current = GetBindingAction(key)
                 if IsTransientBinding(current) then
                     if KEY_MODS[mi] == "" then
-                        SetBinding(key, mapping.action)
+                        local previousAction = self.lastMovementBindings and self.lastMovementBindings[key]
+                        if previousAction and not IsTransientBinding(previousAction) then
+                            SetBinding(key, previousAction)
+                        else
+                            SetBinding(key, mapping.action)
+                        end
                     else
                         SetBinding(key, nil)
                     end
@@ -632,7 +675,7 @@ function Radial:RepairMovementBindings()
                 end
             end
         end
-        if not GetBindingKey(mapping.action) then
+        if not HasMovementKey(mapping) then
             SetBinding(mapping.keys[1], mapping.action)
             changed = true
         end

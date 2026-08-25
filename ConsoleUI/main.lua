@@ -289,7 +289,7 @@ end
 function ConsoleUI_Welcome()
     if ConsoleUI.welcomed then return end
     ConsoleUI.welcomed = true
-    local version = "1.0.0-RC5"
+    local version = "1.0.0-RC6"
     if GetAddOnMetadata then
         version = GetAddOnMetadata("ConsoleUI", "Version") or version
     end
@@ -305,7 +305,7 @@ end
 function ConsoleUI:ReportDiagnostics()
     local version, build, date, toc = GetBuildInfo()
     local cfg = self.config
-    local addonVersion = "1.0.0-RC5"
+    local addonVersion = "1.0.0-RC6"
     if GetAddOnMetadata then
         addonVersion = GetAddOnMetadata("ConsoleUI", "Version") or addonVersion
     end

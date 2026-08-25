@@ -543,6 +543,12 @@ function Hooks:OnFrameShow(frame)
     
     local frameName = frame:GetName() or "Unknown"
     ConsoleUI_Debug("OnFrameShow: " .. frameName)
+
+    -- Let the Mouse Look policy decide whether this frame category unlocks.
+    -- Unknown frames are ignored, and every category except RMB defaults off.
+    if ConsoleUI.mouselook and ConsoleUI.mouselook.OnFrameShown then
+        ConsoleUI.mouselook:OnFrameShown(frameName)
+    end
     
     local Cursor = ConsoleUI.cursor
     
@@ -1299,4 +1305,3 @@ function Hooks:OnVendorInteraction()
 end
 
 -- Module loaded silently
-

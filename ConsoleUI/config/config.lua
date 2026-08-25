@@ -27,6 +27,27 @@ Config.DEFAULTS = {
     controllerType = "xbox",  -- "xbox" or "ps"
     controllerGlyphSize = "small",  -- "small" | "medium" | "large"
     healerMode = false,  -- Healer mode (affects targeting and gameplay)
+    -- Mouse Look engine, lock policy, camera settings, and unlock policy.
+    mouseLookEnabled = true,
+    mouseLookLockOnMovement = true,
+    mouseLookLockOnActions = true,
+    mouseLookInvertX = false,
+    mouseLookInvertY = false,
+    mouseLookMouseSpeed = 1,
+    -- Right-click is the only automatic unlock enabled by default.
+    mouseLookUnlockRightClick = true,
+    mouseLookUnlockModifierDoubleTap = false,
+    mouseLookUnlockGameMenu = false,
+    mouseLookUnlockBags = false,
+    mouseLookUnlockWorldMap = false,
+    mouseLookUnlockCharacter = false,
+    mouseLookUnlockSpellbook = false,
+    mouseLookUnlockTalents = false,
+    mouseLookUnlockQuests = false,
+    mouseLookUnlockSocial = false,
+    mouseLookUnlockCommerce = false,
+    mouseLookUnlockProfessions = false,
+    mouseLookUnlockOtherWindows = false,
     -- Action Bar settings
     barButtonSize = 82,
     barXOffset = 0,
@@ -226,6 +247,9 @@ function Config:InitializeDB()
     if ConsoleUI.castbar and ConsoleUI.castbar.ReloadConfig then
         ConsoleUI.castbar:ReloadConfig()
     end
+    if ConsoleUI.mouselook and ConsoleUI.mouselook.ApplySettings then
+        ConsoleUI.mouselook:ApplySettings()
+    end
 
     if self.InitializeUnitFrameScales then
         self:InitializeUnitFrameScales()
@@ -376,6 +400,10 @@ function Config:Set(key, value)
     -- Apply certain settings immediately
     if key == "debugEnabled" then
         ConsoleUI_DEBUG_KEYS = value
+    end
+    if string.find(key, "^mouseLook")
+        and ConsoleUI.mouselook and ConsoleUI.mouselook.ApplySettings then
+        ConsoleUI.mouselook:ApplySettings(key)
     end
 end
 
@@ -956,6 +984,7 @@ end
 -- Section definitions
 Config.SECTIONS = {
     { id = "interface", name = "Interface" },
+    { id = "mouse", name = "Mouse" },
     { id = "bars", name = "Bars" },
     { id = "bindings", name = "Bindings" },
     { id = "rings", name = "Rings" },
@@ -1222,6 +1251,10 @@ function Config:CreateContentSections()
     
     -- Create Interface section
     self:CreateInterfaceSection()
+
+    if self.CreateMouseSection then
+        self:CreateMouseSection()
+    end
 
     if self.CreateUnitFramesSection then
         self:CreateUnitFramesSection()
@@ -3547,7 +3580,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC5"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC6"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -5234,8 +5267,12 @@ SlashCmdList["CONSOLEUI"] = function(msg)
         Config:Set("barGoldBorder", false)
         Config:UpdateActionBarLayout()
         ConsoleUI_Print("Action-bar gold border: off")
+    elseif command == "look" then
+        if ConsoleUI_MouseLook then
+            ConsoleUI_MouseLook()
+        end
     elseif command == "help" then
-        ConsoleUI_Print("/cui - settings; /cui test; /cui debug; /cui gold|gold off; /cui modern|classic")
+        ConsoleUI_Print("/cui - settings; /cui test; /cui debug; /cui look; /cui gold|gold off; /cui modern|classic")
     else
         Config:Toggle()
     end
@@ -5287,5 +5324,3 @@ end
 -- After UpdateActionBarLayout / UpdateCrosshair exist. A SetPoint error
 -- here must not abort the rest of this file.
 Config:CreateGameMenuButton()
-
-

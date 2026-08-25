@@ -4,7 +4,7 @@
 
 ConsoleUI is a controller interface for the **original 1.12 Vanilla client**. It puts your spells on the face buttons, opens bags and menus from a stick wheel, and lets you type in chat without a keyboard.
 
-This release is **v1.0.0-RC5** — ready to try, still a release candidate.
+This release is **v1.0.0-RC6** — ready to try, still a release candidate.
 
 ---
 
@@ -58,7 +58,7 @@ Follow their install notes (it is a client mod, not only an AddOns folder). Then
 
 ### Settings
 
-Open with `/cui`. Interface, Bars, Bindings, Rings, Blizz Frames, Profiles, About, Debug.
+Open with `/cui`. Interface, Mouse, Bars, Bindings, Rings, Blizz Frames, Profiles, About, Debug.
 
 ![Settings](screenshots/settings.png)
 
@@ -94,14 +94,15 @@ Point at a cluster, press a face button, type. **A** sends, **B** closes, **X** 
 
 ## Install
 
-1. Download **ConsoleUI-1.0.0-RC5.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
-2. Open the zip. You will see two folders: `ConsoleUI` and `ConsoleUIKeyboard`.
-3. Copy **both** into:
+1. Download **ConsoleUI-1.0.0-RC6.zip** from [Releases](https://github.com/racha/ConsoleUI/releases).
+2. Quit the game.
+3. Open the zip. You will see two folders: `ConsoleUI` and `ConsoleUIKeyboard`.
+4. Replace **both** in:
 
    `World of Warcraft/Interface/AddOns/`
 
-4. At character select, enable **ConsoleUI** and **ConsoleUI Keyboard**.
-5. Log in. Type `/cui` to open settings.
+5. Start the client. At character select, enable **ConsoleUI** and **ConsoleUI Keyboard**.
+6. Log in. Type `/cui` to open settings.
 
 Turn **off** any other controller bar addon while you use this. Two addons fighting over the same bars will make a mess.
 
@@ -128,12 +129,21 @@ The community layout is attached to **TurtleWoW**, **OctoWoW**, **RavenCraft**, 
 5. If the name is not already one of **TurtleWoW**, **OctoWoW**, **RavenCraft**, or **Cappy**, set it to whichever server you play.
 6. Under **Controller**, turn **Enable Steam Input** on.
 
-### 2. Apply the ConsoleUI layout
+### 2. Choose and apply a ConsoleUI layout
 
 1. Still in Properties, open **Controller Layout** (or start the game once, then use the Steam overlay → Controller).
 2. Open **Community** layouts.
-3. Search for: **`ConsoleUI - WoW 1.12`** (author **HouseLegend**).
-4. Apply **ConsoleUI - WoW 1.12 - OctoWoW - TurtleWoW - RavenCraft - Cappy**.
+3. Search for **`ConsoleUI`** by **HouseLegend**.
+4. Apply either the standard layout or the MouseLOCK layout described below.
+
+Both layouts work with the same addon and can be switched whenever needed. Match the selected Steam layout with `/cui` → **Mouse**:
+
+| Steam community layout | Mouse Look System | Camera behavior | Use it when |
+| --- | --- | --- | --- |
+| **ConsoleUI - WoW 1.12 - OctoWoW - TurtleWoW - RavenCraft - Cappy** | **Off** | Traditional Steam camera look. The right stick supplies mouse movement with held right mouse instead of leaving the cursor locked. | You want immediate mouse/touch access and do not want persistent Mouse Look. |
+| **ConsoleUI - MouseLOCK - OctoWoW - TurtleWoW - RavenCraft - Cappy** | **On** | The right stick stays mouse movement. WASD also sends F9 to **Mouse Look Start (Mapper)**, so movement locks the camera without holding right mouse. R3/right-click unlocks it. | You want controller-style camera movement and are comfortable unlocking before using touch. |
+
+The MouseLOCK layout sends F9 only as an additional WASD command. Normal movement remains bound directly to WoW. ConsoleUI action and spell bindings can lock Mouse Look through their own hardware path; no extra Steam commands are required for them.
 
 ### 3. Fix the right stick for your screen
 
@@ -141,7 +151,7 @@ The right stick is the mouse. TVs, phones, and Steam Link all need a different s
 
 1. Edit the layout → **Right Joystick**.
 2. Raise or lower **sensitivity** until the cursor is usable on *your* screen.
-3. Leave it as mouse move, not a D-pad. Do not turn the triggers into toggles — they must stay **held**.
+3. Leave it as mouse movement, not a D-pad. The standard layout handles traditional held-RMB look; MouseLOCK leaves locking to ConsoleUI.
 
 ### 4. Launch from Steam, then Steam Link
 
@@ -151,7 +161,7 @@ The right stick is the mouse. TVs, phones, and Steam Link all need a different s
 
 If you start the game outside Steam, the pad will do nothing. Not using Steam? [WoWpadX](https://github.com/leoaviana/WoWpadX) can send the pad instead.
 
-### Official layout (HouseLegend ConsoleUI)
+### Shared layout controls
 
 This is what that community config sends. Copy it if you use Steam Deck, reWASD, or Octo instead.
 
@@ -168,9 +178,14 @@ Steam owns the **base keys**. The addon only writes the **modifier chords**, so 
 | Back | `M` | Map (WoW bind, not ours) |
 | Start | `Escape` | Game menu (WoW bind, not ours) |
 | Left stick | WASD | Walk / strafe (see below) |
-| Right stick | Mouse | Move the cursor |
-| **L3** (click left stick) | **Left mouse** | Hold to move the camera |
-| **R3** (click right stick) | **Right mouse** | Hold to turn the character |
+| Right stick | Mouse | Standard: traditional held-RMB look. MouseLOCK: move cursor/camera while addon lock is active. |
+| Touchscreen | Left mouse | Blizzard left click. Does not unlock look. |
+| **L3** (click left stick) | unbound, or **Mouse Look** | Do not hold left mouse for camera if Mouse Lock is on |
+| **R3** (click right stick) | **Right mouse** | Unlock look. Do not hold for look if Mouse Lock is on. |
+
+`/cui` → **Mouse** controls the entire Mouse Look system. It includes separate lock triggers, optional unlock rules for menus and interface windows, X/Y inversion, and mouse speed. **Right mouse button is the only automatic unlock enabled by default.** Key Bindings → **ConsoleUI Mouse** → **Mouse Look**, or `/cui look`, manually toggles it.
+
+Touch bars and touchscreen buttons cannot work while Mouse Look is locked. Unlock with right-click/R3 first, then tap. If you prefer touch-first play, switch to the standard Steam layout and turn the Mouse Look System off.
 
 **Rebind A and D to strafe.** Vanilla defaults are Turn Left / Turn Right. On a pad that feels wrong: the right stick already turns the camera. In WoW keybinds, set **A = Strafe Left** and **D = Strafe Right**. Leave W / S as forward / back. The left stick then moves like a normal controller.
 
@@ -288,7 +303,7 @@ Also send:
 Useful extras:
 
 - `/cui debug` — prints the same report in chat
-- `/reload` — reload the UI after you change files
+- After you replace addon files: quit the game, then start it again
 
 If you **cannot walk** after closing a menu or the keyboard, `/reload` once. If it happens again, send the Debug copy.
 
@@ -301,6 +316,7 @@ If you **cannot walk** after closing a menu or the keyboard, `/reload` once. If 
 | `/cui` | Open settings |
 | `/cui debug` | Print a diagnostic report |
 | `/cui debug on` / `off` | Extra debug messages |
+| `/cui look` | Toggle Mouse Look |
 | `/cui modern` / `classic` | Action-bar look |
 | `/cui gold` / `gold off` | Gold border on the bars |
 | `/cuik` | Keyboard status |

@@ -11,6 +11,24 @@ local CL = ConsoleUI.changelog
 -- Newest first. version must match the TOC Version string.
 ConsoleUI.CHANGELOG = {
     {
+        version = "1.0.0-RC6",
+        lines = {
+            "New Mouse Look system",
+            "New Mouse settings",
+            "New movement and action lock triggers",
+            "New Mouse Look bindings",
+            "New right-click unlock",
+            "New modifier double-tap unlock",
+            "New optional interface unlocks",
+            "New camera inversion and speed",
+            "New dual Steam layout guide",
+            "Fixed Quick Menu Turn navigation",
+            "Fixed Ring Turn navigation",
+            "Fixed radial movement binding restore",
+            "BREAKING: Mouse Look input policy",
+        },
+    },
+    {
         version = "1.0.0-RC5",
         lines = {
             "New stance bar",
@@ -139,9 +157,9 @@ end
 
 function CL.CurrentVersion()
     if GetAddOnMetadata then
-        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC5"
+        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0-RC6"
     end
-    return "1.0.0-RC5"
+    return "1.0.0-RC6"
 end
 
 function CL.EntriesSince(last, all)
