@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/images/brand/consoleui-wordmark-light.png" width="560" alt="ConsoleUI.">
+  <img src="docs/assets/images/brand/consoleui-wordmark-readme.png" width="560" alt="ConsoleUI.">
 </p>
 
 <p align="center"><strong>Play Vanilla with a controller.</strong></p>
