@@ -12,7 +12,7 @@ export function pageTitle(name) {
 export const project = {
   name: "ConsoleUI",
   tagline: "Play original Vanilla WoW with a controller.",
-  version: "1.0.0",
+  version: "1.0.1",
   interface: "11200",
   client: "1.12",
   author: "HouseLegend",

@@ -11,6 +11,18 @@ local CL = ConsoleUI.changelog
 -- Newest first. version must match the TOC Version string.
 ConsoleUI.CHANGELOG = {
     {
+        version = "1.0.1",
+        lines = {
+            "New Glyphs settings section under General",
+            "New Mouse Lock, Unlock, Toggle, and Hold bindings",
+            "Fixed release package source sync",
+            "Fixed vendor bag opening",
+            "Fixed XP and reputation settings layout",
+            "Fixed tooltip controller style refresh",
+            "Fixed mobile documentation navigation",
+        },
+    },
+    {
         version = "1.0.0",
         lines = {
             "New Mouse Look system",
@@ -157,9 +169,9 @@ end
 
 function CL.CurrentVersion()
     if GetAddOnMetadata then
-        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0"
+        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.1"
     end
-    return "1.0.0"
+    return "1.0.1"
 end
 
 function CL.EntriesSince(last, all)

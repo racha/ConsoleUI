@@ -114,8 +114,12 @@ _G["BINDING_NAME_ConsoleUI_INTERACT"] = L("Interact with Target")
 _G["BINDING_NAME_ConsoleUI_UNIT_MENU"] = L("Unit Menu")
 
 _G["BINDING_HEADER_CONSOLEUIMOUSE"] = L("ConsoleUI Mouse")
-_G["BINDING_NAME_ConsoleUI_MOUSELOOK"] = L("Mouse Look")
-_G["BINDING_NAME_ConsoleUI_MOUSELOOK_START"] = L("Mouse Look Start (Mapper)")
+_G["BINDING_NAME_ConsoleUI_MOUSELOCK"] = L("Mouse Lock")
+_G["BINDING_NAME_ConsoleUI_MOUSELOCK_HOLD"] = L("Mouse Lock (Hold)")
+_G["BINDING_NAME_ConsoleUI_MOUSEUNLOCK"] = L("Mouse Unlock")
+_G["BINDING_NAME_ConsoleUI_MOUSEUNLOCK_HOLD"] = L("Mouse Unlock (Hold)")
+_G["BINDING_NAME_ConsoleUI_MOUSELOOK"] = L("Mouse Lock Toggle")
+_G["BINDING_NAME_ConsoleUI_MOUSELOOK_START"] = L("Mouse Lock Start (Mapper)")
 
 _G["BINDING_HEADER_CONSOLEUISTANCE"] = L("ConsoleUI Stance")
 _G["BINDING_HEADER_CONSOLEUIPET"] = L("ConsoleUI Pet")
@@ -599,6 +603,9 @@ function ConsoleUIKeybindings:RecoverOrphanPetFollow()
         ConsoleUI.proxied:ApplySlotBinding(14)
     elseif SetBinding then
         SetBinding("SHIFT-4", "ConsoleUI_PET_FOLLOW")
+    end
+    if ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then
+        ConsoleUI.profiles:MarkDirty(false)
     end
     return true
 end

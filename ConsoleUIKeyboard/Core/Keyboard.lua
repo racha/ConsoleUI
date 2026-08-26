@@ -161,6 +161,9 @@ function Keyboard:SetEnabled(state)
     if not self.enabled then
         self:CLOSE()
     end
+    if ConsoleUI and ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then
+        ConsoleUI.profiles:MarkDirty(false)
+    end
 end
 
 function Keyboard:ShowFor()
@@ -180,6 +183,9 @@ function Keyboard:SetShowFor(value)
     end
     if self.Focus and not self:WantsBox(self.Focus) then
         self:CLOSE()
+    end
+    if ConsoleUI and ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then
+        ConsoleUI.profiles:MarkDirty(false)
     end
 end
 
@@ -825,6 +831,11 @@ end
 function Keyboard:OnEvent()
     if event == "ADDON_LOADED" and arg1 == "ConsoleUIKeyboard" then
         self:LoadSettings()
+        if ConsoleUI and ConsoleUI.profiles and ConsoleUI.profiles.SaveCurrentProfile then
+            -- ConsoleUI loads first; refresh its character snapshot now that
+            -- the keyboard saved variables and custom layout are available.
+            ConsoleUI.profiles:SaveCurrentProfile(false)
+        end
         self:LoadFrame()
         self:HookSaveBindings()
         if self.HookEditBoxes then

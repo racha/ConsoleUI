@@ -85,6 +85,10 @@ function Config:RefreshBindingSelection()
         local i
         for i = 1, table.getn(self.bindingActionRows) do
             local actionRow = self.bindingActionRows[i]
+            local compatible = true
+            if actionRow.kind ~= "header" and ConsoleUI.proxied:IsSidebarSlot(slot) then
+                compatible = ConsoleUI.proxied:IsTouchCompatible(actionRow.bindingID)
+            end
             local selected = false
             if actionRow.kind == "default" then
                 selected = bindingID == nil
@@ -92,6 +96,16 @@ function Config:RefreshBindingSelection()
                 selected = actionRow.bindingID == bindingID
             end
             PaintBindRow(actionRow, selected)
+            if actionRow.kind ~= "header" then
+                actionRow.touchCompatible = compatible
+                if compatible then
+                    actionRow:Enable()
+                    actionRow:SetAlpha(1)
+                else
+                    actionRow:Disable()
+                    actionRow:SetAlpha(0.35)
+                end
+            end
             if actionRow.check then
                 if selected then
                     actionRow.check:SetText("OK")
@@ -107,7 +121,11 @@ end
 function Config:AssignSelectedBinding(bindingID)
     local slot = self.selectedBindSlot
     if not slot or not ConsoleUI.proxied then return end
-    ConsoleUI.proxied:SetSlotBinding(slot, bindingID)
+    local ok, why = ConsoleUI.proxied:SetSlotBinding(slot, bindingID)
+    if not ok then
+        if ConsoleUI_Print then ConsoleUI_Print(why or "That action cannot be assigned here") end
+        return
+    end
     self:RefreshBindingWorkspace()
 end
 
@@ -287,7 +305,7 @@ function Config:CreateBindingsSection()
     local resetBtn = self:MakePanelButton(section, "ConsoleUIConfigResetBindings", 120, T("Reset Bindings"))
     resetBtn:SetPoint("TOPRIGHT", section, "TOPRIGHT", -4, -2)
     resetBtn:SetScript("OnClick", function()
-        Config:RunResetBindings()
+        Config:ConfirmResetBindings()
     end)
 
     local placeBtn = self:MakePanelButton(section, "ConsoleUIConfigShowPlacement", 120, T("Spell Placement"))

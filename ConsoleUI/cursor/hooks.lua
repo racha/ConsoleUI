@@ -180,7 +180,7 @@ function Hooks:Initialize()
             Hooks:TryHookPendingFrames()
             -- Open all bags when interacting with merchants, auction house, or bank
             if event == "MERCHANT_SHOW" or event == "AUCTION_HOUSE_SHOW" or event == "BANKFRAME_OPENED" then
-                Hooks:OnVendorInteraction()
+                Hooks:ScheduleVendorBags()
             end
             -- Hook party/raid frames when they change or on world enter (healer mode)
             if event == "PARTY_MEMBERS_CHANGED" or event == "RAID_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
@@ -543,6 +543,13 @@ function Hooks:OnFrameShow(frame)
     
     local frameName = frame:GetName() or "Unknown"
     ConsoleUI_Debug("OnFrameShow: " .. frameName)
+
+    -- Some 1.12 clients and bag replacements finish their merchant/bank frame
+    -- setup after the corresponding event fires. The visible-frame hook is a
+    -- second signal; both paths feed one debounced delayed opener.
+    if frameName == "MerchantFrame" or frameName == "AuctionFrame" or frameName == "BankFrame" then
+        self:ScheduleVendorBags()
+    end
 
     -- Let the Mouse Look policy decide whether this frame category unlocks.
     -- Unknown frames are ignored, and every category except RMB defaults off.
@@ -1287,6 +1294,21 @@ end
 -- ============================================================================
 
 -- Open all bags when interacting with merchants, auction house, or bank
+function Hooks:ScheduleVendorBags()
+    if not self.vendorBagFrame then
+        self.vendorBagFrame = CreateFrame("Frame")
+    end
+    local frame = self.vendorBagFrame
+    frame.elapsed = 0
+    frame:SetScript("OnUpdate", function()
+        this.elapsed = (this.elapsed or 0) + arg1
+        if this.elapsed < 0.10 then return end
+        this:SetScript("OnUpdate", nil)
+        Hooks:OnVendorInteraction()
+    end)
+    frame:Show()
+end
+
 function Hooks:OnVendorInteraction()
     -- Check if the feature is enabled in config
     local Config = ConsoleUI.config
@@ -1299,9 +1321,16 @@ function Hooks:OnVendorInteraction()
     
     -- Open all bags (OpenAllBags is a Blizzard API function)
     if OpenAllBags then
-        OpenAllBags()
+        -- forceOpen is understood by Blizzard's 1.12 helper and by the common
+        -- bag replacements. It prevents a vendor event from behaving like a
+        -- toggle when one container is already visible.
+        OpenAllBags(true)
+        self:AfterBagToggle()
         ConsoleUI_Debug("Opened all bags for vendor interaction")
+        return true
     end
+    ConsoleUI_Debug("Could not open vendor bags: OpenAllBags is unavailable")
+    return false
 end
 
 -- Module loaded silently

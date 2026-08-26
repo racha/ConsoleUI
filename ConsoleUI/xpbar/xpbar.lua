@@ -318,6 +318,45 @@ local function OnUpdate()
     end
 end
 
+-- Decide whether an event represents real progress (show) or only changed
+-- data (refresh).  Refresh events may repaint an already visible bar, but
+-- must never resurrect it or restart its auto-hide timer.
+function XPBar:EventAction(mode, ev, unit)
+    if ev == "PLAYER_ENTERING_WORLD" then
+        return "refresh"
+    end
+    if mode == "XP" then
+        if ev == "PLAYER_XP_UPDATE" or ev == "PLAYER_LEVEL_UP" then
+            return "show"
+        end
+        if ev == "UNIT_LEVEL" and unit == "player" then
+            return "show"
+        end
+        if ev == "UPDATE_EXHAUSTION" then
+            return "refresh"
+        end
+        return nil
+    end
+    if mode == "PETXP" then
+        if ev == "UNIT_PET_EXPERIENCE" then
+            return "show"
+        end
+        if ev == "UNIT_PET" then
+            return "refresh"
+        end
+        return nil
+    end
+    if mode == "REP" then
+        if ev == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
+            return "show"
+        end
+        if ev == "UPDATE_FACTION" then
+            return "refresh"
+        end
+    end
+    return nil
+end
+
 local function OnEvent()
     local self = this
     if not self or not self.bar then return end  -- Bar not initialized yet
@@ -353,8 +392,15 @@ local function OnEvent()
         event = "PLAYER_ENTERING_WORLD"
     end
     
-    if mode == "XP" and (event == "CHAT_MSG_COMBAT_FACTION_CHANGE" or event == "UPDATE_FACTION") then return end
-    if mode == "REP" and (event == "PLAYER_XP_UPDATE" or event == "UPDATE_EXHAUSTION") then return end
+    local action = XPBar:EventAction(mode, event, arg1)
+    if not action then
+        return
+    end
+    local passiveRefresh = action == "refresh"
+    local currentlyVisible = self:IsShown() and self:GetAlpha() > 0
+    if passiveRefresh and not self.always and not currentlyVisible then
+        return
+    end
     
     -- Set always visible (after checking mode, so we can populate data)
     if self.always then
@@ -365,8 +411,10 @@ local function OnEvent()
     if mode == "XP" then
         local wasVisible = self:IsShown() and self:GetAlpha() > 0
         self.enabled = true
-        self:Show()  -- Show the bar when there's data
-        self:SetAlpha(1)
+        if not passiveRefresh then
+            self:Show()
+            self:SetAlpha(1)
+        end
         
         local xp, xpmax, ex = UnitXP("player"), UnitXPMax("player"), GetXPExhaustion()
         
@@ -393,7 +441,9 @@ local function OnEvent()
             self.bar.text:SetText(XPBar.FormatWatchText("XP", xp, xpmax))
         end
         
-        self.tick = GetTime() + self.timeout
+        if not passiveRefresh then
+            self.tick = GetTime() + self.timeout
+        end
         
         -- Update position immediately when bar becomes visible
         if not wasVisible and ConsoleUI.xpbar then
@@ -406,8 +456,10 @@ local function OnEvent()
             self.restedbar:Hide()
         end
         self.enabled = true
-        self:Show()  -- Show the bar when there's data
-        self:SetAlpha(1)
+        if not passiveRefresh then
+            self:Show()
+            self:SetAlpha(1)
+        end
         
         local currXP, nextXP = GetPetExperience()
         self.bar:SetMinMaxValues(math.min(0, currXP), nextXP)
@@ -420,18 +472,13 @@ local function OnEvent()
             self.bar.text:SetText(XPBar.FormatWatchText("Pet XP", currXP, nextXP))
         end
         
-        self.tick = GetTime() + self.timeout
+        if not passiveRefresh then
+            self.tick = GetTime() + self.timeout
+        end
         return
     elseif mode == "REP" then
         if self.restedbar then
             self.restedbar:Hide()
-        end
-        
-        -- Only show rep bar if always visible OR if it's a reputation change event
-        -- Don't show on UPDATE_FACTION or other events when always is false
-        if not self.always and event ~= "CHAT_MSG_COMBAT_FACTION_CHANGE" then
-            -- Not always visible and not a reputation change event, don't show
-            return
         end
         
         for i = 1, 99 do
@@ -439,8 +486,10 @@ local function OnEvent()
             if (isWatched and not self.faction) or (self.faction and name == self.faction) then
                 local wasVisible = self:IsShown() and self:GetAlpha() > 0
                 self.enabled = true
-                self:Show()  -- Show the bar when there's data
-                self:SetAlpha(1)
+                if not passiveRefresh then
+                    self:Show()
+                    self:SetAlpha(1)
+                end
                 
                 barMax = barMax - barMin
                 barValue = barValue - barMin
@@ -466,7 +515,9 @@ local function OnEvent()
                     self.bar.text:SetText(XPBar.FormatWatchText(label, barValue, barMax))
                 end
                 
-                self.tick = GetTime() + self.timeout
+                if not passiveRefresh then
+                    self.tick = GetTime() + self.timeout
+                end
                 
                 -- Update position immediately when bar becomes visible
                 if not wasVisible and ConsoleUI.xpbar then
@@ -795,14 +846,45 @@ function XPBar:UpdateAllBars()
     self:RefreshFills()
 end
 
+local function SnapshotTransientState(bar)
+    if not bar or bar.always then
+        return nil
+    end
+    return {
+        shown = bar:IsShown(),
+        alpha = bar:GetAlpha(),
+        tick = bar.tick,
+    }
+end
+
+local function RestoreTransientState(bar, state)
+    if not bar or not state then
+        return
+    end
+    bar.tick = state.tick
+    bar:SetAlpha(state.alpha or 0)
+    if state.shown then
+        bar:Show()
+    else
+        bar:Hide()
+    end
+end
+
 function XPBar:RefreshFills()
     if self._refreshing then
         return
     end
+    -- Synthetic refreshes populate values and repaint fills, but they are not
+    -- gameplay events. Preserve auto-hide state so UpdateAllBars cannot revive
+    -- a bar that just faded out or make it appear during login/config updates.
+    local xpState = SnapshotTransientState(self.xpBar)
+    local repState = SnapshotTransientState(self.repBar)
     self._refreshing = true
     self:Fire(self.xpBar, "PLAYER_XP_UPDATE")
     self:Fire(self.repBar, "UPDATE_FACTION")
     self._refreshing = nil
+    RestoreTransientState(self.xpBar, xpState)
+    RestoreTransientState(self.repBar, repState)
 end
 
 -- ============================================================================

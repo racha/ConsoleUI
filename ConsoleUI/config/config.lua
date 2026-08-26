@@ -133,6 +133,7 @@ Config.DEFAULTS = {
     lootFrameEnabled = true,
     lootRollEnabled = true,
     hintBarEnabled = true,
+    tooltipActionHints = true,
     hintBarPosition = "top",
     hintBarOffsetX = 0,
     hintBarOffsetY = 0,
@@ -259,6 +260,11 @@ function Config:InitializeDB()
     end
     if ConsoleUI.loot and ConsoleUI.loot.ApplyEnabled then
         ConsoleUI.loot:ApplyEnabled()
+    end
+    if ConsoleUI.profiles and ConsoleUI.profiles.SaveCurrentProfile then
+        -- Persist defaults and one-time config migrations into the new account
+        -- character profile without doing another 120-slot action-bar scan.
+        ConsoleUI.profiles:SaveCurrentProfile(false)
     end
     
 end
@@ -405,6 +411,9 @@ function Config:Set(key, value)
         and ConsoleUI.mouselook and ConsoleUI.mouselook.ApplySettings then
         ConsoleUI.mouselook:ApplySettings(key)
     end
+    if ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then
+        ConsoleUI.profiles:MarkDirty(false)
+    end
 end
 
 -- ============================================================================
@@ -480,7 +489,46 @@ function Config:GetGlyphSize(kind)
     return row[kind] or row.hud
 end
 
+function Config:RefreshGlyphControls()
+    if not UIDropDownMenu_SetSelectedValue or not UIDropDownMenu_SetText then
+        return
+    end
+    local style = self:Get("controllerType") or "xbox"
+    local styleText = style == "ps" and "PlayStation" or "Xbox"
+    local styleNames = {
+        "ConsoleUIConfigControllerTypeDropdown",
+        "ConsoleUIConfigGlyphStyleDropdown",
+    }
+    local i
+    for i = 1, table.getn(styleNames) do
+        local frame = getglobal and getglobal(styleNames[i]) or nil
+        if frame then
+            UIDropDownMenu_SetSelectedValue(frame, style)
+            UIDropDownMenu_SetText(styleText, frame)
+        end
+    end
+
+    local size = self:Get("controllerGlyphSize") or "small"
+    local Locale = ConsoleUI.locale
+    local T = Locale and Locale.T or function(key) return key end
+    local sizeText = T("Small")
+    if size == "medium" then sizeText = T("Medium") end
+    if size == "large" then sizeText = T("Large") end
+    local sizeNames = {
+        "ConsoleUIConfigGlyphSizeDropdown",
+        "ConsoleUIConfigGlyphSizePageDropdown",
+    }
+    for i = 1, table.getn(sizeNames) do
+        local frame = getglobal and getglobal(sizeNames[i]) or nil
+        if frame then
+            UIDropDownMenu_SetSelectedValue(frame, size)
+            UIDropDownMenu_SetText(sizeText, frame)
+        end
+    end
+end
+
 function Config:ApplyControllerGlyphs()
+    self:RefreshGlyphControls()
     if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
         ConsoleUI.actionbars:UpdateAllButtons()
     end
@@ -493,8 +541,12 @@ function Config:ApplyControllerGlyphs()
     if self.RefreshBindingIcons then
         self:RefreshBindingIcons()
     end
-    if ConsoleUI.cursor and ConsoleUI.cursor.tooltip and ConsoleUI.cursor.tooltip.ApplyGlyphSize then
-        ConsoleUI.cursor.tooltip:ApplyGlyphSize()
+    if ConsoleUI.cursor and ConsoleUI.cursor.tooltip then
+        if ConsoleUI.cursor.tooltip.ApplyControllerStyle then
+            ConsoleUI.cursor.tooltip:ApplyControllerStyle()
+        elseif ConsoleUI.cursor.tooltip.ApplyGlyphSize then
+            ConsoleUI.cursor.tooltip:ApplyGlyphSize()
+        end
     end
     if ConsoleUI.loot and ConsoleUI.loot.PaintChrome then
         ConsoleUI.loot:PaintChrome()
@@ -983,15 +1035,15 @@ end
 
 -- Section definitions
 Config.SECTIONS = {
-    { id = "interface", name = "Interface" },
+    { id = "interface", name = "General" },
     { id = "mouse", name = "Mouse" },
-    { id = "bars", name = "Bars" },
+    { id = "bars", name = "Action Bars" },
+    { id = "hud", name = "HUD" },
     { id = "bindings", name = "Bindings" },
     { id = "rings", name = "Rings" },
-    { id = "unitframes", name = "Blizz Frames" },
+    { id = "unitframes", name = "Frames" },
     { id = "profiles", name = "Profiles" },
     { id = "about", name = "About" },
-    { id = "debug", name = "Debug" },
 }
 
 -- ============================================================================
@@ -1112,16 +1164,6 @@ function Config:CreateMainFrame()
     
     local closeButton = self:MakePanelButton(frame, "ConsoleUIConfigCloseButton", 96, CLOSE or "Close")
     closeButton:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -16, 14)
-    local resetLabel = "Reset Bindings"
-    if ConsoleUI.locale and ConsoleUI.locale.T then
-        resetLabel = ConsoleUI.locale.T("Reset Bindings")
-    end
-    local resetBinds = self:MakePanelButton(frame, "ConsoleUIConfigFooterResetBinds", 130, resetLabel)
-    resetBinds:SetPoint("RIGHT", closeButton, "LEFT", -8, 0)
-    resetBinds:SetScript("OnClick", function()
-        Config:RunResetBindings()
-    end)
-    frame.resetBindingsButton = resetBinds
     closeButton:SetScript("OnClick", function()
         PlaySound("gsTitleOptionExit")
         if ConsoleUI.profiles and ConsoleUI.profiles.SaveCurrentProfile then
@@ -1133,6 +1175,7 @@ function Config:CreateMainFrame()
     
     local debugButton = self:MakePanelButton(frame, "ConsoleUIConfigDebugButton", 104, "Debug: OFF", "ghost")
     debugButton:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 16, 14)
+    debugButton:Hide()
     
     local function UpdateDebugButtonText()
         local debugEnabled = Config:Get("debugEnabled")
@@ -1273,6 +1316,8 @@ function Config:CreateContentSections()
 
     self:CreateAboutSection()
 
+    -- Debug remains available through /cui debug and /cui test, but is not a
+    -- normal end-user settings category.
     self:CreateDebugSection()
 end
 
@@ -1286,110 +1331,12 @@ function Config:CreateInterfaceSection()
     section:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -5)
     section:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -5, 5)
     section:Hide()
-    
+
     -- ==================== General Settings Box ====================
     local generalBox = self:CreateSectionBox(section, T("General"))
     generalBox:SetPoint("TOP", section, "TOP", 0, -6)
-    generalBox:SetHeight(220)
+    generalBox:SetHeight(142)
     generalBox.heightCalculated = true
-
-    local controllerTypeLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    controllerTypeLabel:SetPoint("TOPLEFT", generalBox, "TOPLEFT", generalBox.contentLeft, generalBox.contentTop)
-    controllerTypeLabel:SetText(T("Controller"))
-    controllerTypeLabel:SetTextColor(unpack(self.UI_COLORS.muted))
-    
-    local controllerTypeDropdown = CreateFrame("Frame", "ConsoleUIConfigControllerTypeDropdown", generalBox, "UIDropDownMenuTemplate")
-    controllerTypeDropdown:SetPoint("TOPLEFT", controllerTypeLabel, "BOTTOMLEFT", -16, -2)
-    
-    -- Initialize function for controller type dropdown
-    local function InitializeControllerTypeDropdown()
-        local selectedValue = UIDropDownMenu_GetSelectedValue(controllerTypeDropdown) or (Config:Get("controllerType") or "xbox")
-        local info
-        
-        info = {}
-        info.text = "Xbox"
-        info.value = "xbox"
-        info.func = function()
-            UIDropDownMenu_SetSelectedValue(controllerTypeDropdown, "xbox")
-            UIDropDownMenu_SetText("Xbox", controllerTypeDropdown)
-            Config:Set("controllerType", "xbox")
-            Config:ApplyControllerGlyphs()
-        end
-        if info.value == selectedValue then
-            info.checked = 1
-        end
-        UIDropDownMenu_AddButton(info)
-        
-        info = {}
-        info.text = "PlayStation"
-        info.value = "ps"
-        info.func = function()
-            UIDropDownMenu_SetSelectedValue(controllerTypeDropdown, "ps")
-            UIDropDownMenu_SetText("PlayStation", controllerTypeDropdown)
-            Config:Set("controllerType", "ps")
-            Config:ApplyControllerGlyphs()
-        end
-        if info.value == selectedValue then
-            info.checked = 1
-        end
-        UIDropDownMenu_AddButton(info)
-    end
-    
-    UIDropDownMenu_Initialize(controllerTypeDropdown, InitializeControllerTypeDropdown)
-    UIDropDownMenu_SetWidth(120, controllerTypeDropdown)
-    local currentControllerType = Config:Get("controllerType") or "xbox"
-    UIDropDownMenu_SetSelectedValue(controllerTypeDropdown, currentControllerType)
-    UIDropDownMenu_SetText(currentControllerType == "xbox" and "Xbox" or "PlayStation", controllerTypeDropdown)
-
-    local glyphLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    glyphLabel:SetPoint("TOPLEFT", controllerTypeDropdown, "BOTTOMLEFT", 16, -4)
-    glyphLabel:SetText(T("Glyph size"))
-    glyphLabel:SetTextColor(unpack(self.UI_COLORS.muted))
-
-    local glyphDropdown = CreateFrame("Frame", "ConsoleUIConfigGlyphSizeDropdown", generalBox, "UIDropDownMenuTemplate")
-    glyphDropdown:SetPoint("TOPLEFT", glyphLabel, "BOTTOMLEFT", -16, -2)
-
-    local function GlyphSizeLabel(value)
-        if value == "medium" then
-            return T("Medium")
-        end
-        if value == "large" then
-            return T("Large")
-        end
-        return T("Small")
-    end
-
-    local function MakeGlyphFunc(value)
-        return function()
-            UIDropDownMenu_SetSelectedValue(glyphDropdown, value)
-            UIDropDownMenu_SetText(GlyphSizeLabel(value), glyphDropdown)
-            Config:Set("controllerGlyphSize", value)
-            Config:ApplyControllerGlyphs()
-        end
-    end
-
-    local function InitializeGlyphSizeDropdown()
-        local selectedValue = UIDropDownMenu_GetSelectedValue(glyphDropdown) or (Config:Get("controllerGlyphSize") or "small")
-        local keys = { "small", "medium", "large" }
-        local i
-        for i = 1, table.getn(keys) do
-            local value = keys[i]
-            local info = {}
-            info.text = GlyphSizeLabel(value)
-            info.value = value
-            info.func = MakeGlyphFunc(value)
-            if info.value == selectedValue then
-                info.checked = 1
-            end
-            UIDropDownMenu_AddButton(info)
-        end
-    end
-
-    UIDropDownMenu_Initialize(glyphDropdown, InitializeGlyphSizeDropdown)
-    UIDropDownMenu_SetWidth(120, glyphDropdown)
-    local currentGlyph = Config:Get("controllerGlyphSize") or "small"
-    UIDropDownMenu_SetSelectedValue(glyphDropdown, currentGlyph)
-    UIDropDownMenu_SetText(GlyphSizeLabel(currentGlyph), glyphDropdown)
     
     local healerModeCheck = self:CreateCheckbox(generalBox, T("Healer Mode"),
         function() return Config:Get("healerMode") end,
@@ -1430,18 +1377,8 @@ function Config:CreateInterfaceSection()
         end)
     dropdownNavCheck:SetPoint("TOPLEFT", openBagsCheck, "BOTTOMLEFT", 0, 2)
 
-    local hideBarsCheck = self:CreateCheckbox(generalBox, T("Hide Default Bars"),
-        function() return Config:Get("hideBlizzardBars") ~= false end,
-        function(checked)
-            Config:Set("hideBlizzardBars", checked)
-            if ConsoleUI.actionbars and ConsoleUI.actionbars.ApplyDefaultBarVisibility then
-                ConsoleUI.actionbars:ApplyDefaultBarVisibility()
-            end
-        end)
-    hideBarsCheck:SetPoint("TOPLEFT", dropdownNavCheck, "BOTTOMLEFT", 0, 2)
-    
     local langLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    langLabel:SetPoint("TOPLEFT", glyphDropdown, "BOTTOMLEFT", 16, -4)
+    langLabel:SetPoint("TOPLEFT", generalBox, "TOPLEFT", generalBox.contentLeft, generalBox.contentTop)
     langLabel:SetText(T("Language"))
     langLabel:SetTextColor(unpack(self.UI_COLORS.muted))
     
@@ -1504,13 +1441,6 @@ function Config:CreateInterfaceSection()
     local generalDelayFrame = CreateFrame("Frame")
     generalDelayFrame:SetScript("OnUpdate", function()
         generalDelayFrame:Hide()
-        local ctrlBtn = getglobal("ConsoleUIConfigControllerTypeDropdownButton")
-        if ctrlBtn then 
-            ctrlBtn:Enable()
-            ctrlBtn:Show()
-            ctrlBtn.label = T("Controller Type")
-            ctrlBtn.tooltipText = T("Select which controller button icons to display (Xbox or PlayStation style).")
-        end
         local langBtn = getglobal("ConsoleUIConfigLanguageDropdownButton")
         if langBtn then 
             langBtn:Enable()
@@ -1525,23 +1455,14 @@ function Config:CreateInterfaceSection()
     generalDelayFrame:Show()
 
     self:AddSectionReset(generalBox, function()
-        Config:Set("controllerType", Config.DEFAULTS.controllerType)
-        Config:Set("controllerGlyphSize", Config.DEFAULTS.controllerGlyphSize)
         Config:Set("healerMode", Config.DEFAULTS.healerMode)
         Config:Set("alwaysOpenAllBags", Config.DEFAULTS.alwaysOpenAllBags)
         Config:Set("openAllBagsAtVendor", Config.DEFAULTS.openAllBagsAtVendor)
         Config:Set("dropdownNavEnabled", Config.DEFAULTS.dropdownNavEnabled)
-        Config:Set("hideBlizzardBars", Config.DEFAULTS.hideBlizzardBars)
-        UIDropDownMenu_SetSelectedValue(controllerTypeDropdown, Config.DEFAULTS.controllerType)
-        UIDropDownMenu_SetText(Config.DEFAULTS.controllerType == "xbox" and "Xbox" or "PlayStation", controllerTypeDropdown)
-        UIDropDownMenu_SetSelectedValue(glyphDropdown, Config.DEFAULTS.controllerGlyphSize)
-        UIDropDownMenu_SetText(GlyphSizeLabel(Config.DEFAULTS.controllerGlyphSize), glyphDropdown)
         healerModeCheck:SetChecked(Config.DEFAULTS.healerMode and 1 or 0)
         alwaysBagsCheck:SetChecked(Config.DEFAULTS.alwaysOpenAllBags ~= false and 1 or 0)
         openBagsCheck:SetChecked(Config.DEFAULTS.openAllBagsAtVendor and 1 or 0)
         dropdownNavCheck:SetChecked(Config.DEFAULTS.dropdownNavEnabled and 1 or 0)
-        hideBarsCheck:SetChecked(Config.DEFAULTS.hideBlizzardBars ~= false and 1 or 0)
-        Config:ApplyControllerGlyphs()
         if ConsoleUI.hooks and ConsoleUI.hooks.HookPartyRaidFrames then
             ConsoleUI.hooks:HookPartyRaidFrames()
         end
@@ -1553,11 +1474,12 @@ function Config:CreateInterfaceSection()
         end
     end)
 
-    local keyboardAnchor = generalBox
+    local glyphBox = self:CreateGlyphsBox(section, generalBox)
+    local keyboardAnchor = glyphBox
     if ConsoleUIKeyboard then
         local keyboardBox = self:CreateSectionBox(section, T("Keyboard"))
         keyboardBox:ClearAllPoints()
-        keyboardBox:SetPoint("TOPLEFT", generalBox, "BOTTOMLEFT", 0, -10)
+        keyboardBox:SetPoint("TOPLEFT", glyphBox, "BOTTOMLEFT", 0, -10)
         keyboardBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
         keyboardBox:SetHeight(78)
         keyboardBox.heightCalculated = true
@@ -1890,6 +1812,146 @@ function Config:CreateInterfaceSection()
     self.contentSections["interface"] = section
 end
 
+function Config:CreateGlyphsBox(section, anchor)
+    local Locale = ConsoleUI.locale
+    local T = Locale and Locale.T or function(key) return key end
+
+    local glyphBox = self:CreateSectionBox(section, T("Glyphs"))
+    glyphBox:ClearAllPoints()
+    glyphBox:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
+    glyphBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
+    glyphBox:SetHeight(118)
+    glyphBox.heightCalculated = true
+
+    local styleLabel = glyphBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    styleLabel:SetPoint("TOPLEFT", glyphBox, "TOPLEFT", glyphBox.contentLeft, glyphBox.contentTop)
+    styleLabel:SetText(T("Style") .. ":")
+    styleLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+
+    local styleDrop = CreateFrame("Frame", "ConsoleUIConfigControllerTypeDropdown", glyphBox, "UIDropDownMenuTemplate")
+    styleDrop:SetPoint("LEFT", styleLabel, "RIGHT", -10, -2)
+
+    local function SetStyle(value)
+        Config:Set("controllerType", value)
+        Config:ApplyControllerGlyphs()
+    end
+
+    local function InitStyle()
+        local selected = UIDropDownMenu_GetSelectedValue(styleDrop) or (Config:Get("controllerType") or "xbox")
+        local values = {
+            { value = "xbox", text = "Xbox" },
+            { value = "ps", text = "PlayStation" },
+        }
+        local i
+        for i = 1, table.getn(values) do
+            local row = values[i]
+            local info = {}
+            info.text = row.text
+            info.value = row.value
+            local captured = row.value
+            info.func = function() SetStyle(captured) end
+            if row.value == selected then info.checked = 1 end
+            UIDropDownMenu_AddButton(info)
+        end
+    end
+    UIDropDownMenu_Initialize(styleDrop, InitStyle)
+    UIDropDownMenu_SetWidth(130, styleDrop)
+
+    local sizeLabel = glyphBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    sizeLabel:SetPoint("TOPLEFT", glyphBox, "TOPLEFT", glyphBox.contentLeft + 330, glyphBox.contentTop)
+    sizeLabel:SetText(T("Glyph size") .. ":")
+    sizeLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+
+    local sizeDrop = CreateFrame("Frame", "ConsoleUIConfigGlyphSizeDropdown", glyphBox, "UIDropDownMenuTemplate")
+    sizeDrop:SetPoint("LEFT", sizeLabel, "RIGHT", -10, -2)
+
+    local function GlyphSizeLabel(value)
+        if value == "medium" then return T("Medium") end
+        if value == "large" then return T("Large") end
+        return T("Small")
+    end
+
+    local function SetSize(value)
+        Config:Set("controllerGlyphSize", value)
+        Config:ApplyControllerGlyphs()
+    end
+
+    local function InitSize()
+        local selected = UIDropDownMenu_GetSelectedValue(sizeDrop) or (Config:Get("controllerGlyphSize") or "small")
+        local values = { "small", "medium", "large" }
+        local i
+        for i = 1, table.getn(values) do
+            local value = values[i]
+            local info = {}
+            info.text = GlyphSizeLabel(value)
+            info.value = value
+            local captured = value
+            info.func = function() SetSize(captured) end
+            if value == selected then info.checked = 1 end
+            UIDropDownMenu_AddButton(info)
+        end
+    end
+    UIDropDownMenu_Initialize(sizeDrop, InitSize)
+    UIDropDownMenu_SetWidth(130, sizeDrop)
+
+    local actionCheck = self:CreateCheckbox(glyphBox, T("Glyphs on action bars"),
+        function() return Config:Get("barActionGlyphs") ~= false end,
+        function(checked)
+            Config:Set("barActionGlyphs", checked)
+            Config:UpdateActionBarLayout()
+        end,
+        T("Show ABXY and D-pad glyphs on action buttons. LB, LT, RB, and RT stay visible."))
+    actionCheck:SetPoint("TOPLEFT", glyphBox, "TOPLEFT", glyphBox.contentLeft, glyphBox.contentTop - 42)
+
+    local tooltipCheck = self:CreateCheckbox(glyphBox, T("Glyphs in tooltips"),
+        function() return Config:Get("tooltipActionHints") ~= false end,
+        function(checked)
+            Config:Set("tooltipActionHints", checked)
+            if ConsoleUI.cursor and ConsoleUI.cursor.tooltip and ConsoleUI.cursor.tooltip.ApplyPromptVisibility then
+                ConsoleUI.cursor.tooltip:ApplyPromptVisibility()
+            end
+            if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
+                ConsoleUI.cursor.hintbar:Refresh()
+            end
+        end,
+        T("Show controller glyphs and action prompts inside tooltips. Disable to use only the Hint Bar."))
+    tooltipCheck:SetPoint("TOPLEFT", glyphBox, "TOPLEFT", glyphBox.contentLeft + 330, glyphBox.contentTop - 42)
+
+    self:AddSectionReset(glyphBox, function()
+        Config:Set("controllerType", Config.DEFAULTS.controllerType)
+        Config:Set("controllerGlyphSize", Config.DEFAULTS.controllerGlyphSize)
+        Config:Set("barActionGlyphs", Config.DEFAULTS.barActionGlyphs)
+        Config:Set("tooltipActionHints", Config.DEFAULTS.tooltipActionHints)
+        actionCheck:SetChecked(Config.DEFAULTS.barActionGlyphs and 1 or 0)
+        tooltipCheck:SetChecked(Config.DEFAULTS.tooltipActionHints and 1 or 0)
+        Config:ApplyControllerGlyphs()
+        Config:UpdateActionBarLayout()
+        if ConsoleUI.cursor and ConsoleUI.cursor.tooltip and ConsoleUI.cursor.tooltip.ApplyPromptVisibility then
+            ConsoleUI.cursor.tooltip:ApplyPromptVisibility()
+        end
+    end)
+
+    local glyphDelay = CreateFrame("Frame")
+    glyphDelay:SetScript("OnUpdate", function()
+        glyphDelay:Hide()
+        local styleButton = getglobal("ConsoleUIConfigControllerTypeDropdownButton")
+        if styleButton then
+            styleButton.label = T("Glyph style")
+            styleButton.tooltipText = T("Select which controller button icons to display (Xbox or PlayStation style).")
+        end
+        local sizeButton = getglobal("ConsoleUIConfigGlyphSizeDropdownButton")
+        if sizeButton then
+            sizeButton.label = T("Glyph size")
+            sizeButton.tooltipText = T("Size of Xbox and PlayStation button icons on action bars, Spell Placement, bindings, and tooltips.")
+        end
+        if ConsoleUI.cursor and ConsoleUI.cursor.RefreshFrame then ConsoleUI.cursor:RefreshFrame() end
+    end)
+    glyphDelay:Show()
+
+    self:RefreshGlyphControls()
+    return glyphBox
+end
+
 function Config:CreateBarsSection()
     local content = self.frame.content
     local Locale = ConsoleUI.locale
@@ -1899,6 +1961,50 @@ function Config:CreateBarsSection()
     section:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -5)
     section:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -5, 5)
     section:Hide()
+
+    local hudSection = CreateFrame("Frame", nil, content)
+    hudSection:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -5)
+    hudSection:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -5, 5)
+    hudSection:Hide()
+
+    local function CreateContextScaleField(parent, key, applyFunc)
+        local box = self:CreateEditBox(parent, 42,
+            function() return string.format("%.1f", Config:Get(key) or 1.0) end,
+            function(value)
+                local num = tonumber(value) or 1.0
+                if num < 0.5 then num = 0.5 end
+                if num > 2.0 then num = 2.0 end
+                Config:Set(key, num)
+                applyFunc()
+            end,
+            T("Scale"),
+            T("Scale of this bar. Range: 0.5-2.0."),
+            self.NUDGE_SCALE)
+        box:SetScript("OnTextChanged", function()
+            local num = tonumber(this:GetText()) or 1.0
+            if num >= 0.5 and num <= 2.0 then
+                Config:Set(key, num)
+                applyFunc()
+            end
+        end)
+        return box
+    end
+
+    local function ApplyMainScale()
+        Config:UpdateActionBarLayout()
+    end
+    local function ApplySideScale()
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
+            ConsoleUI.actionbars:UpdateSideBars()
+        end
+    end
+    local function ApplyExtraScale()
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then
+            ConsoleUI.actionbars.extra:Update()
+        end
+    end
+
+    self.scaleEditBoxes = {}
     
     -- ==================== General Action Bars Box ====================
     local generalBox = self:CreateSectionBox(section, T("Action bars"))
@@ -2210,6 +2316,13 @@ function Config:CreateBarsSection()
         end
     end)
 
+    local mainScaleLabel = generalBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    mainScaleLabel:SetPoint("LEFT", starPaddingEditBox, "RIGHT", 14, 0)
+    mainScaleLabel:SetText(T("Scale") .. ":")
+    local mainScaleBox = CreateContextScaleField(generalBox, "barScale", ApplyMainScale)
+    mainScaleBox:SetPoint("LEFT", mainScaleLabel, "RIGHT", 5, 0)
+    self.scaleEditBoxes.main = mainScaleBox
+
     local actionGlyphCheck = self:CreateCheckbox(generalBox, T("Action glyphs"),
         function() return Config:Get("barActionGlyphs") ~= false end,
         function(checked)
@@ -2218,9 +2331,21 @@ function Config:CreateBarsSection()
         end,
         T("Show ABXY and D-pad glyphs on action buttons. LB, LT, RB, and RT stay visible."))
     actionGlyphCheck:SetPoint("TOPLEFT", generalBox, "TOPLEFT", generalBox.contentLeft + 520, generalBox.contentTop - 61)
+
+    local hideBarsCheck = self:CreateCheckbox(generalBox, T("Hide Default Bars"),
+        function() return Config:Get("hideBlizzardBars") ~= false end,
+        function(checked)
+            Config:Set("hideBlizzardBars", checked)
+            if ConsoleUI.actionbars and ConsoleUI.actionbars.ApplyDefaultBarVisibility then
+                ConsoleUI.actionbars:ApplyDefaultBarVisibility()
+            end
+        end,
+        T("Hide Blizzard action and micro bars while ConsoleUI action bars are enabled."))
+    hideBarsCheck:SetPoint("TOPLEFT", generalBox, "TOPLEFT", generalBox.contentLeft + 360, generalBox.contentTop - 61)
     
     self:AddSectionReset(generalBox, function()
         Config:Set("barButtonSize", Config.DEFAULTS.barButtonSize)
+        Config:Set("barScale", Config.DEFAULTS.barScale)
         Config:Set("barPadding", Config.DEFAULTS.barPadding)
         Config:Set("barStarPadding", Config.DEFAULTS.barStarPadding)
         Config:Set("barXOffset", Config.DEFAULTS.barXOffset)
@@ -2235,9 +2360,11 @@ function Config:CreateBarsSection()
         Config:Set("barFlankGap", Config.DEFAULTS.barFlankGap)
         Config:Set("autoRankEnabled", Config.DEFAULTS.autoRankEnabled)
         Config:Set("druidStealth", Config.DEFAULTS.druidStealth)
+        Config:Set("hideBlizzardBars", Config.DEFAULTS.hideBlizzardBars)
         Config:UpdateActionBarLayout()
         Config:ApplyHudBorderChrome()
         sizeEditBox:SetText(tostring(Config.DEFAULTS.barButtonSize))
+        mainScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.barScale))
         paddingEditBox:SetText(tostring(Config.DEFAULTS.barPadding))
         starPaddingEditBox:SetText(tostring(Config.DEFAULTS.barStarPadding))
         xEditBox:SetText(tostring(Config.DEFAULTS.barXOffset))
@@ -2246,10 +2373,14 @@ function Config:CreateBarsSection()
         autoRankCheck:SetChecked(Config.DEFAULTS.autoRankEnabled and 1 or 0)
         druidStealthCheck:SetChecked(Config.DEFAULTS.druidStealth and 1 or 0)
         actionGlyphCheck:SetChecked(Config.DEFAULTS.barActionGlyphs and 1 or 0)
+        hideBarsCheck:SetChecked(Config.DEFAULTS.hideBlizzardBars ~= false and 1 or 0)
         UpdateGoldColorPreview()
         local defLayout = Config.DEFAULTS.barLayout or "controller"
         UIDropDownMenu_SetSelectedValue(layoutDropdown, defLayout)
         UIDropDownMenu_SetText(LayoutLabel(defLayout), layoutDropdown)
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.ApplyDefaultBarVisibility then
+            ConsoleUI.actionbars:ApplyDefaultBarVisibility()
+        end
     end)
 
     local updateRanksButton = self:MakePanelButton(generalBox, "ConsoleUIConfigUpdateRanks", 110, T("Update ranks"), "ghost")
@@ -2279,127 +2410,10 @@ function Config:CreateBarsSection()
     end)
     barsDelayFrame:Show()
 
-    local scaleBox = self:CreateSectionBox(section, T("Scale"))
-    scaleBox:ClearAllPoints()
-    scaleBox:SetPoint("TOPLEFT", generalBox, "BOTTOMLEFT", 0, -6)
-    scaleBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
-    scaleBox:SetHeight(148)
-    scaleBox.heightCalculated = true
-
-    local function CreateScaleField(parent, key, applyFunc, x)
-        local box = self:CreateEditBox(parent, 42,
-            function() return string.format("%.1f", Config:Get(key) or 1.0) end,
-            function(value)
-                local num = tonumber(value) or 1.0
-                if num < 0.5 then num = 0.5 end
-                if num > 2.0 then num = 2.0 end
-                Config:Set(key, num)
-                applyFunc()
-            end,
-            T("Scale"),
-            nil,
-            self.NUDGE_SCALE)
-        box:SetPoint("TOPLEFT", parent, "TOPLEFT", x, parent.contentTop)
-        box:SetScript("OnTextChanged", function()
-            local num = tonumber(this:GetText()) or 1.0
-            if num >= 0.5 and num <= 2.0 then
-                Config:Set(key, num)
-                applyFunc()
-            end
-        end)
-        return box
-    end
-
-    local function ApplyMainScale()
-        Config:UpdateActionBarLayout()
-    end
-    local function ApplySideScale()
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
-            ConsoleUI.actionbars:UpdateSideBars()
-        end
-    end
-    local function ApplyExtraScale()
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then
-            ConsoleUI.actionbars.extra:Update()
-        end
-    end
-    local function ApplyHintScale()
-        if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
-            ConsoleUI.cursor.hintbar:Refresh()
-        end
-    end
-
-    local mainScaleLabel = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    mainScaleLabel:SetPoint("TOPLEFT", scaleBox, "TOPLEFT", scaleBox.contentLeft, scaleBox.contentTop)
-    mainScaleLabel:SetText("Main action bars")
-    local mainScaleBox = CreateScaleField(scaleBox, "barScale", ApplyMainScale, scaleBox.contentLeft + 130)
-    mainScaleBox:ClearAllPoints()
-    mainScaleBox:SetPoint("LEFT", mainScaleLabel, "RIGHT", 8, 0)
-
-    local leftScaleTitle = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    leftScaleTitle:SetPoint("LEFT", mainScaleBox, "RIGHT", 28, 0)
-    leftScaleTitle:SetText("Left touch bar")
-    local leftScaleBox = CreateScaleField(scaleBox, "sideBarLeftScale", ApplySideScale, 0)
-    leftScaleBox:ClearAllPoints()
-    leftScaleBox:SetPoint("LEFT", leftScaleTitle, "RIGHT", 8, 0)
-
-    local rightScaleTitle = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    rightScaleTitle:SetPoint("LEFT", leftScaleBox, "RIGHT", 28, 0)
-    rightScaleTitle:SetText("Right touch bar")
-    local rightScaleBox = CreateScaleField(scaleBox, "sideBarRightScale", ApplySideScale, 0)
-    rightScaleBox:ClearAllPoints()
-    rightScaleBox:SetPoint("LEFT", rightScaleTitle, "RIGHT", 8, 0)
-
-    local stanceScaleTitle = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    stanceScaleTitle:SetPoint("TOPLEFT", mainScaleLabel, "BOTTOMLEFT", 0, -14)
-    stanceScaleTitle:SetText(T("Stance bar"))
-    local stanceScaleBox = CreateScaleField(scaleBox, "stanceBarScale", ApplyExtraScale, 0)
-    stanceScaleBox:ClearAllPoints()
-    stanceScaleBox:SetPoint("LEFT", stanceScaleTitle, "RIGHT", 8, 0)
-
-    local petScaleTitle = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    petScaleTitle:SetPoint("LEFT", stanceScaleBox, "RIGHT", 28, 0)
-    petScaleTitle:SetText(T("Pet bar"))
-    local petScaleBox = CreateScaleField(scaleBox, "petBarScale", ApplyExtraScale, 0)
-    petScaleBox:ClearAllPoints()
-    petScaleBox:SetPoint("LEFT", petScaleTitle, "RIGHT", 8, 0)
-
-    local hintScaleTitle = scaleBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    hintScaleTitle:SetPoint("TOPLEFT", stanceScaleTitle, "BOTTOMLEFT", 0, -14)
-    hintScaleTitle:SetText(T("Hint bar"))
-    local hintScaleBox = CreateScaleField(scaleBox, "hintBarScale", ApplyHintScale, 0)
-    hintScaleBox:ClearAllPoints()
-    hintScaleBox:SetPoint("LEFT", hintScaleTitle, "RIGHT", 8, 0)
-
-    self.scaleEditBoxes = { main = mainScaleBox, left = leftScaleBox, right = rightScaleBox, stance = stanceScaleBox, pet = petScaleBox, hint = hintScaleBox }
-
-    self:AddSectionReset(scaleBox, function()
-        Config:Set("barScale", Config.DEFAULTS.barScale)
-        Config:Set("sideBarLeftScale", Config.DEFAULTS.sideBarLeftScale)
-        Config:Set("sideBarRightScale", Config.DEFAULTS.sideBarRightScale)
-        Config:Set("stanceBarScale", Config.DEFAULTS.stanceBarScale)
-        Config:Set("petBarScale", Config.DEFAULTS.petBarScale)
-        Config:Set("hintBarScale", Config.DEFAULTS.hintBarScale)
-        mainScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.barScale))
-        leftScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.sideBarLeftScale))
-        rightScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.sideBarRightScale))
-        stanceScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.stanceBarScale))
-        petScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.petBarScale))
-        hintScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.hintBarScale))
-        Config:UpdateActionBarLayout()
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
-            ConsoleUI.actionbars:UpdateSideBars()
-        end
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then
-            ConsoleUI.actionbars.extra:Update()
-        end
-        ApplyHintScale()
-    end)
-    
     -- ==================== Left Side Bar Box ====================
     local leftSideBox = self:CreateSectionBox(section, "Left touch bar")
     leftSideBox:ClearAllPoints()
-    leftSideBox:SetPoint("TOPLEFT", scaleBox, "BOTTOMLEFT", 0, -6)
+    leftSideBox:SetPoint("TOPLEFT", generalBox, "BOTTOMLEFT", 0, -6)
     leftSideBox:SetPoint("RIGHT", section, "CENTER", -6, 0)
     leftSideBox:SetHeight(88)
     leftSideBox.heightCalculated = true  -- Don't auto-calculate
@@ -2515,15 +2529,25 @@ function Config:CreateBarsSection()
         end
     end)
 
+    local leftScaleLabel = leftSideBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    leftScaleLabel:SetPoint("LEFT", leftYEditBox, "RIGHT", 12, 0)
+    leftScaleLabel:SetText(T("Scale") .. ":")
+    leftScaleLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+    local leftScaleBox = CreateContextScaleField(leftSideBox, "sideBarLeftScale", ApplySideScale)
+    leftScaleBox:SetPoint("LEFT", leftScaleLabel, "RIGHT", 5, 0)
+    self.scaleEditBoxes.left = leftScaleBox
+
     self:AddSectionReset(leftSideBox, function()
         Config:Set("sideBarLeftEnabled", Config.DEFAULTS.sideBarLeftEnabled)
         Config:Set("sideBarLeftButtons", Config.DEFAULTS.sideBarLeftButtons)
         Config:Set("sideBarLeftOffset", Config.DEFAULTS.sideBarLeftOffset)
         Config:Set("sideBarLeftYOffset", Config.DEFAULTS.sideBarLeftYOffset)
+        Config:Set("sideBarLeftScale", Config.DEFAULTS.sideBarLeftScale)
         leftBarCheck:SetChecked(Config.DEFAULTS.sideBarLeftEnabled and 1 or 0)
         leftCountEditBox:SetText(tostring(Config.DEFAULTS.sideBarLeftButtons))
         leftOffsetEditBox:SetText(tostring(Config.DEFAULTS.sideBarLeftOffset))
         leftYEditBox:SetText(tostring(Config.DEFAULTS.sideBarLeftYOffset))
+        leftScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.sideBarLeftScale))
         if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
             ConsoleUI.actionbars:UpdateSideBars()
         end
@@ -2535,7 +2559,7 @@ function Config:CreateBarsSection()
     -- ==================== Right Side Bar Box ====================
     local rightSideBox = self:CreateSectionBox(section, "Right touch bar")
     rightSideBox:ClearAllPoints()
-    rightSideBox:SetPoint("TOPRIGHT", scaleBox, "BOTTOMRIGHT", 0, -6)
+    rightSideBox:SetPoint("TOPRIGHT", generalBox, "BOTTOMRIGHT", 0, -6)
     rightSideBox:SetPoint("LEFT", section, "CENTER", 6, 0)
     rightSideBox:SetHeight(88)
     rightSideBox.heightCalculated = true  -- Don't auto-calculate
@@ -2651,15 +2675,25 @@ function Config:CreateBarsSection()
         end
     end)
 
+    local rightScaleLabel = rightSideBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    rightScaleLabel:SetPoint("LEFT", rightYEditBox, "RIGHT", 12, 0)
+    rightScaleLabel:SetText(T("Scale") .. ":")
+    rightScaleLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+    local rightScaleBox = CreateContextScaleField(rightSideBox, "sideBarRightScale", ApplySideScale)
+    rightScaleBox:SetPoint("LEFT", rightScaleLabel, "RIGHT", 5, 0)
+    self.scaleEditBoxes.right = rightScaleBox
+
     self:AddSectionReset(rightSideBox, function()
         Config:Set("sideBarRightEnabled", Config.DEFAULTS.sideBarRightEnabled)
         Config:Set("sideBarRightButtons", Config.DEFAULTS.sideBarRightButtons)
         Config:Set("sideBarRightOffset", Config.DEFAULTS.sideBarRightOffset)
         Config:Set("sideBarRightYOffset", Config.DEFAULTS.sideBarRightYOffset)
+        Config:Set("sideBarRightScale", Config.DEFAULTS.sideBarRightScale)
         rightBarCheck:SetChecked(Config.DEFAULTS.sideBarRightEnabled and 1 or 0)
         rightCountEditBox:SetText(tostring(Config.DEFAULTS.sideBarRightButtons))
         rightOffsetEditBox:SetText(tostring(Config.DEFAULTS.sideBarRightOffset))
         rightYEditBox:SetText(tostring(Config.DEFAULTS.sideBarRightYOffset))
+        rightScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.sideBarRightScale))
         if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
             ConsoleUI.actionbars:UpdateSideBars()
         end
@@ -2696,11 +2730,21 @@ function Config:CreateBarsSection()
 
     local stanceXBox, stanceYBox = self:AddOffsetRow(stanceBox, stanceUnlock, "stanceBarOffsetX", "stanceBarOffsetY", ApplyExtraBars, false)
 
+    local stanceScaleLabel = stanceBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    stanceScaleLabel:SetPoint("LEFT", stanceYBox, "RIGHT", 12, 0)
+    stanceScaleLabel:SetText(T("Scale") .. ":")
+    stanceScaleLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+    local stanceScaleBox = CreateContextScaleField(stanceBox, "stanceBarScale", ApplyExtraScale)
+    stanceScaleBox:SetPoint("LEFT", stanceScaleLabel, "RIGHT", 5, 0)
+    self.scaleEditBoxes.stance = stanceScaleBox
+
     self:AddSectionReset(stanceBox, function()
         Config:Set("stanceBarOffsetX", Config.DEFAULTS.stanceBarOffsetX)
         Config:Set("stanceBarOffsetY", Config.DEFAULTS.stanceBarOffsetY)
+        Config:Set("stanceBarScale", Config.DEFAULTS.stanceBarScale)
         stanceXBox:SetText(tostring(Config.DEFAULTS.stanceBarOffsetX))
         stanceYBox:SetText(tostring(Config.DEFAULTS.stanceBarOffsetY))
+        stanceScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.stanceBarScale))
         ApplyExtraBars()
     end)
 
@@ -2772,12 +2816,22 @@ function Config:CreateBarsSection()
 
     local petXBox, petYBox = self:AddOffsetRow(petBox, petUnlock, "petBarOffsetX", "petBarOffsetY", ApplyExtraBars, false)
 
+    local petScaleLabel = petBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    petScaleLabel:SetPoint("LEFT", petYBox, "RIGHT", 12, 0)
+    petScaleLabel:SetText(T("Scale") .. ":")
+    petScaleLabel:SetTextColor(unpack(self.UI_COLORS.muted))
+    local petScaleBox = CreateContextScaleField(petBox, "petBarScale", ApplyExtraScale)
+    petScaleBox:SetPoint("LEFT", petScaleLabel, "RIGHT", 5, 0)
+    self.scaleEditBoxes.pet = petScaleBox
+
     self:AddSectionReset(petBox, function()
         Config:Set("petBarOffsetX", Config.DEFAULTS.petBarOffsetX)
         Config:Set("petBarOffsetY", Config.DEFAULTS.petBarOffsetY)
         Config:Set("petBarGrow", Config.DEFAULTS.petBarGrow)
+        Config:Set("petBarScale", Config.DEFAULTS.petBarScale)
         petXBox:SetText(tostring(Config.DEFAULTS.petBarOffsetX))
         petYBox:SetText(tostring(Config.DEFAULTS.petBarOffsetY))
+        petScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.petBarScale))
         UIDropDownMenu_SetSelectedValue(growDrop, Config.DEFAULTS.petBarGrow)
         UIDropDownMenu_SetText(GrowLabel(Config.DEFAULTS.petBarGrow), growDrop)
         ApplyExtraBars()
@@ -2786,10 +2840,10 @@ function Config:CreateBarsSection()
     self.extraOffsetBoxes = { stanceX = stanceXBox, stanceY = stanceYBox, petX = petXBox, petY = petYBox }
 
     -- ==================== XP Bar Box ====================
-    local xpBox = self:CreateSectionBox(section, T("XP Bar"))
+    local xpBox = self:CreateSectionBox(hudSection, T("XP Bar"))
     xpBox:ClearAllPoints()
-    xpBox:SetPoint("TOPLEFT", stanceBox, "BOTTOMLEFT", 0, -6)
-    xpBox:SetPoint("RIGHT", section, "CENTER", -6, 0)
+    xpBox:SetPoint("TOPLEFT", hudSection, "TOPLEFT", 0, -6)
+    xpBox:SetPoint("RIGHT", hudSection, "CENTER", -6, 0)
     xpBox:SetHeight(132)
     xpBox.heightCalculated = true  -- Don't auto-calculate
     
@@ -2815,8 +2869,7 @@ function Config:CreateBarsSection()
     local xpTextShowCheck = CreateFrame("CheckButton", self:GetNextElementName("Check"), xpBox, "UICheckButtonTemplate")
     xpTextShowCheck:SetWidth(24)
     xpTextShowCheck:SetHeight(24)
-    xpTextShowCheck:SetPoint("TOP", xpAlwaysCheck, "TOP", 0, 0)
-    xpTextShowCheck:SetPoint("RIGHT", xpBox, "RIGHT", -12, 0)
+    xpTextShowCheck:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 285, xpBox.contentTop)
     local xpTextLabel = xpBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     xpTextLabel:SetPoint("RIGHT", xpTextShowCheck, "LEFT", -2, 0)
     xpTextLabel:SetText(T("Text"))
@@ -2842,9 +2895,10 @@ function Config:CreateBarsSection()
         end
     end)
     
-    -- Row 2: Width, Height, Timeout
+    -- Row 2: Width and Height. Timeout shares the offset row below so the
+    -- spinner controls never collide with the next label at narrow UI scales.
     local xpWidthLabel = xpBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    xpWidthLabel:SetPoint("TOPLEFT", xpAlwaysCheck, "BOTTOMLEFT", 0, -10)
+    xpWidthLabel:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft, xpBox.contentTop - 36)
     xpWidthLabel:SetText(T("Width") .. ":")
     
     local xpWidthEditBox = self:CreateEditBox(xpBox, 40,
@@ -2862,10 +2916,10 @@ function Config:CreateBarsSection()
         end,
         T("XP Bar Width"),
         T("Width of XP bar in pixels. Range: 50-2000."))
-    xpWidthEditBox:SetPoint("LEFT", xpWidthLabel, "RIGHT", 5, 0)
+    xpWidthEditBox:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 44, xpBox.contentTop - 38)
     
     local xpHeightLabel = xpBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    xpHeightLabel:SetPoint("LEFT", xpWidthEditBox, "RIGHT", 10, 0)
+    xpHeightLabel:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 125, xpBox.contentTop - 36)
     xpHeightLabel:SetText(T("Height") .. ":")
     
     local xpHeightEditBox = self:CreateEditBox(xpBox, 30,
@@ -2881,10 +2935,9 @@ function Config:CreateBarsSection()
         end,
         T("XP Bar Height"),
         T("Height of XP bar in pixels. Range: 16-100."))
-    xpHeightEditBox:SetPoint("LEFT", xpHeightLabel, "RIGHT", 5, 0)
+    xpHeightEditBox:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 173, xpBox.contentTop - 38)
     
     local xpTimeoutLabel = xpBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    xpTimeoutLabel:SetPoint("LEFT", xpHeightEditBox, "RIGHT", 10, 0)
     xpTimeoutLabel:SetText(T("Timeout") .. ":")
     
     local xpTimeoutEditBox = self:CreateEditBox(xpBox, 30,
@@ -2900,13 +2953,13 @@ function Config:CreateBarsSection()
         end,
         T("XP Bar Timeout"),
         T("Seconds before the bar fades out. Range: 0-60."))
-    xpTimeoutEditBox:SetPoint("LEFT", xpTimeoutLabel, "RIGHT", 5, 0)
-
     local xpXEditBox, xpYEditBox = self:AddOffsetRow(xpBox, xpWidthLabel, "xpBarOffsetX", "xpBarOffsetY", function()
         if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
             ConsoleUI.xpbar:UpdateAllBars()
         end
     end)
+    xpTimeoutLabel:SetPoint("TOPLEFT", xpWidthLabel, "BOTTOMLEFT", 174, -10)
+    xpTimeoutEditBox:SetPoint("LEFT", xpTimeoutLabel, "RIGHT", 5, 0)
 
     self:AddSectionReset(xpBox, function()
         Config:Set("xpBarAlways", Config.DEFAULTS.xpBarAlways)
@@ -2929,10 +2982,10 @@ function Config:CreateBarsSection()
     end)
     
     -- ==================== Rep Bar Box ====================
-    local repBox = self:CreateSectionBox(section, T("Rep Bar"))
+    local repBox = self:CreateSectionBox(hudSection, T("Rep Bar"))
     repBox:ClearAllPoints()
-    repBox:SetPoint("TOPRIGHT", petBox, "BOTTOMRIGHT", 0, -6)
-    repBox:SetPoint("LEFT", section, "CENTER", 6, 0)
+    repBox:SetPoint("TOPRIGHT", hudSection, "TOPRIGHT", 0, -6)
+    repBox:SetPoint("LEFT", hudSection, "CENTER", 6, 0)
     repBox:SetHeight(132)
     repBox.heightCalculated = true  -- Don't auto-calculate
     
@@ -2958,8 +3011,7 @@ function Config:CreateBarsSection()
     local repTextShowCheck = CreateFrame("CheckButton", self:GetNextElementName("Check"), repBox, "UICheckButtonTemplate")
     repTextShowCheck:SetWidth(24)
     repTextShowCheck:SetHeight(24)
-    repTextShowCheck:SetPoint("TOP", repAlwaysCheck, "TOP", 0, 0)
-    repTextShowCheck:SetPoint("RIGHT", repBox, "RIGHT", -12, 0)
+    repTextShowCheck:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 285, repBox.contentTop)
     local repTextLabel = repBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     repTextLabel:SetPoint("RIGHT", repTextShowCheck, "LEFT", -2, 0)
     repTextLabel:SetText(T("Text"))
@@ -2986,9 +3038,10 @@ function Config:CreateBarsSection()
         end
     end)
     
-    -- Row 2: Width, Height, Timeout
+    -- Row 2: Width and Height. Timeout shares the offset row below so the
+    -- spinner controls never collide with the next label at narrow UI scales.
     local repWidthLabel = repBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    repWidthLabel:SetPoint("TOPLEFT", repAlwaysCheck, "BOTTOMLEFT", 0, -10)
+    repWidthLabel:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft, repBox.contentTop - 36)
     repWidthLabel:SetText(T("Width") .. ":")
     
     local repWidthEditBox = self:CreateEditBox(repBox, 40,
@@ -3006,10 +3059,10 @@ function Config:CreateBarsSection()
         end,
         T("Rep Bar Width"),
         T("Width of Reputation bar in pixels. Range: 50-2000."))
-    repWidthEditBox:SetPoint("LEFT", repWidthLabel, "RIGHT", 5, 0)
+    repWidthEditBox:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 44, repBox.contentTop - 38)
     
     local repHeightLabel = repBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    repHeightLabel:SetPoint("LEFT", repWidthEditBox, "RIGHT", 10, 0)
+    repHeightLabel:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 125, repBox.contentTop - 36)
     repHeightLabel:SetText(T("Height") .. ":")
     
     local repHeightEditBox = self:CreateEditBox(repBox, 30,
@@ -3025,10 +3078,9 @@ function Config:CreateBarsSection()
         end,
         T("Rep Bar Height"),
         T("Height of Reputation bar in pixels. Range: 16-100."))
-    repHeightEditBox:SetPoint("LEFT", repHeightLabel, "RIGHT", 5, 0)
+    repHeightEditBox:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 173, repBox.contentTop - 38)
     
     local repTimeoutLabel = repBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    repTimeoutLabel:SetPoint("LEFT", repHeightEditBox, "RIGHT", 10, 0)
     repTimeoutLabel:SetText(T("Timeout") .. ":")
     
     local repTimeoutEditBox = self:CreateEditBox(repBox, 30,
@@ -3044,13 +3096,13 @@ function Config:CreateBarsSection()
         end,
         T("Rep Bar Timeout"),
         T("Seconds before the bar fades out. Range: 0-60."))
-    repTimeoutEditBox:SetPoint("LEFT", repTimeoutLabel, "RIGHT", 5, 0)
-
     local repXEditBox, repYEditBox = self:AddOffsetRow(repBox, repWidthLabel, "repBarOffsetX", "repBarOffsetY", function()
         if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
             ConsoleUI.xpbar:UpdateAllBars()
         end
     end)
+    repTimeoutLabel:SetPoint("TOPLEFT", repWidthLabel, "BOTTOMLEFT", 174, -10)
+    repTimeoutEditBox:SetPoint("LEFT", repTimeoutLabel, "RIGHT", 5, 0)
 
     self:AddSectionReset(repBox, function()
         Config:Set("repBarAlways", Config.DEFAULTS.repBarAlways)
@@ -3073,10 +3125,10 @@ function Config:CreateBarsSection()
     end)
     
     -- ==================== Cast Bar Box ====================
-    local castBox = self:CreateSectionBox(section, T("Cast Bar"))
+    local castBox = self:CreateSectionBox(hudSection, T("Cast Bar"))
     castBox:ClearAllPoints()
     castBox:SetPoint("TOPLEFT", xpBox, "BOTTOMLEFT", 0, -6)
-    castBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
+    castBox:SetPoint("RIGHT", hudSection, "RIGHT", -5, 0)
     castBox:SetHeight(110)
     castBox.heightCalculated = true
     
@@ -3093,7 +3145,7 @@ function Config:CreateBarsSection()
     castEnabledCheck:SetPoint("TOPLEFT", castBox, "TOPLEFT", castBox.contentLeft, castBox.contentTop)
     
     local castHeightLabel = castBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    castHeightLabel:SetPoint("LEFT", castEnabledCheck, "RIGHT", 60, 0)
+    castHeightLabel:SetPoint("TOPLEFT", castBox, "TOPLEFT", castBox.contentLeft + 145, castBox.contentTop)
     castHeightLabel:SetText(T("Height") .. ":")
     
     local castHeightEditBox = self:CreateEditBox(castBox, 35,
@@ -3109,7 +3161,7 @@ function Config:CreateBarsSection()
         end,
         T("Cast Bar Height"),
         T("Height of the cast strip in pixels. Range: 6-100."))
-    castHeightEditBox:SetPoint("LEFT", castHeightLabel, "RIGHT", 5, 0)
+    castHeightEditBox:SetPoint("TOPLEFT", castBox, "TOPLEFT", castBox.contentLeft + 200, castBox.contentTop - 2)
 
     local castXEditBox, castYEditBox = self:AddOffsetRow(castBox, castEnabledCheck, "castbarOffsetX", "castbarOffsetY", function()
         if ConsoleUI.castbar and ConsoleUI.castbar.UpdatePosition then
@@ -3118,13 +3170,13 @@ function Config:CreateBarsSection()
     end)
     
     local castColorLabel = castBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    castColorLabel:SetPoint("LEFT", castHeightEditBox, "RIGHT", 20, 0)
+    castColorLabel:SetPoint("TOPLEFT", castBox, "TOPLEFT", castBox.contentLeft + 290, castBox.contentTop)
     castColorLabel:SetText(T("Color") .. ":")
     
     local castColorBtn = CreateFrame("Button", self:GetNextElementName("ColorBtn"), castBox)
     castColorBtn:SetWidth(40)
     castColorBtn:SetHeight(20)
-    castColorBtn:SetPoint("LEFT", castColorLabel, "RIGHT", 5, 0)
+    castColorBtn:SetPoint("TOPLEFT", castBox, "TOPLEFT", castBox.contentLeft + 340, castBox.contentTop - 1)
     castColorBtn.label = T("Cast Bar Color")
     castColorBtn.tooltipText = T("Click to choose the cast bar fill color.")
     
@@ -3187,13 +3239,13 @@ function Config:CreateBarsSection()
     
     -- Channel color picker
     local channelColorLabel = castBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    channelColorLabel:SetPoint("LEFT", castColorBtn, "RIGHT", 20, 0)
+    channelColorLabel:SetPoint("TOPLEFT", castBox, "TOPLEFT", castBox.contentLeft + 440, castBox.contentTop)
     channelColorLabel:SetText(T("Channel") .. ":")
     
     local channelColorBtn = CreateFrame("Button", self:GetNextElementName("ColorBtn"), castBox)
     channelColorBtn:SetWidth(40)
     channelColorBtn:SetHeight(20)
-    channelColorBtn:SetPoint("LEFT", channelColorLabel, "RIGHT", 5, 0)
+    channelColorBtn:SetPoint("TOPLEFT", castBox, "TOPLEFT", castBox.contentLeft + 500, castBox.contentTop - 1)
     channelColorBtn.label = T("Channel Color")
     channelColorBtn.tooltipText = T("Click to choose the color for channeling spells (bandages, etc).")
     
@@ -3273,10 +3325,10 @@ function Config:CreateBarsSection()
         end
     end)
 
-    local lootBox = self:CreateSectionBox(section, T("Loot"))
+    local lootBox = self:CreateSectionBox(hudSection, T("Loot"))
     lootBox:ClearAllPoints()
     lootBox:SetPoint("TOPLEFT", castBox, "BOTTOMLEFT", 0, -6)
-    lootBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
+    lootBox:SetPoint("RIGHT", hudSection, "RIGHT", -5, 0)
     lootBox:SetHeight(64)
     lootBox.heightCalculated = true
 
@@ -3302,7 +3354,7 @@ function Config:CreateBarsSection()
             ApplyLoot()
         end,
         T("Custom group roll window. Uncheck to use Blizzard rolls."))
-    lootRollCheck:SetPoint("LEFT", lootFrameCheck, "RIGHT", 160, 0)
+    lootRollCheck:SetPoint("TOPLEFT", lootBox, "TOPLEFT", lootBox.contentLeft + 240, lootBox.contentTop)
 
     self:AddSectionReset(lootBox, function()
         Config:Set("lootFrameEnabled", Config.DEFAULTS.lootFrameEnabled)
@@ -3312,11 +3364,11 @@ function Config:CreateBarsSection()
         ApplyLoot()
     end)
 
-    local hintBox = self:CreateSectionBox(section, T("Hint bar"))
+    local hintBox = self:CreateSectionBox(hudSection, T("Hint bar"))
     hintBox:ClearAllPoints()
     hintBox:SetPoint("TOPLEFT", lootBox, "BOTTOMLEFT", 0, -6)
-    hintBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
-    hintBox:SetHeight(110)
+    hintBox:SetPoint("RIGHT", hudSection, "RIGHT", -5, 0)
+    hintBox:SetHeight(138)
     hintBox.heightCalculated = true
 
     local function ApplyHintBar()
@@ -3334,8 +3386,20 @@ function Config:CreateBarsSection()
         T("Show A/B/X/Y prompts on screen while the cursor is active."))
     hintCheck:SetPoint("TOPLEFT", hintBox, "TOPLEFT", hintBox.contentLeft, hintBox.contentTop)
 
+    local tooltipHintsCheck = self:CreateCheckbox(hintBox, T("Tooltip action hints"),
+        function() return Config:Get("tooltipActionHints") ~= false end,
+        function(checked)
+            Config:Set("tooltipActionHints", checked)
+            if ConsoleUI.cursor and ConsoleUI.cursor.tooltip and ConsoleUI.cursor.tooltip.ApplyPromptVisibility then
+                ConsoleUI.cursor.tooltip:ApplyPromptVisibility()
+            end
+            ApplyHintBar()
+        end,
+        T("Show controller glyphs and action prompts inside tooltips. Disable to use only the Hint Bar."))
+    tooltipHintsCheck:SetPoint("TOPLEFT", hintCheck, "BOTTOMLEFT", 0, -6)
+
     local posLabel = hintBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    posLabel:SetPoint("LEFT", hintCheck, "RIGHT", 80, 0)
+    posLabel:SetPoint("TOPLEFT", hintBox, "TOPLEFT", hintBox.contentLeft + 180, hintBox.contentTop)
     posLabel:SetText(T("Position") .. ":")
     posLabel:SetTextColor(unpack(self.UI_COLORS.muted))
 
@@ -3380,26 +3444,55 @@ function Config:CreateBarsSection()
     UIDropDownMenu_SetSelectedValue(posDrop, currentPos)
     UIDropDownMenu_SetText(PosLabel(currentPos), posDrop)
 
-    local hintXBox, hintYBox = self:AddOffsetRow(hintBox, hintCheck, "hintBarOffsetX", "hintBarOffsetY", ApplyHintBar)
+    local hintXBox, hintYBox = self:AddOffsetRow(hintBox, tooltipHintsCheck, "hintBarOffsetX", "hintBarOffsetY", ApplyHintBar)
+
+    local hintScaleLabel = hintBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hintScaleLabel:SetPoint("LEFT", hintYBox, "RIGHT", 24, 0)
+    hintScaleLabel:SetText(T("Scale") .. ":")
+    local hintScaleBox = self:CreateEditBox(hintBox, 42,
+        function() return string.format("%.1f", Config:Get("hintBarScale") or 1.0) end,
+        function(value)
+            local num = tonumber(value) or 1.0
+            if num < 0.5 then num = 0.5 end
+            if num > 2.0 then num = 2.0 end
+            Config:Set("hintBarScale", num)
+            ApplyHintBar()
+        end,
+        T("Hint Bar Scale"),
+        T("Scale of the persistent hint bar. Range: 0.5-2.0."),
+        self.NUDGE_SCALE)
+    hintScaleBox:SetPoint("LEFT", hintScaleLabel, "RIGHT", 5, 0)
+    hintScaleBox:SetScript("OnTextChanged", function()
+        local num = tonumber(this:GetText())
+        if num and num >= 0.5 and num <= 2.0 then
+            Config:Set("hintBarScale", num)
+            ApplyHintBar()
+        end
+    end)
+    self.scaleEditBoxes.hint = hintScaleBox
 
     self:AddSectionReset(hintBox, function()
         Config:Set("hintBarEnabled", Config.DEFAULTS.hintBarEnabled)
+        Config:Set("tooltipActionHints", Config.DEFAULTS.tooltipActionHints)
         Config:Set("hintBarPosition", Config.DEFAULTS.hintBarPosition)
         Config:Set("hintBarOffsetX", Config.DEFAULTS.hintBarOffsetX)
         Config:Set("hintBarOffsetY", Config.DEFAULTS.hintBarOffsetY)
         Config:Set("hintBarScale", Config.DEFAULTS.hintBarScale)
         hintCheck:SetChecked(Config.DEFAULTS.hintBarEnabled and 1 or 0)
+        tooltipHintsCheck:SetChecked(Config.DEFAULTS.tooltipActionHints and 1 or 0)
         UIDropDownMenu_SetSelectedValue(posDrop, Config.DEFAULTS.hintBarPosition)
         UIDropDownMenu_SetText(PosLabel(Config.DEFAULTS.hintBarPosition), posDrop)
         hintXBox:SetText(tostring(Config.DEFAULTS.hintBarOffsetX))
         hintYBox:SetText(tostring(Config.DEFAULTS.hintBarOffsetY))
-        if self.scaleEditBoxes and self.scaleEditBoxes.hint then
-            self.scaleEditBoxes.hint:SetText(string.format("%.1f", Config.DEFAULTS.hintBarScale))
+        hintScaleBox:SetText(string.format("%.1f", Config.DEFAULTS.hintBarScale))
+        if ConsoleUI.cursor and ConsoleUI.cursor.tooltip and ConsoleUI.cursor.tooltip.ApplyPromptVisibility then
+            ConsoleUI.cursor.tooltip:ApplyPromptVisibility()
         end
         ApplyHintBar()
     end)
     
     self.contentSections["bars"] = section
+    self.contentSections["hud"] = hudSection
 end
 
 
@@ -3408,136 +3501,118 @@ function Config:CreateProfilesSection()
     local content = self.frame.content
     local Locale = ConsoleUI.locale
     local T = Locale and Locale.T or function(key) return key end
-    
-    -- Main section container
+
     local section = CreateFrame("Frame", nil, content)
     section:SetPoint("TOPLEFT", content, "TOPLEFT", 5, -5)
     section:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -5, 5)
     section:Hide()
-    
-    -- ==================== Current Profile Box ====================
-    local currentBox = self:CreateSectionBox(section, T("Current Profile"))
+
+    local currentBox = self:CreateSectionBox(section, T("This Character"))
     currentBox:SetPoint("TOP", section, "TOP", 0, -6)
-    
-    -- Profile selector dropdown
-    local profileLabel = currentBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    profileLabel:SetPoint("TOPLEFT", currentBox, "TOPLEFT", currentBox.contentLeft, currentBox.contentTop)
-    profileLabel:SetText(T("Active Profile") .. ":")
-    
-    local profileDropdown = CreateFrame("Frame", "ConsoleUIConfigProfileDropdown", currentBox, "UIDropDownMenuTemplate")
-    profileDropdown:SetPoint("LEFT", profileLabel, "RIGHT", -15, -3)
-    
-    -- Function to refresh profile dropdown
+    currentBox:SetHeight(104)
+    currentBox.heightCalculated = true
+
+    local currentName = currentBox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    currentName:SetPoint("TOPLEFT", currentBox, "TOPLEFT", currentBox.contentLeft, currentBox.contentTop)
+    currentName:SetTextColor(unpack(self.UI_COLORS.text))
+
+    local currentHelp = currentBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    currentHelp:SetPoint("TOPLEFT", currentName, "BOTTOMLEFT", 0, -8)
+    currentHelp:SetPoint("RIGHT", currentBox, "RIGHT", -18, 0)
+    currentHelp:SetJustifyH("LEFT")
+    currentHelp:SetTextColor(unpack(self.UI_COLORS.muted))
+    currentHelp:SetText(T("Every character now owns an automatic account-visible profile. Settings, scales, positions, bindings, rings, touch assignments, keyboard layout, and action bars are saved together."))
+
+    local copyBox = self:CreateSectionBox(section, T("Copy From"))
+    copyBox:SetPoint("TOP", currentBox, "BOTTOM", 0, -8)
+    copyBox:SetHeight(152)
+    copyBox.heightCalculated = true
+
+    local sourceLabel = copyBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    sourceLabel:SetPoint("TOPLEFT", copyBox, "TOPLEFT", copyBox.contentLeft, copyBox.contentTop)
+    sourceLabel:SetText(T("Character or legacy profile") .. ":")
+
+    local profileDropdown = CreateFrame("Frame", "ConsoleUIConfigProfileDropdown", copyBox, "UIDropDownMenuTemplate")
+    profileDropdown:SetPoint("TOPLEFT", sourceLabel, "BOTTOMLEFT", -16, -3)
+
+    local copyButton = self:MakePanelButton(copyBox, "ConsoleUIConfigCopyProfile", 116, T("Copy Profile"))
+    copyButton:SetPoint("LEFT", profileDropdown, "RIGHT", 2, 2)
+
+    local copyHelp = copyBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    copyHelp:SetPoint("TOPLEFT", profileDropdown, "BOTTOMLEFT", 16, -8)
+    copyHelp:SetPoint("RIGHT", copyBox, "RIGHT", -18, 0)
+    copyHelp:SetJustifyH("LEFT")
+    copyHelp:SetTextColor(unpack(self.UI_COLORS.muted))
+    copyHelp:SetText(T("Copying replaces this character's ConsoleUI setup after making a backup. Action bars are restored outside combat; missing spells, items, or macros are reported and their current slots are kept."))
+
+    local safetyBox = self:CreateSectionBox(section, T("Migration Safety"))
+    safetyBox:SetPoint("TOP", copyBox, "BOTTOM", 0, -8)
+    safetyBox:SetHeight(88)
+    safetyBox.heightCalculated = true
+
+    local safetyText = safetyBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    safetyText:SetPoint("TOPLEFT", safetyBox, "TOPLEFT", safetyBox.contentLeft, safetyBox.contentTop)
+    safetyText:SetPoint("RIGHT", safetyBox, "RIGHT", -18, 0)
+    safetyText:SetJustifyH("LEFT")
+    safetyText:SetTextColor(unpack(self.UI_COLORS.muted))
+    safetyText:SetText(T("Existing RC6 data is preserved in ConsoleUIDB and imported once. Legacy named profiles remain available as copy sources; migration never deletes the old tables."))
+
     local function RefreshProfileDropdown()
-        local selectedValue = ConsoleUI.profiles:GetCurrentProfileName()
-        local info
-        
-        -- Clear existing menu
+        local profiles = ConsoleUI.profiles
+        local sources = profiles and profiles.ListCopySources and profiles:ListCopySources() or {}
+        local chosen = nil
+        local i
+        for i = 1, table.getn(sources) do
+            if sources[i].key == Config.selectedCopyProfileKey then chosen = sources[i] end
+        end
+        if not chosen then
+            chosen = sources[1]
+            Config.selectedCopyProfileKey = chosen and chosen.key or nil
+        end
+
         UIDropDownMenu_Initialize(profileDropdown, function()
-            local profiles = ConsoleUI.profiles:ListProfiles()
-            for _, profileName in ipairs(profiles) do
-                info = {}
-                info.text = profileName
-                info.value = profileName
+            local index
+            for index = 1, table.getn(sources) do
+                local source = sources[index]
+                local sourceKey, sourceName = source.key, source.label
+                local info = {}
+                info.text = sourceName
+                info.value = sourceKey
+                info.checked = sourceKey == Config.selectedCopyProfileKey and 1 or nil
                 info.func = function()
-                    -- Save current profile before switching
-                    ConsoleUI.profiles:SaveCurrentProfile()
-                    -- Switch to selected profile
-                    ConsoleUI.profiles:SetProfile(this.value)
-                    -- Refresh dropdown
-                    RefreshProfileDropdown()
-                    -- Update delete button state
-                    if Config.UpdateDeleteButtonState then
-                        Config:UpdateDeleteButtonState()
-                    end
-                    -- Update UI to reflect new profile
-                    if ConsoleUI.config and ConsoleUI.config.frame then
-                        ConsoleUI.config:ShowSection("profiles")
-                    end
-                end
-                if profileName == selectedValue then
-                    info.checked = 1
+                    Config.selectedCopyProfileKey = sourceKey
+                    UIDropDownMenu_SetSelectedValue(profileDropdown, sourceKey)
+                    UIDropDownMenu_SetText(sourceName, profileDropdown)
                 end
                 UIDropDownMenu_AddButton(info)
             end
         end)
-        
-        UIDropDownMenu_SetWidth(200, profileDropdown)
-        UIDropDownMenu_SetSelectedValue(profileDropdown, selectedValue)
-        UIDropDownMenu_SetText(selectedValue, profileDropdown)
+        UIDropDownMenu_SetWidth(270, profileDropdown)
+        if chosen then
+            UIDropDownMenu_SetSelectedValue(profileDropdown, chosen.key)
+            UIDropDownMenu_SetText(chosen.label, profileDropdown)
+            copyButton:Enable()
+            copyButton:SetAlpha(1)
+        else
+            UIDropDownMenu_SetSelectedValue(profileDropdown, nil)
+            UIDropDownMenu_SetText(T("No other profiles yet"), profileDropdown)
+            copyButton:Disable()
+            copyButton:SetAlpha(0.45)
+        end
+        currentName:SetText(profiles and profiles:GetCurrentProfileName() or T("Current character"))
     end
-    
+
+    copyButton:SetScript("OnClick", function()
+        if not Config.selectedCopyProfileKey then return end
+        local source = ConsoleUI.profiles:GetProfile(Config.selectedCopyProfileKey)
+        local label = source and source.displayName or Config.selectedCopyProfileKey
+        local dialog = StaticPopup_Show("ConsoleUI_COPY_CHARACTER_PROFILE", label)
+        if dialog then dialog.data = Config.selectedCopyProfileKey end
+    end)
+
     RefreshProfileDropdown()
     self.profileDropdown = profileDropdown
     self.RefreshProfileDropdown = RefreshProfileDropdown
-    
-    -- ==================== Profile Management Box ====================
-    local managementBox = self:CreateSectionBox(section, T("Profile Management"))
-    managementBox:SetPoint("TOP", currentBox, "BOTTOM", 0, -10)
-    
-    -- Create New Profile button
-    local createButton = CreateFrame("Button", "ConsoleUIConfigCreateProfile", managementBox, "UIPanelButtonTemplate")
-    createButton:SetWidth(140)
-    createButton:SetHeight(24)
-    createButton:SetPoint("TOPLEFT", managementBox, "TOPLEFT", managementBox.contentLeft, managementBox.contentTop)
-    createButton:SetText(T("Create New"))
-    createButton:SetScript("OnClick", function()
-        -- Show input dialog
-        StaticPopup_Show("ConsoleUI_CREATE_PROFILE")
-    end)
-    
-    -- Clone Current Profile button
-    local cloneButton = CreateFrame("Button", "ConsoleUIConfigCloneProfile", managementBox, "UIPanelButtonTemplate")
-    cloneButton:SetWidth(140)
-    cloneButton:SetHeight(24)
-    cloneButton:SetPoint("LEFT", createButton, "RIGHT", 35, 0)
-    cloneButton:SetText(T("Clone Current"))
-    cloneButton:SetScript("OnClick", function()
-        -- Show input dialog
-        StaticPopup_Show("ConsoleUI_CLONE_PROFILE")
-    end)
-    
-    -- Delete Profile button
-    local deleteButton = CreateFrame("Button", "ConsoleUIConfigDeleteProfile", managementBox, "UIPanelButtonTemplate")
-    deleteButton:SetWidth(140)
-    deleteButton:SetHeight(24)
-    deleteButton:SetPoint("LEFT", cloneButton, "RIGHT", 35, 0)
-    deleteButton:SetText(T("Delete"))
-    
-    -- Function to update delete button state
-    local function UpdateDeleteButtonState()
-        local currentProfile = ConsoleUI.profiles:GetCurrentProfileName()
-        if currentProfile == ConsoleUI.profiles.DEFAULT_PROFILE_NAME then
-            deleteButton:Disable()
-            deleteButton:SetAlpha(0.5)
-        else
-            deleteButton:Enable()
-            deleteButton:SetAlpha(1.0)
-        end
-    end
-    
-    deleteButton:SetScript("OnClick", function()
-        local currentProfile = ConsoleUI.profiles:GetCurrentProfileName()
-        if currentProfile == ConsoleUI.profiles.DEFAULT_PROFILE_NAME then
-            -- Can't delete default
-            return
-        end
-        -- Show confirmation dialog with profile name
-        local dialog = StaticPopup_Show("ConsoleUI_DELETE_PROFILE", currentProfile)
-        if dialog then
-            dialog.data = currentProfile
-        end
-    end)
-    
-    -- Update state initially
-    UpdateDeleteButtonState()
-    
-    -- Store update function for refresh
-    self.UpdateDeleteButtonState = UpdateDeleteButtonState
-    
-    -- Store references for refresh
-    self.profileListScrollFrame = scrollFrame
-    
     self.contentSections["profiles"] = section
 end
 
@@ -3580,7 +3655,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.0"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.1"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -4309,6 +4384,13 @@ function Config:RunResetBindings()
     if self.RefreshBindingWorkspace then
         self:RefreshBindingWorkspace()
     end
+    if ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then
+        ConsoleUI.profiles:MarkDirty(false)
+    end
+end
+
+function Config:ConfirmResetBindings()
+    StaticPopup_Show("ConsoleUI_RESET_BINDINGS")
 end
 
 function Config:FitContentScroll()
@@ -4387,6 +4469,9 @@ function Config:ShowSection(sectionId)
     end
     if sectionId == "rings" and self.RefreshRingsEditor then
         self:RefreshRingsEditor()
+    end
+    if sectionId == "interface" and self.RefreshGlyphControls then
+        self:RefreshGlyphControls()
     end
     -- Hide all sections
     for id, section in pairs(self.contentSections) do
@@ -4769,6 +4854,38 @@ StaticPopupDialogs["ConsoleUI_RELOAD_UI"] = {
     hideOnEscape = true,
 }
 
+StaticPopupDialogs["ConsoleUI_RESET_BINDINGS"] = {
+    text = "Reset every ConsoleUI controller and touch binding to defaults?",
+    button1 = "Reset",
+    button2 = "Cancel",
+    OnAccept = function()
+        if ConsoleUI.config then ConsoleUI.config:RunResetBindings() end
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+}
+
+StaticPopupDialogs["ConsoleUI_COPY_CHARACTER_PROFILE"] = {
+    text = "Copy all ConsoleUI settings from '%s'? Your current character profile will be backed up first.",
+    button1 = "Copy",
+    button2 = "Cancel",
+    OnAccept = function()
+        local dialog = this or getglobal("StaticPopup1")
+        local sourceKey = dialog and dialog.data
+        if not sourceKey or not ConsoleUI.profiles then return end
+        local ok, why = ConsoleUI.profiles:CopyFrom(sourceKey)
+        if not ok then
+            StaticPopup_Show("ConsoleUI_PROFILE_ERROR", why or "Failed to copy profile")
+        elseif ConsoleUI.config and ConsoleUI.config.RefreshProfileDropdown then
+            ConsoleUI.config:RefreshProfileDropdown()
+        end
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+}
+
 -- Helper function to trim whitespace (WoW 1.12 doesn't have string.trim)
 local function trimString(s)
     if not s then return "" end
@@ -4794,15 +4911,15 @@ StaticPopupDialogs["ConsoleUI_CREATE_PROFILE"] = {
                     if success then
                         -- Switch to new profile
                         ConsoleUI.profiles:SetProfile(name)
-                    -- Refresh UI
-                    if ConsoleUI.config and ConsoleUI.config.RefreshProfileDropdown then
-                        ConsoleUI.config:RefreshProfileDropdown()
-                    end
-                    if ConsoleUI.config and ConsoleUI.config.UpdateDeleteButtonState then
-                        ConsoleUI.config:UpdateDeleteButtonState()
-                    end
-                else
-                    StaticPopup_Show("ConsoleUI_PROFILE_ERROR", error or "Failed to create profile")
+                        -- Refresh UI
+                        if ConsoleUI.config and ConsoleUI.config.RefreshProfileDropdown then
+                            ConsoleUI.config:RefreshProfileDropdown()
+                        end
+                        if ConsoleUI.config and ConsoleUI.config.UpdateDeleteButtonState then
+                            ConsoleUI.config:UpdateDeleteButtonState()
+                        end
+                    else
+                        StaticPopup_Show("ConsoleUI_PROFILE_ERROR", error or "Failed to create profile")
                     end
                 end
             end
@@ -5281,6 +5398,7 @@ SlashCmdList["CONSOLEUI"] = function(msg)
         end
     elseif command == "help" then
         ConsoleUI_Print("/cui - settings; /cui test; /cui debug; /cui look; /cui gold|gold off; /cui modern|classic")
+        ConsoleUI_Print("/cuiignore - manage persistent cursor navigation exclusions")
     else
         Config:Toggle()
     end

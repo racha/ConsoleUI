@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "_preview"
 PROJECT = {
     "name": "ConsoleUI",
-    "version": "1.0.0-RC6",
+    "version": "1.0.1",
     "interface": "11200",
     "author": "HouseLegend",
     "repository": "https://github.com/racha/ConsoleUI",

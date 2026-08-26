@@ -115,6 +115,14 @@ function Tooltip:ApplyGlyphSize()
     end
 end
 
+function Tooltip:ApplyControllerStyle()
+    UpdateIconTextures()
+    self:ApplyGlyphSize()
+    if self.ApplyPromptVisibility then
+        self:ApplyPromptVisibility()
+    end
+end
+
 UpdateIconTextures()
 Tooltip:ApplyGlyphSize()
 
@@ -122,6 +130,28 @@ Tooltip:ApplyGlyphSize()
 local function HideAllIcons()
     for _, icon in pairs(tooltipIcons) do
         icon:Hide()
+    end
+end
+
+function Tooltip:PromptsEnabled()
+    if ConsoleUI.config and ConsoleUI.config.Get then
+        return ConsoleUI.config:Get("tooltipActionHints") ~= false
+    end
+    if ConsoleUIDB and ConsoleUIDB.config then
+        return ConsoleUIDB.config.tooltipActionHints ~= false
+    end
+    return true
+end
+
+function Tooltip:ApplyPromptVisibility()
+    HideAllIcons()
+    local cursor = ConsoleUI.cursor
+    local button = cursor and cursor.navigationState and cursor.navigationState.currentButton
+    local cursorOn = cursor and cursor.keybindings and cursor.keybindings.IsCursorModeActive
+        and cursor.keybindings:IsCursorModeActive()
+    if cursorOn and button and GameTooltip and GameTooltip:IsShown() and self.ShowButtonTooltip then
+        GameTooltip:Hide()
+        self:ShowButtonTooltip(button)
     end
 end
 
@@ -163,6 +193,7 @@ end
 
 -- Hook GameTooltip show to add our prompts
 TooltipHookFrame:SetScript("OnShow", function()
+    if ConsoleUI.profiles and ConsoleUI.profiles.capturingActionBars then return end
     -- Only add prompts if cursor is active
     if not ConsoleUI.cursor then return end
     if not ConsoleUI.cursor.keybindings then return end
@@ -188,9 +219,13 @@ TooltipHookFrame:SetScript("OnShow", function()
         GameTooltip:AddLine(button.tooltipText, 1, 1, 1, true)
     end
     
-    local actions = Tooltip:ActionsForButton(button)
-    if actions then
-        AddPrompts(actions)
+    if Tooltip:PromptsEnabled() then
+        local actions = Tooltip:ActionsForButton(button)
+        if actions then
+            AddPrompts(actions)
+        end
+    else
+        HideAllIcons()
     end
     
     GameTooltip:Show()

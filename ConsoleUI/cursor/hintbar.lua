@@ -98,7 +98,7 @@ function HintBar:Previewing()
     if not cfg or not cfg.frame or not cfg.frame.IsShown or not cfg.frame:IsShown() then
         return false
     end
-    return cfg.currentSection == "bars"
+    return cfg.currentSection == "hud"
 end
 
 function HintBar:Ensure()

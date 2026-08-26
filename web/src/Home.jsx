@@ -139,8 +139,8 @@ export function Home() {
           <Link to="/development/cursor-integrations/">cursor integrations</Link>.
         </p>
         <p>
-          Made by {project.author}. Same names as <code>/cui</code> → About on{" "}
-          <Link to="/reference/credits/">Credits</Link>. {project.legal} Version notes are on the{" "}
+          Made by {project.author}. Full project credits are listed in <code>/cui</code> → About and
+          on the <Link to="/reference/credits/">Credits</Link> page. {project.legal} Version notes are on the{" "}
           <Link to="/reference/changelog/">Changelog</Link>. If something fails, start with{" "}
           <Link to="/reference/troubleshooting/">Troubleshooting</Link> and include{" "}
           <code>/cui test</code> when you <a href={project.issues}>open an issue</a>.

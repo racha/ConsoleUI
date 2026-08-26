@@ -3,13 +3,14 @@ layout: page
 title: Changelog
 description: What’s new in each ConsoleUI version. Same list as the in-game What’s new window.
 permalink: /reference/changelog/
-last_reviewed: 2026-08-25
+last_reviewed: 2026-08-26
 ---
 
 Same newest-first blocks as `ConsoleUI.CHANGELOG` in `config/changelog.lua`. First install uses Welcome. This list is for upgrades.
 
 <div class="changelog-map">
-<a href="#v1">1.0</a>
+<a href="#v1-0-1">1.0.1</a>
+<a href="#v1">1.0.0</a>
 <a href="#rc5">RC5</a>
 <a href="#rc4-5">RC4.5</a>
 <a href="#rc4-1">RC4.1</a>
@@ -18,6 +19,16 @@ Same newest-first blocks as `ConsoleUI.CHANGELOG` in `config/changelog.lua`. Fir
 <a href="#rc3">RC3</a>
 <a href="#rc2">RC2</a>
 </div>
+
+<h2 id="v1-0-1">1.0.1</h2>
+
+- **New** Glyphs settings section under General
+- **New** Mouse Lock, Unlock, Toggle, and Hold bindings
+- **Fixed** release package source sync
+- **Fixed** vendor bag opening
+- **Fixed** XP and reputation settings layout
+- **Fixed** tooltip controller style refresh
+- **Fixed** mobile documentation navigation
 
 <h2 id="v1">1.0.0</h2>
 

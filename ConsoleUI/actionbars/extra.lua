@@ -51,15 +51,7 @@ function Extra:CanDrag()
     return self:Unlocked() and not self:InCombat()
 end
 
-function Extra:HasStanceClass()
-    local _, class = UnitClass and UnitClass("player")
-    return class == "WARRIOR" or class == "DRUID" or class == "ROGUE"
-end
-
 function Extra:HasStance()
-    if not self:HasStanceClass() then
-        return false
-    end
     local n = GetNumShapeshiftForms and (GetNumShapeshiftForms() or 0) or 0
     return n > 0
 end
@@ -604,8 +596,14 @@ function Extra:EnsureWatcher()
             Extra:EndDrag(Extra.stanceHost)
             Extra:EndDrag(Extra.petHost)
         end
-        if event == "UPDATE_SHAPESHIFT_FORMS" or event == "UPDATE_SHAPESHIFT_FORM"
-            or event == "UPDATE_BONUS_ACTIONBAR" or event == "PLAYER_AURAS_CHANGED" then
+        if event == "UPDATE_SHAPESHIFT_FORMS" then
+            Extra:SyncPendingStance()
+            Extra:UpdateStance()
+            Extra:RefreshStanceDependents()
+            return
+        end
+        if event == "UPDATE_SHAPESHIFT_FORM" or event == "UPDATE_BONUS_ACTIONBAR"
+            or event == "PLAYER_AURAS_CHANGED" then
             Extra:SyncPendingStance()
             Extra:RefreshStanceDependents()
             return
@@ -617,7 +615,7 @@ end
 
 function Extra:StanceInfo(i)
     i = tonumber(i)
-    if not self:HasStanceClass() or not GetShapeshiftFormInfo or not i or i < 1 or i > 8 then
+    if not GetShapeshiftFormInfo or not i or i < 1 or i > 8 then
         return nil
     end
     local ok, texture, name, isActive = pcall(GetShapeshiftFormInfo, i)
@@ -634,9 +632,6 @@ function Extra:StanceInfo(i)
 end
 
 function Extra:StanceCount()
-    if not self:HasStanceClass() then
-        return 0
-    end
     return GetNumShapeshiftForms and (GetNumShapeshiftForms() or 0) or 0
 end
 

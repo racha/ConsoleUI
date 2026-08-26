@@ -17,6 +17,7 @@ ConsoleUI:RegisterEvent("PLAYER_LOGOUT")
 
 -- Configuration storage (saved variables)
 ConsoleUIDB = ConsoleUIDB or {}
+ConsoleUIProfileDB = ConsoleUIProfileDB or {}
 
 ConsoleUI:SetScript("OnEvent", function()
     if event == "ADDON_LOADED" then
@@ -119,10 +120,18 @@ ConsoleUI:SetScript("OnEvent", function()
         if ConsoleUI.changelog and ConsoleUI.changelog.MaybeShow then
             ConsoleUI.changelog:MaybeShow()
         end
+        if ConsoleUI.profiles and ConsoleUI.profiles.ResumePendingRestore then
+            ConsoleUI.profiles:ResumePendingRestore()
+        end
         
     elseif event == "PLAYER_LOGOUT" then
-        -- Save configuration
+        if ConsoleUI.profiles and ConsoleUI.profiles.SaveCurrentProfile then
+            -- During an active restore, keep the desired profile snapshot instead
+            -- of replacing it with a partially restored action bar.
+            ConsoleUI.profiles:SaveCurrentProfile(not ConsoleUI.profiles.restoring)
+        end
         ConsoleUIDB = ConsoleUIDB
+        ConsoleUIProfileDB = ConsoleUIProfileDB
     end
 end)
 
@@ -289,7 +298,7 @@ end
 function ConsoleUI_Welcome()
     if ConsoleUI.welcomed then return end
     ConsoleUI.welcomed = true
-    local version = "1.0.0"
+    local version = "1.0.1"
     if GetAddOnMetadata then
         version = GetAddOnMetadata("ConsoleUI", "Version") or version
     end
@@ -305,7 +314,7 @@ end
 function ConsoleUI:ReportDiagnostics()
     local version, build, date, toc = GetBuildInfo()
     local cfg = self.config
-    local addonVersion = "1.0.0"
+    local addonVersion = "1.0.1"
     if GetAddOnMetadata then
         addonVersion = GetAddOnMetadata("ConsoleUI", "Version") or addonVersion
     end

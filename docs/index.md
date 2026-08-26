@@ -85,4 +85,4 @@ ConsoleUI exposes a small public surface: cursor ignore patterns, frame hooks, `
 
 ## Credits
 
-Made by **HouseLegend**. The same names as `/cui` → About live on the [Credits]({{ '/reference/credits/' | relative_url }}) page. World of Warcraft is a trademark of Blizzard Entertainment. This project is for educational purposes only. It is not affiliated with Blizzard or any private server.
+Made by **HouseLegend**. Full project credits are listed in `/cui` → About and on the [Credits]({{ '/reference/credits/' | relative_url }}) page. World of Warcraft is a trademark of Blizzard Entertainment. This project is for educational purposes only. It is not affiliated with Blizzard or any private server.

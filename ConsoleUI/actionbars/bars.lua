@@ -2869,6 +2869,11 @@ function ActionBars:SideBarButtonOnClick(button, mouseButton)
     if button.isProxiedAction then
         local bindingID = button.isProxiedAction.id
         ConsoleUI_Debug("SideBar: Executing proxied action: " .. bindingID)
+        if ConsoleUI.proxied and ConsoleUI.proxied.IsTouchCompatible
+            and not ConsoleUI.proxied:IsTouchCompatible(bindingID) then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[ConsoleUI]|r This action needs a hardware key and cannot run from a touch button.")
+            return
+        end
         if self.extra and self.extra.RunProxiedPetBind and self.extra:RunProxiedPetBind(bindingID) then
             return
         end

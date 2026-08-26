@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-e8be46" alt="Version 1.0.0">
+  <img src="https://img.shields.io/badge/version-1.0.1-e8be46" alt="Version 1.0.1">
   <img src="https://img.shields.io/badge/Vanilla-1.12-e8be46" alt="Vanilla 1.12">
 </p>
 
@@ -122,7 +122,7 @@ Extend it from the [developer overview](https://racha.github.io/ConsoleUI/develo
 
 ## Credits
 
-Made by **HouseLegend**. Same names as `/cui` → About on [Credits](https://racha.github.io/ConsoleUI/reference/credits/).
+Made by **HouseLegend**. Full project credits are listed in `/cui` → About and on the [Credits](https://racha.github.io/ConsoleUI/reference/credits/) page.
 
 World of Warcraft is a trademark of Blizzard Entertainment. This project is for educational purposes only. It is not affiliated with Blizzard or any private server.
 

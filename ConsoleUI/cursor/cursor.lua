@@ -59,7 +59,19 @@ Cursor.buttonsToIgnore = {
     "[A-Za-z0-9]+MoneyFrameCopperButton",
     "FriendsDropDownButton",
     "TabardFrameMoneyFrame.*",
+    -- Bagshui money controls, group headers, and bag-bar utility buttons.
+    "BagshuiBagsMoney.*Button",
+    "BagshuiBankMoney.*Button",
+    "BagshuiBagsbuttonShowBagBar",
+    "BagshuiBankbuttonShowBagBar",
+    "BagshuiBagsGroup%d+",
+    "BagshuiBankGroup%d+",
+    "Bagshui.*Group%d+",
+    "Bagshui.*buttonShow.*",
 }
+
+Cursor.MAX_CUSTOM_IGNORE_PATTERNS = 100
+Cursor.MAX_IGNORE_PATTERN_LENGTH = 200
 
 -- Special frames that need their children scanned differently
 Cursor.specialFrames = {
@@ -171,15 +183,144 @@ function Cursor:CalculateDistance(x1, y1, x2, y2)
     return math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
 end
 
+function Cursor:GetCustomIgnorePatterns()
+    ConsoleUIProfileDB = ConsoleUIProfileDB or {}
+    if type(ConsoleUIProfileDB.cursorIgnorePatterns) ~= "table" then
+        ConsoleUIProfileDB.cursorIgnorePatterns = {}
+    end
+    return ConsoleUIProfileDB.cursorIgnorePatterns
+end
+
+function Cursor:ValidateIgnorePattern(pattern)
+    if type(pattern) ~= "string" then
+        return false, "Pattern must be text."
+    end
+    pattern = string.gsub(pattern, "^%s*(.-)%s*$", "%1")
+    if pattern == "" then
+        return false, "Pattern cannot be empty."
+    end
+    if string.len(pattern) > self.MAX_IGNORE_PATTERN_LENGTH then
+        return false, "Pattern is too long (maximum 200 characters)."
+    end
+    local valid = pcall(string.find, "", pattern)
+    if not valid then
+        return false, "Invalid Lua pattern."
+    end
+    return true, pattern
+end
+
+function Cursor:PatternMatches(buttonName, pattern)
+    if type(buttonName) ~= "string" or type(pattern) ~= "string" or pattern == "" then
+        return false
+    end
+    local valid, match = pcall(string.find, buttonName, pattern)
+    return valid and match ~= nil
+end
+
+function Cursor:AddIgnorePattern(pattern)
+    local valid, cleanedOrError = self:ValidateIgnorePattern(pattern)
+    if not valid then return false, cleanedOrError end
+    local cleaned = cleanedOrError
+    local patterns = self:GetCustomIgnorePatterns()
+    local i
+    for i = 1, table.getn(self.buttonsToIgnore) do
+        if self.buttonsToIgnore[i] == cleaned then
+            return false, "That pattern is already built in."
+        end
+    end
+    for i = 1, table.getn(patterns) do
+        if patterns[i] == cleaned then
+            return false, "That custom pattern already exists."
+        end
+    end
+    if table.getn(patterns) >= self.MAX_CUSTOM_IGNORE_PATTERNS then
+        return false, "Custom ignore list is full (maximum 100 patterns)."
+    end
+    table.insert(patterns, cleaned)
+    self:RefreshFrame()
+    return true, cleaned
+end
+
+function Cursor:RemoveIgnorePattern(value)
+    local patterns = self:GetCustomIgnorePatterns()
+    local index = tonumber(value)
+    local i
+    if index and index == math.floor(index) then
+        if index < 1 or index > table.getn(patterns) then
+            return false, "No custom pattern exists at that number."
+        end
+    else
+        index = nil
+        for i = 1, table.getn(patterns) do
+            if patterns[i] == value then index = i; break end
+        end
+        if not index then return false, "Custom pattern not found." end
+    end
+    local removed = table.remove(patterns, index)
+    self:RefreshFrame()
+    return true, removed
+end
+
 function Cursor:ShouldIgnoreButton(buttonName)
     if not buttonName then return true end
-    
+
+    local pattern
     for _, pattern in ipairs(self.buttonsToIgnore) do
-        if string.find(buttonName, pattern) then
+        if self:PatternMatches(buttonName, pattern) then
+            return true
+        end
+    end
+    for _, pattern in ipairs(self:GetCustomIgnorePatterns()) do
+        if self:PatternMatches(buttonName, pattern) then
             return true
         end
     end
     return false
+end
+
+-- Public helpers let integration addons register persistent exclusions without
+-- editing ConsoleUI. They return success plus the saved pattern or an error.
+function ConsoleUI_AddCursorIgnorePattern(pattern)
+    return Cursor:AddIgnorePattern(pattern)
+end
+
+function ConsoleUI_RemoveCursorIgnorePattern(patternOrIndex)
+    return Cursor:RemoveIgnorePattern(patternOrIndex)
+end
+
+SLASH_CONSOLEUIIGNORE1 = "/cuiignore"
+SLASH_CONSOLEUIIGNORE2 = "/ceignore"
+SlashCmdList["CONSOLEUIIGNORE"] = function(msg)
+    msg = string.gsub(msg or "", "^%s*(.-)%s*$", "%1")
+    local command, value = string.match(msg, "^(%S+)%s*(.-)$")
+    command = string.lower(command or "")
+
+    if command == "add" then
+        local ok, result = Cursor:AddIgnorePattern(value)
+        if ok then ConsoleUI_Print("Cursor ignore pattern added: " .. result)
+        else ConsoleUI_Print("Cursor ignore: " .. result) end
+    elseif command == "remove" or command == "delete" then
+        local ok, result = Cursor:RemoveIgnorePattern(value)
+        if ok then ConsoleUI_Print("Cursor ignore pattern removed: " .. result)
+        else ConsoleUI_Print("Cursor ignore: " .. result) end
+    elseif command == "list" then
+        local patterns = Cursor:GetCustomIgnorePatterns()
+        ConsoleUI_Print("Custom cursor ignore patterns (" .. table.getn(patterns) .. "):")
+        local i
+        for i = 1, table.getn(patterns) do
+            ConsoleUI_Print("  " .. i .. ". " .. tostring(patterns[i]))
+        end
+        if table.getn(patterns) == 0 then ConsoleUI_Print("  None") end
+        ConsoleUI_Print("Built-in patterns: " .. table.getn(Cursor.buttonsToIgnore))
+    elseif command == "test" then
+        if value == "" then ConsoleUI_Print("Usage: /cuiignore test <frame name>")
+        elseif Cursor:ShouldIgnoreButton(value) then ConsoleUI_Print(value .. " will be ignored.")
+        else ConsoleUI_Print(value .. " will remain selectable.") end
+    else
+        ConsoleUI_Print("/cuiignore add <Lua pattern>")
+        ConsoleUI_Print("/cuiignore remove <number or exact pattern>")
+        ConsoleUI_Print("/cuiignore list; /cuiignore test <frame name>")
+    end
 end
 
 -- ============================================================================
@@ -712,4 +853,3 @@ function Cursor:DebugPrint(msg)
 end
 
 -- Module loaded silently
-

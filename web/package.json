@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/sync-assets.js && vite",
+    "check:docs": "node scripts/check-docs.js",
     "build": "node scripts/sync-assets.js && vite build && node scripts/spa-fallback.js",
     "preview": "vite preview --host 127.0.0.1 --port 8767"
   },

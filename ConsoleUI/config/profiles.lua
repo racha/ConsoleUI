@@ -1,921 +1,739 @@
 --[[
-    ConsoleUI - Profiles Module
-    
-    Manages multiple configuration profiles per character.
-    Each profile stores:
-    - Complete config settings
-    - Proxied action bindings
-    - Action bar contents (slots 1-120)
+    ConsoleUI character profiles.
+
+    V2 stores one account-visible profile per character so other characters can
+    copy it. ConsoleUIDB remains per-character and is never deleted; RC6 profile
+    tables are retained as a rollback copy and imported as legacy templates.
 ]]
 
--- Create the profiles module namespace
 ConsoleUI.profiles = ConsoleUI.profiles or {}
 local Profiles = ConsoleUI.profiles
 
--- Constants
-Profiles.DEFAULT_PROFILE_NAME = "Default"
-Profiles.MAX_ACTION_SLOTS = 120  -- WoW 1.12 has 120 action slots total
+Profiles.SCHEMA_VERSION = 2
+Profiles.MAX_ACTION_SLOTS = 120
+Profiles.SAVE_DELAY = 0.75
+Profiles.RESTORE_DELAY = 0.05
+Profiles.DEFAULT_PROFILE_NAME = "Default" -- legacy API compatibility
 
--- ============================================================================
--- Profile Data Access
--- ============================================================================
+local CONFIG_METADATA = {
+    onboardingSeen = true,
+    changelogSeenVersion = true,
+    barSizeV2 = true,
+    watchBarV2 = true,
+    castBarThinV1 = true,
+    castBarCPV1 = true,
+    castBarSlimV1 = true,
+    extraBarScaleV1 = true,
+    extraBarScaleV2 = true,
+}
 
--- Get current profile name (returns "Default" if not set)
-function Profiles:GetCurrentProfileName()
-    if not ConsoleUIDB or not ConsoleUIDB.currentProfile then
-        return self.DEFAULT_PROFILE_NAME
+local function DeepCopy(value, seen)
+    if type(value) ~= "table" then return value end
+    seen = seen or {}
+    if seen[value] then return seen[value] end
+    local out = {}
+    seen[value] = out
+    local key, child
+    for key, child in pairs(value) do
+        out[DeepCopy(key, seen)] = DeepCopy(child, seen)
     end
-    return ConsoleUIDB.currentProfile
+    return out
 end
 
--- Get profile data by name
-function Profiles:GetProfile(profileName)
-    if not ConsoleUIDB or not ConsoleUIDB.profiles then
-        return nil
-    end
-    return ConsoleUIDB.profiles[profileName]
+Profiles.DeepCopy = DeepCopy
+
+local function CountKeys(tbl)
+    if not tbl then return 0 end
+    local count = 0
+    local _
+    for _ in pairs(tbl) do count = count + 1 end
+    return count
 end
 
--- Get current profile data
+function Profiles:CountTableKeys(tbl) return CountKeys(tbl) end
+
+local function Now()
+    if time then return time() end
+    return 0
+end
+
+local function Trim(text)
+    return string.gsub(text or "", "^%s*(.-)%s*$", "%1")
+end
+
+local function BaseSpellName(name)
+    if not name then return nil end
+    return string.gsub(name, " %(Rank %d+%)", "")
+end
+
+local function ParseItemID(link)
+    if not link then return nil end
+    local _, _, id = string.find(link, "item:(%d+)")
+    return id and tonumber(id) or nil
+end
+
+local function CharacterIdentity()
+    local name = UnitName and UnitName("player") or nil
+    if not name or name == "" then name = "Unknown" end
+    local realm = GetRealmName and GetRealmName() or nil
+    if not realm or realm == "" then realm = "Unknown Realm" end
+    local className, classToken
+    if UnitClass then className, classToken = UnitClass("player") end
+    local key = realm .. "/" .. name
+    return key, name, realm, classToken or className or "UNKNOWN"
+end
+
+local function ProfileLabel(name, realm)
+    return tostring(name or "Unknown") .. " - " .. tostring(realm or "Unknown Realm")
+end
+
+function Profiles:EnsureAccountDB()
+    ConsoleUIProfileDB = ConsoleUIProfileDB or {}
+    ConsoleUIProfileDB.schemaVersion = self.SCHEMA_VERSION
+    ConsoleUIProfileDB.characters = ConsoleUIProfileDB.characters or {}
+    ConsoleUIProfileDB.templates = ConsoleUIProfileDB.templates or {}
+    ConsoleUIProfileDB.legacyBackups = ConsoleUIProfileDB.legacyBackups or {}
+    ConsoleUIProfileDB.migratedCharacters = ConsoleUIProfileDB.migratedCharacters or {}
+    ConsoleUIProfileDB.backups = ConsoleUIProfileDB.backups or {}
+    return ConsoleUIProfileDB
+end
+
+function Profiles:GetCurrentProfileKey()
+    if ConsoleUIDB and ConsoleUIDB.profileKey then return ConsoleUIDB.profileKey end
+    local key = CharacterIdentity()
+    return key
+end
+
 function Profiles:GetCurrentProfile()
-    local profileName = self:GetCurrentProfileName()
-    return self:GetProfile(profileName)
+    return self:EnsureAccountDB().characters[self:GetCurrentProfileKey()]
 end
 
--- List all profile names
+function Profiles:GetCurrentProfileName()
+    local profile = self:GetCurrentProfile()
+    if profile and profile.displayName then return profile.displayName end
+    local _, name, realm = CharacterIdentity()
+    return ProfileLabel(name, realm)
+end
+
+function Profiles:GetProfile(keyOrName)
+    if not keyOrName then return nil end
+    local db = self:EnsureAccountDB()
+    if db.characters[keyOrName] then return db.characters[keyOrName] end
+    if db.templates[keyOrName] then return db.templates[keyOrName] end
+    local _, profile
+    for _, profile in pairs(db.characters) do
+        if profile.displayName == keyOrName then return profile end
+    end
+    for _, profile in pairs(db.templates) do
+        if profile.displayName == keyOrName or profile.legacyName == keyOrName then return profile end
+    end
+    return nil
+end
+
+function Profiles:GetProfileKey(profile)
+    if not profile then return nil end
+    local db = self:EnsureAccountDB()
+    local key, candidate
+    for key, candidate in pairs(db.characters) do if candidate == profile then return key end end
+    for key, candidate in pairs(db.templates) do if candidate == profile then return key end end
+    return nil
+end
+
+function Profiles:ListCopySources()
+    local db = self:EnsureAccountDB()
+    local currentKey = self:GetCurrentProfileKey()
+    local out = {}
+    local key, profile
+    for key, profile in pairs(db.characters) do
+        if key ~= currentKey then
+            table.insert(out, { key = key, label = profile.displayName or key, class = profile.class, legacy = false })
+        end
+    end
+    for key, profile in pairs(db.templates) do
+        table.insert(out, {
+            key = key,
+            label = profile.displayName or profile.legacyName or key,
+            class = profile.class,
+            legacy = true,
+        })
+    end
+    table.sort(out, function(a, b) return tostring(a.label) < tostring(b.label) end)
+    return out
+end
+
 function Profiles:ListProfiles()
-    if not ConsoleUIDB or not ConsoleUIDB.profiles then
-        return {}
-    end
-    
-    local profiles = {}
-    for name, _ in pairs(ConsoleUIDB.profiles) do
-        table.insert(profiles, name)
-    end
-    table.sort(profiles)  -- Sort alphabetically
-    return profiles
+    local out = { self:GetCurrentProfileName() }
+    local sources = self:ListCopySources()
+    local i
+    for i = 1, table.getn(sources) do table.insert(out, sources[i].label) end
+    return out
 end
 
--- ============================================================================
--- Action Bar Save/Load
--- ============================================================================
+local function CopyProfileConfig(source)
+    local out = {}
+    local key, value
+    for key, value in pairs(source or {}) do
+        if not CONFIG_METADATA[key] then out[key] = DeepCopy(value) end
+    end
+    if ConsoleUI.config and ConsoleUI.config.DEFAULTS then
+        for key, value in pairs(ConsoleUI.config.DEFAULTS) do
+            if out[key] == nil then out[key] = DeepCopy(value) end
+        end
+    end
+    return out
+end
 
--- Helper: Find spell ID in spellbook by name (base name without rank)
-local function FindSpellIDByName(spellName)
-    if not spellName then return nil end
-    
-    -- Remove rank from spell name to get base name
-    local baseName = string.gsub(spellName, " %(Rank %d+%)", "")
-    
-    -- Search spellbook
+local function CaptureKeyboard()
+    if not ConsoleUIKeyboardDB and not ConsoleUIKeyboardLayout then return nil end
+    return {
+        settings = DeepCopy(ConsoleUIKeyboardDB or {}),
+        layout = DeepCopy(ConsoleUIKeyboardLayout),
+    }
+end
+
+local function ApplyKeyboard(data)
+    if not data then return end
+    ConsoleUIKeyboardDB = DeepCopy(data.settings or {})
+    if data.layout then ConsoleUIKeyboardLayout = DeepCopy(data.layout) end
+    if ConsoleUIKeyboard then
+        if ConsoleUIKeyboard.SetEnabled then ConsoleUIKeyboard:SetEnabled(not ConsoleUIKeyboardDB.disabled) end
+        if ConsoleUIKeyboard.SetShowFor then ConsoleUIKeyboard:SetShowFor(ConsoleUIKeyboardDB.showFor) end
+        if ConsoleUIKeyboard.SetLayout then ConsoleUIKeyboard:SetLayout() end
+    end
+end
+
+local function ReadActionTooltip(slot)
+    local name, rank
+    if not GameTooltip then return nil, nil end
+    GameTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    GameTooltip:ClearLines()
+    GameTooltip:SetAction(slot)
+    local left = getglobal("GameTooltipTextLeft1")
+    local right = getglobal("GameTooltipTextRight1")
+    if left and left.GetText then name = left:GetText() end
+    if right and right.GetText then rank = right:GetText() end
+    if not rank or rank == "" then
+        local second = getglobal("GameTooltipTextLeft2")
+        local value = second and second.GetText and second:GetText()
+        if value and string.find(value, "Rank", 1, true) then rank = value end
+    end
+    GameTooltip:Hide()
+    return name, rank
+end
+
+local function FindMacro(name, body, legacyID)
+    local nameFallback = nil
+    local i
+    for i = 1, 36 do
+        local macroName, texture, macroBody = GetMacroInfo(i)
+        if macroName and name and macroName == name then
+            if body and macroBody == body then return i, texture, macroBody end
+            if not nameFallback then nameFallback = i end
+        end
+    end
+    if nameFallback then
+        local _, texture, macroBody = GetMacroInfo(nameFallback)
+        return nameFallback, texture, macroBody
+    end
+    if legacyID then
+        local macroName, texture, macroBody = GetMacroInfo(legacyID)
+        if macroName and (not name or macroName == name) then return legacyID, texture, macroBody end
+    end
+    return nil
+end
+
+local function FindSpell(name, rank, texture, legacyID)
+    if not GetSpellName then return nil, nil end
+    local wanted = BaseSpellName(name)
+    local best, bestRank, bestScore = nil, nil, -1
     local i = 1
     while true do
-        local spellNameInBook, spellRank = GetSpellName(i, BOOKTYPE_SPELL)
-        if not spellNameInBook then break end
-        
-        -- Get base name from spellbook
-        local baseNameInBook = string.gsub(spellNameInBook, " %(Rank %d+%)", "")
-        
-        -- Check if names match
-        if baseNameInBook == baseName then
-            return i  -- Return spell index (ID)
+        local spellName, spellRank = GetSpellName(i, BOOKTYPE_SPELL)
+        if not spellName then break end
+        if BaseSpellName(spellName) == wanted then
+            local spellTexture = GetSpellTexture and GetSpellTexture(i, BOOKTYPE_SPELL)
+            local score = 1
+            if texture and spellTexture == texture then score = score + 2 end
+            if rank and rank ~= "" and spellRank == rank then score = score + 4 end
+            if score >= bestScore then best, bestRank, bestScore = i, spellRank, score end
         end
-        
         i = i + 1
     end
-    
-    return nil
-end
-
--- Helper: Find macro ID by name
-local function FindMacroIDByName(macroName)
-    if not macroName then return nil end
-    
-    -- Search through macros (1-36 in WoW 1.12)
-    for i = 1, 36 do
-        local name, texture, body = GetMacroInfo(i)
-        if name and name == macroName then
-            return i
-        end
+    if best then return best, bestRank end
+    if legacyID then
+        local spellName, spellRank = GetSpellName(legacyID, BOOKTYPE_SPELL)
+        if spellName and (not wanted or BaseSpellName(spellName) == wanted) then return legacyID, spellRank end
     end
-    
-    return nil
+    return nil, nil
 end
 
--- 1.12 has no item-id pickup. Find the item in bags or on the paper doll.
-local function FindItemLocationByName(itemName)
-    if not itemName then return nil end
+local function FindItem(itemID, name)
+    local function Matches(link)
+        if not link then return false end
+        if itemID and ParseItemID(link) == tonumber(itemID) then return true end
+        if name and string.find(link, "[" .. name .. "]", 1, true) then return true end
+        return false
+    end
     local bag
     for bag = 0, 4 do
-        local numSlots = GetContainerNumSlots(bag) or 0
+        local slots = GetContainerNumSlots and GetContainerNumSlots(bag) or 0
         local slot
-        for slot = 1, numSlots do
-            local link = GetContainerItemLink(bag, slot)
-            if link and string.find(link, "[" .. itemName .. "]", 1, true) then
-                return "bag", bag, slot
-            end
+        for slot = 1, slots do
+            local link = GetContainerItemLink and GetContainerItemLink(bag, slot)
+            if Matches(link) then return "bag", bag, slot, link end
         end
     end
     local inv
     for inv = 0, 19 do
-        local link = GetInventoryItemLink("player", inv)
-        if link and string.find(link, "[" .. itemName .. "]", 1, true) then
-            return "inv", inv, nil
-        end
+        local link = GetInventoryItemLink and GetInventoryItemLink("player", inv)
+        if Matches(link) then return "inventory", inv, nil, link end
     end
     return nil
 end
 
-local function PickupItemByName(itemName)
-    local kind, a, b = FindItemLocationByName(itemName)
-    if kind == "bag" then
-        PickupContainerItem(a, b)
-        return true
-    elseif kind == "inv" then
-        PickupInventoryItem(a)
-        return true
-    end
+local function PickupItem(itemID, name)
+    local kind, a, b = FindItem(itemID, name)
+    if kind == "bag" then PickupContainerItem(a, b); return true end
+    if kind == "inventory" then PickupInventoryItem(a); return true end
     return false
 end
 
--- Save current action bar state
--- Returns a table mapping slot -> action data
--- Note: We save ALL slots (1-120), including empty ones as nil entries
--- This ensures that when loading, we can clear slots that were previously filled
 function Profiles:SaveActionBars()
     local actionBars = {}
-    local profile = self:GetCurrentProfile()
-    
-    -- Start with existing action bars from profile (to preserve slots that might not be in current state)
-    if profile and profile.actionBars then
-        for slot, data in pairs(profile.actionBars) do
-            actionBars[slot] = data
-        end
-    end
-    
-    -- Now update with current state - iterate through all possible action slots (1-120)
+    if not HasAction or not GameTooltip then return actionBars end
+    local currentProfile = self:GetCurrentProfile()
+    local previous = currentProfile and currentProfile.actionBars or {}
+    self.capturingActionBars = true
+    local slot
     for slot = 1, self.MAX_ACTION_SLOTS do
         if HasAction(slot) then
-            -- Get texture (always available)
-            local texture = GetActionTexture(slot)
-            
-            -- Get tooltip info to identify the action
-            GameTooltip:SetOwner(UIParent, "ANCHOR_NONE")
-            GameTooltip:ClearLines()
-            GameTooltip:SetAction(slot)
-            
-            local actionName = nil
-            local numLines = GameTooltip:NumLines() or 0
-            if numLines > 0 then
-                local firstLine = getglobal("GameTooltipTextLeft1")
-                if firstLine and firstLine.GetText then
-                    actionName = firstLine:GetText()
-                end
-            end
-            
-            GameTooltip:Hide()
-            
-            if actionName and texture then
-                -- Try to identify as spell
-                local spellID = FindSpellIDByName(actionName)
+            local texture = GetActionTexture and GetActionTexture(slot)
+            local actionName, tooltipRank = ReadActionTooltip(slot)
+            local macroName = GetActionText and GetActionText(slot)
+            if macroName and macroName ~= "" then
+                local macroID, macroTexture, macroBody = FindMacro(macroName, nil, nil)
+                actionBars[slot] = {
+                    type = "macro", id = macroID, name = macroName,
+                    body = macroBody, texture = macroTexture or texture,
+                }
+            else
+                local spellID, spellRank = FindSpell(actionName, tooltipRank, texture, nil)
                 if spellID then
                     actionBars[slot] = {
-                        type = "spell",
-                        id = spellID,
-                        name = actionName,  -- Store name for reference
-                        texture = texture,
+                        type = "spell", id = spellID, name = actionName,
+                        rank = spellRank or tooltipRank, texture = texture,
                     }
                 else
-                    -- Try to identify as macro
-                    local macroID = FindMacroIDByName(actionName)
-                    if macroID then
+                    local itemKind, _, _, itemLink = FindItem(nil, actionName)
+                    local itemAction = (IsConsumableAction and IsConsumableAction(slot))
+                        or (IsEquippedAction and IsEquippedAction(slot)) or itemKind
+                    if itemAction and actionName then
                         actionBars[slot] = {
-                            type = "macro",
-                            id = macroID,
-                            name = actionName,  -- Store name for reference
-                            texture = texture,
+                            type = "item", name = actionName,
+                            itemID = ParseItemID(itemLink), link = itemLink, texture = texture,
                         }
                     else
-                        local isItem = (IsConsumableAction and IsConsumableAction(slot))
-                            or (IsEquippedAction and IsEquippedAction(slot))
-                            or FindItemLocationByName(actionName)
-                        if isItem then
-                            actionBars[slot] = {
-                                type = "item",
-                                name = actionName,
-                                texture = texture,
-                            }
+                        local prior = previous and previous[slot]
+                        if prior and prior.type ~= "unknown"
+                            and ((prior.texture and prior.texture == texture)
+                                or (prior.name and prior.name == actionName)) then
+                            actionBars[slot] = DeepCopy(prior)
                         else
-                            actionBars[slot] = {
-                                type = "unknown",
-                                name = actionName,
-                                texture = texture,
-                            }
+                            actionBars[slot] = { type = "unknown", name = actionName, texture = texture }
                         end
                     end
                 end
             end
-        else
-            -- Slot is empty - explicitly set to nil to clear it from profile
-            actionBars[slot] = nil
         end
     end
-    
+    self.capturingActionBars = false
     return actionBars
+end
+
+local function PlaceCursorAction(slot)
+    PlaceAction(slot)
+    ClearCursor()
+    return HasAction(slot) and true or false
 end
 
 local function RestoreProfileSlot(slot, data)
     if not data then
-        if HasAction(slot) then
-            PickupAction(slot)
-            ClearCursor()
-        end
-        return
+        if HasAction(slot) then PickupAction(slot); ClearCursor() end
+        return "empty"
     end
-    if data.type == "spell" and data.id then
-        PickupSpell(data.id, BOOKTYPE_SPELL)
-        PlaceAction(slot)
-        ClearCursor()
-    elseif data.type == "macro" and data.id then
-        PickupMacro(data.id)
-        PlaceAction(slot)
-        ClearCursor()
-    elseif (data.type == "item" or data.type == "unknown") and data.name then
-        local spellID = FindSpellIDByName(data.name)
-        if data.type ~= "item" and spellID then
-            PickupSpell(spellID, BOOKTYPE_SPELL)
-            PlaceAction(slot)
-            ClearCursor()
-        else
-            local macroID = FindMacroIDByName(data.name)
-            if data.type ~= "item" and macroID then
-                PickupMacro(macroID)
-                PlaceAction(slot)
-                ClearCursor()
-            elseif PickupItemByName(data.name) then
-                PlaceAction(slot)
-                ClearCursor()
-            elseif spellID then
-                PickupSpell(spellID, BOOKTYPE_SPELL)
-                PlaceAction(slot)
-                ClearCursor()
-            elseif macroID then
-                PickupMacro(macroID)
-                PlaceAction(slot)
-                ClearCursor()
-            end
-        end
+    ClearCursor()
+    if data.type == "spell" then
+        local spellID, actualRank = FindSpell(data.name, data.rank, data.texture, data.id)
+        if not spellID then return "unresolved" end
+        PickupSpell(spellID, BOOKTYPE_SPELL)
+        if not PlaceCursorAction(slot) then return "unresolved" end
+        if data.rank and actualRank ~= data.rank then return "fallback" end
+        return "restored"
+    elseif data.type == "macro" then
+        local macroID = FindMacro(data.name, data.body, data.id)
+        if not macroID then return "unresolved" end
+        PickupMacro(macroID)
+        return PlaceCursorAction(slot) and "restored" or "unresolved"
+    elseif data.type == "item" then
+        if not PickupItem(data.itemID or ParseItemID(data.link), data.name) then return "unresolved" end
+        return PlaceCursorAction(slot) and "restored" or "unresolved"
     end
+    local spellID = FindSpell(data.name, data.rank, data.texture, data.id)
+    if spellID then PickupSpell(spellID, BOOKTYPE_SPELL); return PlaceCursorAction(slot) and "fallback" or "unresolved" end
+    local macroID = FindMacro(data.name, data.body, data.id)
+    if macroID then PickupMacro(macroID); return PlaceCursorAction(slot) and "fallback" or "unresolved" end
+    if PickupItem(data.itemID or ParseItemID(data.link), data.name) then
+        return PlaceCursorAction(slot) and "fallback" or "unresolved"
+    end
+    return "unresolved"
 end
 
--- Load action bar state from saved data.
--- Restore first, then clear empties. A wipe-all-first left bars empty on combat/DC.
-function Profiles:LoadActionBars(actionBars)
-    if UnitAffectingCombat and UnitAffectingCombat("player") then
-        ConsoleUI_Print("Cannot restore action bars while in combat.")
-        return
+function Profiles:FinishActionBarRestore(job)
+    if not job then return end
+    if job.frame then job.frame:SetScript("OnUpdate", nil); job.frame:Hide() end
+    self.restoreJob = nil
+    self.restoring = false
+    ConsoleUIDB.profileRestorePending = nil
+    if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then ConsoleUI.actionbars:UpdateAllButtons() end
+    local report = {
+        restored = job.restored, cleared = job.cleared, fallback = job.fallback,
+        unresolved = job.unresolved, unresolvedSlots = DeepCopy(job.unresolvedSlots),
+        source = job.source,
+    }
+    ConsoleUIDB.profileLastRestore = report
+    self:SaveCurrentProfile(false)
+    ConsoleUI_Print("Profile applied: " .. job.restored .. " restored, " .. job.cleared
+        .. " cleared, " .. job.fallback .. " substituted, " .. job.unresolved .. " unresolved.")
+    if job.unresolved > 0 then
+        ConsoleUI_Print("Unresolved slots kept their existing action: " .. table.concat(job.unresolvedSlots, ", "))
     end
+    if job.onComplete then job.onComplete(report) end
+end
 
-    actionBars = actionBars or {}
+function Profiles:LoadActionBars(actionBars, sourceLabel, onComplete)
+    if self.restoreJob then return false, "An action-bar restore is already running" end
+    if UnitAffectingCombat and UnitAffectingCombat("player") then return false, "Cannot apply a profile while in combat" end
+    actionBars = DeepCopy(actionBars or {})
+    ConsoleUIDB.profileRestorePending = {
+        actionBars = DeepCopy(actionBars),
+        source = sourceLabel,
+        startedAt = Now(),
+    }
     local work = {}
-    local restoreSet = {}
-    for slot, data in pairs(actionBars) do
-        table.insert(work, { slot = slot, data = data })
-        restoreSet[slot] = true
-    end
     local slot
     for slot = 1, self.MAX_ACTION_SLOTS do
-        if not restoreSet[slot] and HasAction(slot) then
-            table.insert(work, { slot = slot, data = nil })
-        end
+        if actionBars[slot] or HasAction(slot) then table.insert(work, { slot = slot, data = actionBars[slot] }) end
     end
-
-    if table.getn(work) == 0 then
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
-            ConsoleUI.actionbars:UpdateAllButtons()
-        end
-        ConsoleUI_Debug("Profiles: All action bars cleared (empty profile)")
-        return
-    end
-
-    local restoreFrame = CreateFrame("Frame")
-    local currentIndex = 1
-    local restoreDelay = 0
-    local slotsCount = table.getn(work)
-    restoreFrame:SetScript("OnUpdate", function()
+    local job = {
+        work = work, index = 1, elapsed = 0, pausedNotice = false,
+        restored = 0, cleared = 0, fallback = 0, unresolved = 0,
+        unresolvedSlots = {},
+        source = sourceLabel, onComplete = onComplete,
+    }
+    local frame = CreateFrame("Frame")
+    job.frame = frame
+    self.restoreJob = job
+    self.restoring = true
+    frame:SetScript("OnUpdate", function()
         if UnitAffectingCombat and UnitAffectingCombat("player") then
-            restoreFrame:SetScript("OnUpdate", nil)
-            restoreFrame:Hide()
-            ConsoleUI_Print("Action bar restore stopped — entered combat.")
-            if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
-                ConsoleUI.actionbars:UpdateAllButtons()
+            if not job.pausedNotice then
+                job.pausedNotice = true
+                ConsoleUI_Print("Profile restore paused during combat; it will resume automatically.")
             end
             return
         end
-
-        restoreDelay = restoreDelay + arg1
-        if restoreDelay < 0.1 then
-            return
-        end
-
-        if currentIndex <= slotsCount then
-            local item = work[currentIndex]
-            RestoreProfileSlot(item.slot, item.data)
-            currentIndex = currentIndex + 1
-        else
-            restoreFrame:SetScript("OnUpdate", nil)
-            restoreFrame:Hide()
-            if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
-                ConsoleUI.actionbars:UpdateAllButtons()
-            end
-            ConsoleUI_Debug("Profiles: Action bars restored (" .. slotsCount .. " slots)")
-        end
+        job.pausedNotice = false
+        job.elapsed = job.elapsed + arg1
+        if job.elapsed < Profiles.RESTORE_DELAY then return end
+        job.elapsed = 0
+        local item = job.work[job.index]
+        if not item then Profiles:FinishActionBarRestore(job); return end
+        local result = RestoreProfileSlot(item.slot, item.data)
+        if result == "empty" then job.cleared = job.cleared + 1
+        elseif result == "fallback" then job.fallback = job.fallback + 1
+        elseif result == "unresolved" then
+            job.unresolved = job.unresolved + 1
+            table.insert(job.unresolvedSlots, item.slot)
+        else job.restored = job.restored + 1 end
+        job.index = job.index + 1
     end)
+    frame:Show()
+    if table.getn(work) == 0 then self:FinishActionBarRestore(job) end
+    return true, nil
 end
 
--- ============================================================================
--- Profile Management
--- ============================================================================
+function Profiles:ResumePendingRestore()
+    if self.restoring or not ConsoleUIDB or not ConsoleUIDB.profileRestorePending then return false end
+    local pending = ConsoleUIDB.profileRestorePending
+    local ok, why = self:LoadActionBars(pending.actionBars, pending.source or "interrupted profile restore")
+    if not ok and why ~= "Cannot apply a profile while in combat" then
+        ConsoleUI_Print("Could not resume profile restore: " .. tostring(why))
+    end
+    return ok
+end
 
--- Create a new profile
--- sourceProfile: profile name to copy from (nil = use defaults)
-function Profiles:CreateProfile(name, sourceProfile)
-    if not name or name == "" then
-        return false, "Profile name cannot be empty"
-    end
-    
-    -- Check if profile already exists
-    if self:GetProfile(name) then
-        return false, "Profile already exists"
-    end
-    
-    -- Initialize profiles table if needed
-    if not ConsoleUIDB.profiles then
-        ConsoleUIDB.profiles = {}
-    end
-    
-    local newProfile = {
-        config = {},
-        proxiedActions = {},
-        actionBars = {},
-        rings = {},
+local function SnapshotFromLegacy(legacy, key, name, realm, classToken)
+    legacy = legacy or {}
+    return {
+        schemaVersion = Profiles.SCHEMA_VERSION,
+        key = key, name = name, realm = realm, class = classToken,
+        displayName = ProfileLabel(name, realm),
+        config = CopyProfileConfig((ConsoleUIDB and ConsoleUIDB.config) or legacy.config),
+        proxiedActions = DeepCopy((ConsoleUIDB and ConsoleUIDB.proxiedActions) or legacy.proxiedActions or {}),
+        rings = DeepCopy((ConsoleUIDB and ConsoleUIDB.rings) or legacy.rings or {}),
+        actionBars = DeepCopy(legacy.actionBars or {}),
+        keyboard = CaptureKeyboard(), modifiedAt = Now(),
     }
-    
-    if sourceProfile then
-        -- Clone from source profile
-        local source = self:GetProfile(sourceProfile)
-        if source then
-            -- Deep copy config
-            for key, value in pairs(source.config or {}) do
-                newProfile.config[key] = value
-            end
-            -- Deep copy proxied actions
-            for slot, binding in pairs(source.proxiedActions or {}) do
-                newProfile.proxiedActions[slot] = binding
-            end
-            -- Deep copy action bars
-            for slot, action in pairs(source.actionBars or {}) do
-                newProfile.actionBars[slot] = {}
-                for k, v in pairs(action) do
-                    newProfile.actionBars[slot][k] = v
-                end
-            end
-            if ConsoleUI.rings and ConsoleUI.rings.CloneData then
-                newProfile.rings = ConsoleUI.rings:CloneData(source.rings)
+end
+
+function Profiles:MigrateLegacyData(key, name, realm, classToken)
+    local db = self:EnsureAccountDB()
+    if db.migratedCharacters[key] then return false end
+    db.legacyBackups[key] = db.legacyBackups[key] or DeepCopy({
+        config = ConsoleUIDB.config, proxiedActions = ConsoleUIDB.proxiedActions,
+        rings = ConsoleUIDB.rings, profiles = ConsoleUIDB.profiles,
+        currentProfile = ConsoleUIDB.currentProfile,
+    })
+    local legacyCurrent = nil
+    if ConsoleUIDB.profiles then
+        legacyCurrent = ConsoleUIDB.profiles[ConsoleUIDB.currentProfile or self.DEFAULT_PROFILE_NAME]
+        local legacyName, legacyProfile
+        for legacyName, legacyProfile in pairs(ConsoleUIDB.profiles) do
+            local templateKey = key .. "/legacy/" .. tostring(legacyName)
+            if not db.templates[templateKey] then
+                local template = SnapshotFromLegacy(legacyProfile, templateKey, name, realm, classToken)
+                template.config = CopyProfileConfig(legacyProfile.config)
+                template.proxiedActions = DeepCopy(legacyProfile.proxiedActions or {})
+                template.rings = DeepCopy(legacyProfile.rings or {})
+                template.actionBars = DeepCopy(legacyProfile.actionBars or {})
+                template.legacyName = legacyName
+                template.displayName = ProfileLabel(name, realm) .. " / " .. tostring(legacyName) .. " (legacy)"
+                template.isTemplate = true
+                db.templates[templateKey] = template
             end
         end
-    else
-        -- New profile with defaults
-        -- Config will be populated with defaults when loaded
-        -- Action bars start empty
-        -- Set default proxied actions (same as proxied.lua Initialize)
-        newProfile.proxiedActions[30] = "ConsoleUI_INTERACT"
-        ConsoleUI_Debug("Profiles: Created new profile with default Interact on CTRL-0")
     end
-    
-    ConsoleUIDB.profiles[name] = newProfile
+    if not db.characters[key] then
+        local profile = SnapshotFromLegacy(legacyCurrent, key, name, realm, classToken)
+        if HasAction and GameTooltip then
+            local captured = self:SaveActionBars()
+            if CountKeys(captured) > 0 or CountKeys(profile.actionBars) == 0 then profile.actionBars = captured end
+        end
+        db.characters[key] = profile
+    end
+    db.migratedCharacters[key] = true
+    ConsoleUIDB.profileMigrationV2 = true
+    ConsoleUI_Debug("Profiles: preserved RC6 data and migrated " .. key .. " to character profile V2")
+    return true
+end
+
+function Profiles:ApplyLiveData(profile)
+    if not profile then return false end
+    ConsoleUIDB = ConsoleUIDB or {}
+    local metadata = {}
+    local key, value
+    for key, value in pairs(ConsoleUIDB.config or {}) do if CONFIG_METADATA[key] then metadata[key] = value end end
+    local config = CopyProfileConfig(profile.config)
+    for key, value in pairs(metadata) do config[key] = value end
+    ConsoleUIDB.config = config
+    ConsoleUIDB.proxiedActions = DeepCopy(profile.proxiedActions or {})
+    ConsoleUIDB.rings = DeepCopy(profile.rings or {})
+    ApplyKeyboard(profile.keyboard)
+    return true
+end
+
+function Profiles:ApplySettingsAndBindings()
+    local cfg = ConsoleUI.config
+    if cfg then
+        ConsoleUI_DEBUG_KEYS = ConsoleUIDB.config and ConsoleUIDB.config.debugEnabled
+        if cfg.UpdateCrosshair then cfg:UpdateCrosshair() end
+        if cfg.UpdateActionBarLayout then cfg:UpdateActionBarLayout() end
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then ConsoleUI.actionbars:UpdateSideBars() end
+        if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then ConsoleUI.xpbar:UpdateAllBars() end
+        if ConsoleUI.castbar and ConsoleUI.castbar.ReloadConfig then ConsoleUI.castbar:ReloadConfig() end
+        if ConsoleUI.loot and ConsoleUI.loot.ApplyEnabled then ConsoleUI.loot:ApplyEnabled() end
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then ConsoleUI.actionbars.extra:Update() end
+        if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then ConsoleUI.cursor.hintbar:Refresh() end
+        if cfg.ApplyHudBorderChrome then cfg:ApplyHudBorderChrome() end
+        if ConsoleUI.actionbars and ConsoleUI.actionbars.ApplyDefaultBarVisibility then ConsoleUI.actionbars:ApplyDefaultBarVisibility() end
+        if cfg.ApplyUnitFrameScales then cfg:ApplyUnitFrameScales() end
+        if ConsoleUI.mouselook and ConsoleUI.mouselook.ApplySettings then ConsoleUI.mouselook:ApplySettings() end
+        if ConsoleUI.cursor and ConsoleUI.cursor.tooltip and ConsoleUI.cursor.tooltip.ApplyPromptVisibility then
+            ConsoleUI.cursor.tooltip:ApplyPromptVisibility()
+        end
+        if cfg.RefreshBindingWorkspace then cfg:RefreshBindingWorkspace() end
+        if cfg.frame and cfg.frame:IsVisible() and cfg.currentSection then cfg:ShowSection(cfg.currentSection) end
+    end
+    if ConsoleUI.proxied and ConsoleUI.proxied.ApplyAllBindings then ConsoleUI.proxied:ApplyAllBindings() end
+    if ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then ConsoleUI.keybindings:RepairPadGameplay() end
+end
+
+function Profiles:SaveCurrentProfile(includeActionBars)
+    local profile = self:GetCurrentProfile()
+    if not profile then return false end
+    profile.config = CopyProfileConfig(ConsoleUIDB.config or {})
+    profile.proxiedActions = DeepCopy(ConsoleUIDB.proxiedActions or {})
+    if ConsoleUI.rings and ConsoleUI.rings.CopyAll then profile.rings = ConsoleUI.rings:CopyAll()
+    else profile.rings = DeepCopy(ConsoleUIDB.rings or {}) end
+    profile.keyboard = CaptureKeyboard() or profile.keyboard
+    if includeActionBars == nil then includeActionBars = true end
+    if includeActionBars and not self.restoring then profile.actionBars = self:SaveActionBars() end
+    profile.modifiedAt = Now()
+    self.dirty = false
+    self.dirtyActionBars = false
+    return true
+end
+
+function Profiles:MarkDirty(actionBars)
+    if self.restoring then return end
+    self.dirty = true
+    if actionBars then self.dirtyActionBars = true end
+    self.saveElapsed = 0
+end
+
+function Profiles:CopyFrom(sourceKey)
+    if self.restoring then return false, "A profile restore is already running" end
+    if UnitAffectingCombat and UnitAffectingCombat("player") then return false, "Cannot copy a profile while in combat" end
+    local source = self:GetProfile(sourceKey)
+    if not source then return false, "Profile not found" end
+    local current = self:GetCurrentProfile()
+    if source == current then return false, "That is already this character's profile" end
+    self:SaveCurrentProfile(true)
+    local db = self:EnsureAccountDB()
+    local currentKey = self:GetCurrentProfileKey()
+    local backup = DeepCopy(current)
+    backup.backedUpAt = Now()
+    local backupSet = db.backups[currentKey]
+    if backupSet and backupSet.config then
+        backupSet = { history = { DeepCopy(backupSet) } }
+    end
+    if not backupSet or not backupSet.history then backupSet = { history = {} } end
+    table.insert(backupSet.history, backup)
+    backupSet.latest = DeepCopy(backup)
+    db.backups[currentKey] = backupSet
+    local copied = DeepCopy(source)
+    current.config = CopyProfileConfig(copied.config)
+    current.proxiedActions = DeepCopy(copied.proxiedActions or {})
+    current.rings = DeepCopy(copied.rings or {})
+    current.actionBars = DeepCopy(copied.actionBars or {})
+    current.keyboard = DeepCopy(copied.keyboard)
+    current.copiedFrom = copied.displayName or sourceKey
+    current.modifiedAt = Now()
+    self:ApplyLiveData(current)
+    self:ApplySettingsAndBindings()
+    if current.class and source.class and current.class ~= source.class then
+        ConsoleUI_Print("Different-class profile: unavailable spells will be reported and existing actions kept.")
+    end
+    if ConsoleUI.proxied and ConsoleUI.proxied.ReportInvalidTouchAssignments then
+        ConsoleUI.proxied:ReportInvalidTouchAssignments(true)
+    end
+    local ok, why = self:LoadActionBars(current.actionBars, current.copiedFrom)
+    if not ok then
+        db.characters[currentKey] = backup
+        self:ApplyLiveData(db.characters[currentKey])
+        self:ApplySettingsAndBindings()
+        return false, why
+    end
     return true, nil
 end
 
--- Delete a profile
-function Profiles:DeleteProfile(name)
-    if not name or name == "" then
-        return false, "Profile name cannot be empty"
-    end
-    
-    -- Prevent deleting default profile
-    if name == self.DEFAULT_PROFILE_NAME then
-        return false, "Cannot delete the default profile"
-    end
-    
-    -- Check if profile exists
-    if not self:GetProfile(name) then
-        return false, "Profile does not exist"
-    end
-    
-    -- If deleting current profile, switch to default first
-    if self:GetCurrentProfileName() == name then
-        self:SetProfile(self.DEFAULT_PROFILE_NAME)
-    end
-    
-    -- Delete the profile
-    ConsoleUIDB.profiles[name] = nil
-    
-    return true, nil
-end
-
--- Switch to a profile
 function Profiles:SetProfile(profileName)
-    if not profileName or profileName == "" then
-        profileName = self.DEFAULT_PROFILE_NAME
+    local profile = self:GetProfile(profileName)
+    if not profile then return false, "Profile not found" end
+    if profile == self:GetCurrentProfile() then return true, nil end
+    return self:CopyFrom(self:GetProfileKey(profile) or profileName)
+end
+
+function Profiles:LoadProfile(profileName) return self:SetProfile(profileName) end
+
+-- Legacy popup compatibility: create/delete account templates, never character profiles.
+function Profiles:CreateProfile(name, sourceName)
+    name = Trim(name)
+    if name == "" then return false, "Profile name cannot be empty" end
+    local db = self:EnsureAccountDB()
+    local key = "template/" .. self:GetCurrentProfileKey() .. "/" .. name
+    if db.templates[key] then return false, "Profile already exists" end
+    local source = sourceName and self:GetProfile(sourceName) or nil
+    local data
+    if source then data = DeepCopy(source)
+    else
+        data = {
+            config = CopyProfileConfig({}), proxiedActions = { [30] = "ConsoleUI_INTERACT" },
+            rings = {}, actionBars = {}, keyboard = CaptureKeyboard(),
+        }
     end
-    
-    -- Check if profile exists
-    if not self:GetProfile(profileName) then
-        ConsoleUI_Debug("Profiles: Profile '" .. profileName .. "' does not exist, creating it")
-        self:CreateProfile(profileName, nil)
-    end
-    
-    -- Save current state before switching (if we have a current profile)
-    local currentProfileName = self:GetCurrentProfileName()
-    if currentProfileName and currentProfileName ~= profileName then
-        self:SaveCurrentProfile()
-    end
-    
-    -- Set new current profile
-    ConsoleUIDB.currentProfile = profileName
-    
-    -- Load the new profile
-    self:LoadProfile(profileName)
-    
+    data.key = key
+    data.legacyName = name
+    data.displayName = name .. " (template)"
+    data.isTemplate = true
+    data.modifiedAt = Now()
+    db.templates[key] = data
     return true, nil
 end
 
--- Save current profile state (config, proxied actions, action bars)
-function Profiles:SaveCurrentProfile()
-    local profileName = self:GetCurrentProfileName()
-    local profile = self:GetProfile(profileName)
-    
-    if not profile then
-        -- Create profile if it doesn't exist
-        self:CreateProfile(profileName, nil)
-        profile = self:GetProfile(profileName)
-    end
-    
-    -- Save config (copy from ConsoleUIDB.config)
-    if ConsoleUIDB.config then
-        profile.config = {}
-        for key, value in pairs(ConsoleUIDB.config) do
-            profile.config[key] = value
-        end
-    end
-    
-    -- Ensure all defaults are in the profile (adds any new defaults that were added)
-    if ConsoleUI.config and ConsoleUI.config.DEFAULTS then
-        for key, defaultValue in pairs(ConsoleUI.config.DEFAULTS) do
-            if profile.config[key] == nil then
-                profile.config[key] = defaultValue
-                ConsoleUI_Debug("Profiles: Added missing default '" .. key .. "' = " .. tostring(defaultValue) .. " to profile when saving")
-            end
-        end
-    end
-    
-    -- Save proxied actions (copy from ConsoleUIDB.proxiedActions)
-    if ConsoleUIDB.proxiedActions then
-        profile.proxiedActions = {}
-        for slot, binding in pairs(ConsoleUIDB.proxiedActions) do
-            profile.proxiedActions[slot] = binding
-        end
-    end
-    
-    if ConsoleUI.rings and ConsoleUI.rings.CopyAll then
-        profile.rings = ConsoleUI.rings:CopyAll()
-    else
-        profile.rings = {}
-    end
-
-    -- Save action bars (only saves slots that have actions)
-    -- Empty slots are not saved, which is fine because LoadActionBars clears all slots first
-    profile.actionBars = self:SaveActionBars()
-    
-    ConsoleUI_Debug("Profiles: Saved " .. (self:CountTableKeys(profile.actionBars) or 0) .. " action bar slots")
-end
-
--- Load a profile (apply its settings)
-function Profiles:LoadProfile(profileName)
-    local profile = self:GetProfile(profileName)
-    if not profile then
-        ConsoleUI_Debug("Profiles: Profile '" .. profileName .. "' not found")
-        return false
-    end
-    
-    -- Initialize config if needed
-    if not ConsoleUIDB.config then
-        ConsoleUIDB.config = {}
-    end
-    
-    -- Load config (merge with defaults)
-    -- First, reset to defaults (ensures new defaults are added)
-    if ConsoleUI.config and ConsoleUI.config.DEFAULTS then
-        for key, defaultValue in pairs(ConsoleUI.config.DEFAULTS) do
-            ConsoleUIDB.config[key] = defaultValue
-        end
-    end
-    
-    -- Then apply saved values from profile
-    if profile.config then
-        for key, value in pairs(profile.config) do
-            ConsoleUIDB.config[key] = value
-        end
-    end
-    
-    -- Ensure any new defaults not in the profile are added
-    if ConsoleUI.config and ConsoleUI.config.DEFAULTS then
-        for key, defaultValue in pairs(ConsoleUI.config.DEFAULTS) do
-            if ConsoleUIDB.config[key] == nil then
-                ConsoleUIDB.config[key] = defaultValue
-                ConsoleUI_Debug("Profiles: Added missing default config '" .. key .. "' = " .. tostring(defaultValue) .. " when loading profile")
-            end
-        end
-    end
-    
-    -- Load proxied actions
-    if not ConsoleUIDB.proxiedActions then
-        ConsoleUIDB.proxiedActions = {}
-    else
-        -- Clear existing proxied actions
-        for slot, _ in pairs(ConsoleUIDB.proxiedActions) do
-            ConsoleUIDB.proxiedActions[slot] = nil
-        end
-    end
-    
-    if ConsoleUI.rings and ConsoleUI.rings.ReplaceAll then
-        ConsoleUI.rings:ReplaceAll(profile.rings or {})
-    else
-        ConsoleUIDB.rings = profile.rings or {}
-    end
-
-    if profile.proxiedActions then
-        for slot, binding in pairs(profile.proxiedActions) do
-            ConsoleUIDB.proxiedActions[slot] = binding
-            ConsoleUI_Debug("Profiles: Loaded proxied action - slot " .. slot .. " -> " .. tostring(binding))
-        end
-    else
-        -- If profile has no proxied actions, check if it's a new profile and should have defaults
-        -- (This shouldn't happen if CreateProfile sets defaults, but just in case)
-        if not profile.config or next(profile.config) == nil then
-            -- Looks like a new profile, set defaults
-            ConsoleUIDB.proxiedActions[30] = "ConsoleUI_INTERACT"
-            ConsoleUI_Debug("Profiles: Applied default Interact on CTRL-0")
-        end
-    end
-    
-    -- Apply config settings immediately
-    if ConsoleUI.config then
-        -- Apply debug setting
-        if ConsoleUIDB.config.debugEnabled ~= nil then
-            ConsoleUI_DEBUG_KEYS = ConsoleUIDB.config.debugEnabled
-        end
-        
-        -- Apply crosshair
-        if ConsoleUI.config.UpdateCrosshair then
-            ConsoleUI.config:UpdateCrosshair()
-        end
-        
-        -- Apply action bar layout
-        if ConsoleUI.config.UpdateActionBarLayout then
-            ConsoleUI.config:UpdateActionBarLayout()
-        end
-        
-        -- Apply sidebars (must be called after action bar layout)
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then
-            ConsoleUI.actionbars:UpdateSideBars()
-        end
-        
-        -- Apply XP/Rep bar layout
-        if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
-            ConsoleUI.xpbar:UpdateAllBars()
-        end
-        
-        -- Apply castbar layout
-        if ConsoleUI.castbar and ConsoleUI.castbar.ReloadConfig then
-            ConsoleUI.castbar:ReloadConfig()
-        end
-        if ConsoleUI.loot and ConsoleUI.loot.ApplyEnabled then
-            ConsoleUI.loot:ApplyEnabled()
-        end
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then
-            ConsoleUI.actionbars.extra:Update()
-        end
-        if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then
-            ConsoleUI.cursor.hintbar:Refresh()
-        end
-        if ConsoleUI.config.ApplyHudBorderChrome then
-            ConsoleUI.config:ApplyHudBorderChrome()
-        end
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.ApplyDefaultBarVisibility then
-            ConsoleUI.actionbars:ApplyDefaultBarVisibility()
-        end
-
-        if ConsoleUI.config.ApplyUnitFrameScales then
-            ConsoleUI.config:ApplyUnitFrameScales()
-        end
-        if ConsoleUI.mouselook and ConsoleUI.mouselook.ApplySettings then
-            ConsoleUI.mouselook:ApplySettings()
-        end
-        
-        -- Update sidebar binding visibility in config UI
-        if ConsoleUI.config.UpdateSidebarBindingVisibility then
-            ConsoleUI.config:UpdateSidebarBindingVisibility()
-        end
-        
-        -- Refresh binding icons in config UI
-        if ConsoleUI.config.RefreshBindingIcons then
-            ConsoleUI.config:RefreshBindingIcons()
-        end
-        
-        -- Refresh proxied action dropdowns in config UI
-        if ConsoleUI.config.RefreshProxiedDropdowns then
-            ConsoleUI.config:RefreshProxiedDropdowns()
-        end
-        
-        -- Update all action bar buttons (to reflect proxied actions, etc.)
-        if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllButtons then
-            ConsoleUI.actionbars:UpdateAllButtons()
-        end
-        
-        -- Refresh config UI checkboxes if config window is open
-        -- We need to refresh all checkboxes to reflect the new profile values
-        if ConsoleUI.config.frame and ConsoleUI.config.frame:IsVisible() then
-            local currentSection = ConsoleUI.config.currentSection
-            if currentSection then
-                -- Small delay to ensure config values are set, then refresh checkboxes
-                local refreshFrame = CreateFrame("Frame")
-                refreshFrame:SetScript("OnUpdate", function()
-                    refreshFrame:SetScript("OnUpdate", nil)
-                    -- Refresh checkboxes in the current section
-                    if ConsoleUI.config.RefreshCheckboxes then
-                        local section = ConsoleUI.config.contentSections[currentSection]
-                        if section then
-                            ConsoleUI.config:RefreshCheckboxes(section)
-                        end
-                    end
-                    -- Also refresh dropdowns and other UI elements by re-showing the section
-                    if ConsoleUI.config.ShowSection then
-                        ConsoleUI.config:ShowSection(currentSection)
-                    end
-                end)
-            end
-        end
-    end
-    
-    -- Apply proxied bindings
-    if ConsoleUI.proxied and ConsoleUI.proxied.ApplyAllBindings then
-        ConsoleUI.proxied:ApplyAllBindings()
-    end
-    if ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then
-        ConsoleUI.keybindings:RepairPadGameplay()
-    end
-    
-    -- Load action bars (with delay to ensure everything else is loaded first)
-    if profile.actionBars then
-        -- Use a small delay before loading action bars
-        local loadFrame = CreateFrame("Frame")
-        loadFrame:SetScript("OnUpdate", function()
-            loadFrame:SetScript("OnUpdate", nil)
-            Profiles:LoadActionBars(profile.actionBars)
-        end)
-    end
-    
-    return true
-end
-
--- ============================================================================
--- Migration from Legacy Config
--- ============================================================================
-
--- Migrate legacy config to profile system
-function Profiles:MigrateLegacyConfig()
-    -- Check if migration is needed
-    if ConsoleUIDB.profiles and ConsoleUIDB.profiles[self.DEFAULT_PROFILE_NAME] then
-        -- Profiles already exist, no migration needed
-        return false
-    end
-    
-    ConsoleUI_Debug("Profiles: Migrating legacy config to profile system...")
-    
-    -- Initialize profiles table
-    if not ConsoleUIDB.profiles then
-        ConsoleUIDB.profiles = {}
-    end
-    
-    -- Create default profile
-    local defaultProfile = {
-        config = {},
-        proxiedActions = {},
-        actionBars = {},
-        rings = {},
-    }
-    
-    -- Migrate config settings
-    if ConsoleUIDB.config then
-        -- Copy all existing config values
-        for key, value in pairs(ConsoleUIDB.config) do
-            defaultProfile.config[key] = value
-        end
-    else
-        -- Initialize with defaults if config doesn't exist
-        ConsoleUIDB.config = {}
-    end
-    
-    -- Ensure all default values are set in both places (generic migration)
-    -- This automatically adds any new default values that weren't in the old config
-    if ConsoleUI.config and ConsoleUI.config.DEFAULTS then
-        for key, defaultValue in pairs(ConsoleUI.config.DEFAULTS) do
-            -- Add to ConsoleUIDB.config if missing
-            if ConsoleUIDB.config[key] == nil then
-                ConsoleUIDB.config[key] = defaultValue
-                ConsoleUI_Debug("Profiles: Added missing default config '" .. key .. "' = " .. tostring(defaultValue))
-            end
-            -- Add to defaultProfile.config if missing
-            if defaultProfile.config[key] == nil then
-                defaultProfile.config[key] = defaultValue
-                ConsoleUI_Debug("Profiles: Added missing default config to profile '" .. key .. "' = " .. tostring(defaultValue))
-            end
-        end
-    end
-    
-    -- Migrate proxied actions
-    if ConsoleUIDB.proxiedActions then
-        -- Copy all proxied actions
-        for slot, binding in pairs(ConsoleUIDB.proxiedActions) do
-            defaultProfile.proxiedActions[slot] = binding
-            ConsoleUI_Debug("Profiles: Migrated proxied action - slot " .. slot .. " -> " .. tostring(binding))
-        end
-    else
-        -- Initialize if it doesn't exist
-        ConsoleUIDB.proxiedActions = {}
-    end
-    
-    -- Ensure proxied actions are also preserved in ConsoleUIDB.proxiedActions
-    -- (they should already be there, but make sure they're not lost)
-    if ConsoleUIDB.proxiedActions and next(ConsoleUIDB.proxiedActions) == nil then
-        -- If proxiedActions is empty but we have them in the profile, restore them
-        if defaultProfile.proxiedActions and next(defaultProfile.proxiedActions) ~= nil then
-            for slot, binding in pairs(defaultProfile.proxiedActions) do
-                ConsoleUIDB.proxiedActions[slot] = binding
-                ConsoleUI_Debug("Profiles: Restored proxied action to ConsoleUIDB - slot " .. slot .. " -> " .. tostring(binding))
-            end
-        end
-    end
-    
-    if ConsoleUI.rings and ConsoleUI.rings.CopyAll then
-        defaultProfile.rings = ConsoleUI.rings:CopyAll()
-    end
-
-    -- Save current action bar state
-    defaultProfile.actionBars = self:SaveActionBars()
-    
-    -- Store default profile
-    ConsoleUIDB.profiles[self.DEFAULT_PROFILE_NAME] = defaultProfile
-    
-    -- Set as current profile
-    ConsoleUIDB.currentProfile = self.DEFAULT_PROFILE_NAME
-    
-    ConsoleUI_Debug("Profiles: Migration complete. Created default profile with:")
-    ConsoleUI_Debug("  - " .. (self:CountTableKeys(defaultProfile.config) or 0) .. " config settings")
-    ConsoleUI_Debug("  - " .. (self:CountTableKeys(defaultProfile.proxiedActions) or 0) .. " proxied actions")
-    ConsoleUI_Debug("  - " .. (self:CountTableKeys(defaultProfile.actionBars) or 0) .. " action bar slots")
-    
-    -- Apply proxied bindings after migration (if proxied module is available)
-    -- This ensures the bindings are actually set in the game
-    if ConsoleUI.proxied and ConsoleUI.proxied.ApplyAllBindings then
-        -- Small delay to ensure everything is initialized
-        local applyFrame = CreateFrame("Frame")
-        applyFrame:SetScript("OnUpdate", function()
-            applyFrame:SetScript("OnUpdate", nil)
-            ConsoleUI.proxied:ApplyAllBindings()
-            if ConsoleUI.keybindings and ConsoleUI.keybindings.RepairPadGameplay then
-                ConsoleUI.keybindings:RepairPadGameplay()
-            end
-            ConsoleUI_Debug("Profiles: Applied proxied bindings after migration")
-        end)
-    end
-    
-    return true
-end
-
--- Helper function to count table keys
-function Profiles:CountTableKeys(tbl)
-    if not tbl then return 0 end
-    local count = 0
-    for _ in pairs(tbl) do
-        count = count + 1
-    end
-    return count
-end
-
--- ============================================================================
--- Initialization
--- ============================================================================
-
--- Hook into action bar changes
-local function OnActionBarSlotChanged()
-    -- Save current profile immediately when action bars change
-    if ConsoleUI.profiles and ConsoleUI.profiles.SaveCurrentProfile then
-        ConsoleUI.profiles:SaveCurrentProfile()
-        ConsoleUI_Debug("Profiles: Auto-saved profile after action bar change (slot " .. (arg1 or "unknown") .. ")")
-    end
+function Profiles:DeleteProfile(name)
+    local profile = self:GetProfile(name)
+    if not profile or not profile.isTemplate then return false, "Character profiles cannot be deleted" end
+    local key = self:GetProfileKey(profile)
+    self:EnsureAccountDB().templates[key] = nil
+    return true, nil
 end
 
 function Profiles:Initialize()
-    -- Run migration first
-    local migrated = self:MigrateLegacyConfig()
-    
-    -- Ensure current profile is set
-    if not ConsoleUIDB.currentProfile then
-        ConsoleUIDB.currentProfile = self.DEFAULT_PROFILE_NAME
+    ConsoleUIDB = ConsoleUIDB or {}
+    local key, name, realm, classToken = CharacterIdentity()
+    ConsoleUIDB.profileKey = key
+    self:MigrateLegacyData(key, name, realm, classToken)
+    local profile = self:EnsureAccountDB().characters[key]
+    if not profile then
+        profile = SnapshotFromLegacy(nil, key, name, realm, classToken)
+        profile.actionBars = self:SaveActionBars()
+        self:EnsureAccountDB().characters[key] = profile
     end
-    
-    -- Ensure default profile exists
-    if not self:GetProfile(self.DEFAULT_PROFILE_NAME) then
-        self:CreateProfile(self.DEFAULT_PROFILE_NAME, nil)
-    end
-    
-    -- If migration happened, ensure proxied actions are synced
-    if migrated then
-        local defaultProfile = self:GetProfile(self.DEFAULT_PROFILE_NAME)
-        if defaultProfile and defaultProfile.proxiedActions then
-            -- Make sure ConsoleUIDB.proxiedActions matches the profile
-            if not ConsoleUIDB.proxiedActions then
-                ConsoleUIDB.proxiedActions = {}
-            end
-            -- Sync from profile to ConsoleUIDB
-            for slot, binding in pairs(defaultProfile.proxiedActions) do
-                if not ConsoleUIDB.proxiedActions[slot] or ConsoleUIDB.proxiedActions[slot] ~= binding then
-                    ConsoleUIDB.proxiedActions[slot] = binding
-                    ConsoleUI_Debug("Profiles: Synced proxied action from profile - slot " .. slot .. " -> " .. tostring(binding))
-                end
-            end
-        end
-    end
-    
-    -- Register for action bar change events to auto-save profile
+    profile.key, profile.name, profile.realm, profile.class = key, name, realm, classToken
+    profile.displayName = ProfileLabel(name, realm)
+    self:ApplyLiveData(profile)
     if not self.eventFrame then
-        self.eventFrame = CreateFrame("Frame")
-        self.eventFrame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
-        self.eventFrame:SetScript("OnEvent", function()
-            if event == "ACTIONBAR_SLOT_CHANGED" then
-                OnActionBarSlotChanged()
-            end
+        local frame = CreateFrame("Frame")
+        frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
+        frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        frame:SetScript("OnEvent", function()
+            if event == "ACTIONBAR_SLOT_CHANGED" and not Profiles.restoring then Profiles:MarkDirty(true) end
+            if event == "PLAYER_REGEN_ENABLED" then Profiles:ResumePendingRestore() end
         end)
+        frame:SetScript("OnUpdate", function()
+            if not Profiles.dirty or Profiles.restoring then return end
+            Profiles.saveElapsed = (Profiles.saveElapsed or 0) + arg1
+            if Profiles.saveElapsed < Profiles.SAVE_DELAY then return end
+            if UnitAffectingCombat and UnitAffectingCombat("player") then return end
+            Profiles:SaveCurrentProfile(Profiles.dirtyActionBars)
+        end)
+        self.eventFrame = frame
     end
-    
-    ConsoleUI_Debug("Profiles: Initialized. Current profile: " .. self:GetCurrentProfileName())
+    ConsoleUI_Debug("Profiles: active character profile " .. profile.displayName)
 end
-
--- ============================================================================
--- Slash Commands
--- ============================================================================
 
 SLASH_CUIPROFILE1 = "/cuiprofile"
 SLASH_CUIPROFILE2 = "/cuip"
 SLASH_CUIPROFILE3 = "/ceprofile"
 SLASH_CUIPROFILE4 = "/cep"
 SlashCmdList["CUIPROFILE"] = function(msg)
-    msg = string.gsub(msg, "^%s*(.-)%s*$", "%1")  -- Trim whitespace
-    
-    if msg == "" or msg == nil then
-        -- Show current profile
-        local currentProfile = Profiles:GetCurrentProfileName()
-        ConsoleUI_Print("Current profile: " .. currentProfile)
-        ConsoleUI_Print("Usage: /cuiprofile <name> or /cuip <name>")
-        ConsoleUI_Print("Available profiles:")
-        local profiles = Profiles:ListProfiles()
-        for _, name in ipairs(profiles) do
-            local marker = (name == currentProfile) and " (current)" or ""
-            ConsoleUI_Print("  - " .. name .. marker)
-        end
-    else
-        -- Switch to specified profile
-        local profileName = msg
-        local profile = Profiles:GetProfile(profileName)
-        
-        if profile then
-            -- Save current profile before switching
-            Profiles:SaveCurrentProfile()
-            -- Switch to the profile
-            Profiles:SetProfile(profileName)
-            ConsoleUI_Print("Switched to profile: " .. profileName)
+    msg = Trim(msg)
+    if msg == "" then
+        ConsoleUI_Print("Character profile: " .. Profiles:GetCurrentProfileName())
+        local sources = Profiles:ListCopySources()
+        if table.getn(sources) == 0 then ConsoleUI_Print("No other character profiles are available yet.")
         else
-            ConsoleUI_Print("Profile '" .. profileName .. "' not found.")
-            ConsoleUI_Print("Available profiles:")
-            local profiles = Profiles:ListProfiles()
-            for _, name in ipairs(profiles) do
-                ConsoleUI_Print("  - " .. name)
-            end
+            ConsoleUI_Print("Copy sources:")
+            local i
+            for i = 1, table.getn(sources) do ConsoleUI_Print("  - " .. sources[i].label) end
         end
+        return
     end
+    local profile = Profiles:GetProfile(msg)
+    if not profile then ConsoleUI_Print("Profile '" .. msg .. "' not found."); return end
+    local ok, why = Profiles:CopyFrom(Profiles:GetProfileKey(profile))
+    if not ok then ConsoleUI_Print(why) end
 end
 
-ConsoleUI_Debug("Profiles module loaded")
+ConsoleUI_Debug("Profiles V2 module loaded")

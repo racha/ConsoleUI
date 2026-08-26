@@ -50,6 +50,27 @@ Proxied.ACTIONS = {
         icon = "Interface\\Icons\\Ability_Tracking",
         descKey = "Toggle run/walk speed"
     },
+
+    -- Mouse Lock
+    { headerKey = "Mouse" },
+    {
+        id = "ConsoleUI_MOUSELOCK",
+        nameKey = "Mouse Lock",
+        icon = "Interface\\Icons\\INV_Misc_SpyGlass_03",
+        descKey = "Lock the mouse"
+    },
+    {
+        id = "ConsoleUI_MOUSEUNLOCK",
+        nameKey = "Mouse Unlock",
+        icon = "Interface\\Icons\\INV_Misc_SpyGlass_02",
+        descKey = "Unlock the mouse"
+    },
+    {
+        id = "ConsoleUI_MOUSELOOK",
+        nameKey = "Mouse Lock Toggle",
+        icon = "Interface\\Icons\\Ability_Tracking",
+        descKey = "Toggle the current mouse lock state"
+    },
     
     -- Targeting
     { headerKey = "Targeting" },
@@ -298,6 +319,38 @@ function Proxied:IsProtectedBinding(bindingID)
     return self.PROTECTED_BINDINGS[bindingID] == true
 end
 
+-- Touch bars are mouse-click frames. They cannot safely execute protected
+-- movement bindings or hold/release rings, which require a real key-up event.
+function Proxied:IsTouchCompatible(bindingID)
+    if not bindingID then return true end
+    if self:IsProtectedBinding(bindingID) then return false end
+    if string.find(bindingID, "^ConsoleUI_RING_") then return false end
+    return true
+end
+
+function Proxied:GetInvalidTouchAssignments()
+    local invalid = {}
+    if not ConsoleUIDB or not ConsoleUIDB.proxiedActions then return invalid end
+    local slot
+    for slot = 41, 50 do
+        local bindingID = ConsoleUIDB.proxiedActions[slot]
+        if bindingID and not self:IsTouchCompatible(bindingID) then
+            table.insert(invalid, { slot = slot, bindingID = bindingID })
+        end
+    end
+    return invalid
+end
+
+function Proxied:ReportInvalidTouchAssignments(force)
+    local invalid = self:GetInvalidTouchAssignments()
+    if table.getn(invalid) == 0 then return 0 end
+    if force or not ConsoleUIDB.touchBindingWarningShown then
+        ConsoleUI_Print(table.getn(invalid) .. " incompatible touch-bar assignment(s) were preserved but disabled. Reassign them in /cui -> Bindings.")
+        ConsoleUIDB.touchBindingWarningShown = true
+    end
+    return table.getn(invalid)
+end
+
 -- ============================================================================
 -- Sidebar Slot Configuration
 -- ============================================================================
@@ -494,11 +547,15 @@ function Proxied:SetSlotBinding(slot, bindingID)
     if not ConsoleUIDB.proxiedActions then
         ConsoleUIDB.proxiedActions = {}
     end
-    
+
     -- Normalize stance slots (73+) to base button position (1-10)
     -- This ensures proxied actions apply to all stances
     local buttonPos = self:GetButtonPositionForSlot(slot)
     local normalizedSlot = buttonPos or slot
+
+    if self:IsSidebarSlot(normalizedSlot) and bindingID and not self:IsTouchCompatible(bindingID) then
+        return false, "That action needs a hardware key and cannot be assigned to a touch button"
+    end
     
     -- If assigning a proxied action, check if it's already bound to another slot
     -- and release that binding first (set back to ConsoleUI_ACTION_X)
@@ -557,6 +614,10 @@ function Proxied:SetSlotBinding(slot, bindingID)
             UIDropDownMenu_SetText(noneText, previousDropdown)
         end
     end
+    if ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then
+        ConsoleUI.profiles:MarkDirty(false)
+    end
+    return true, nil
 end
 
 -- Check if a slot has a proxied action
@@ -589,54 +650,15 @@ end
 -- Sidebar Binding Release
 -- ============================================================================
 
--- Release proxied actions for hidden sidebar slots
+-- Historical compatibility name. Hidden touch slots keep their assignments;
+-- only their frames and config rows are hidden.
 -- side: "left" or "right"
 -- maxButtons: maximum number of visible buttons (1-5)
 function Proxied:ReleaseSidebarBindings(side, maxButtons)
-    if not ConsoleUIDB or not ConsoleUIDB.proxiedActions then
-        return
-    end
-    
-    local startSlot, endSlot
-    if side == "left" then
-        startSlot = 41
-        endSlot = 45
-    elseif side == "right" then
-        startSlot = 46
-        endSlot = 50
-    else
-        return
-    end
-    
-    -- Release bindings for slots beyond maxButtons
-    for i = (maxButtons + 1), 5 do
-        local slot = startSlot + i - 1
-        if ConsoleUIDB.proxiedActions[slot] then
-            ConsoleUI_Debug("Proxied: Releasing sidebar binding for " .. self:GetSlotDisplayName(slot))
-            ConsoleUIDB.proxiedActions[slot] = nil
-        end
-    end
-    
-    -- Update action bar display
     if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateAllSideBarButtons then
         ConsoleUI.actionbars:UpdateAllSideBarButtons()
     end
-    
-    -- Update config dropdowns if open
-    if ConsoleUI.config and ConsoleUI.config.bindingDropdowns then
-        for i = (maxButtons + 1), 5 do
-            local slot = startSlot + i - 1
-            local dropdown = ConsoleUI.config.bindingDropdowns[slot]
-            if dropdown then
-                UIDropDownMenu_SetSelectedValue(dropdown, nil)
-                local noneText = "None (Action Bar)"
-                if Locale and Locale.T then
-                    noneText = Locale.T("None (Action Bar)")
-                end
-                UIDropDownMenu_SetText(noneText, dropdown)
-            end
-        end
-    end
+    ConsoleUI_Debug("Proxied: preserved hidden " .. tostring(side) .. " touch assignments (visible=" .. tostring(maxButtons) .. ")")
 end
 
 -- Release proxied actions for a disabled sidebar
@@ -818,6 +840,10 @@ function Proxied:Initialize()
     
     -- Apply all bindings
     self:ApplyAllBindings()
+    self:ReportInvalidTouchAssignments(false)
+    if ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then
+        ConsoleUI.profiles:MarkDirty(false)
+    end
     
     ConsoleUI_Debug("Proxied actions module initialized")
 end
@@ -893,8 +919,12 @@ function Proxied:AddRingDropdownButtons(dropdown, slot)
         local info = {}
         info.text = actionName
         info.value = actionId
+        if self:IsSidebarSlot(slot) and not self:IsTouchCompatible(actionId) then
+            info.disabled = 1
+        end
         info.func = function()
-            self:SetSlotBinding(slot, actionId)
+            local ok = self:SetSlotBinding(slot, actionId)
+            if not ok then return end
             UIDropDownMenu_SetSelectedValue(dropdown, actionId)
             UIDropDownMenu_SetText(actionName, dropdown)
         end
@@ -930,7 +960,8 @@ function Proxied:FillSlotDropdown(dropdown, slot)
     end
     local actionRows = table.getn(self.ACTIONS)
     local skip = {}
-    -- ponytail: Combat 3, Camera 3, Pet 7. Recount if those sections change.
+    -- 1.12 only exposes 32 dropdown rows. Prefer the full Bindings workspace;
+    -- trim legacy-dropdown categories in this order while keeping Mouse visible.
     if used + ringRows + actionRows > 32 then
         skip["Combat"] = true
         actionRows = actionRows - 3
@@ -942,6 +973,10 @@ function Proxied:FillSlotDropdown(dropdown, slot)
     if used + ringRows + actionRows > 32 then
         skip["Pet Abilities"] = true
         actionRows = actionRows - 7
+    end
+    if used + ringRows + actionRows > 32 then
+        skip["Targeting"] = true
+        actionRows = actionRows - 8
     end
 
     if rings then
@@ -968,8 +1003,12 @@ function Proxied:FillSlotDropdown(dropdown, slot)
                 info = {}
                 info.text = actionName
                 info.value = actionId
+                if self:IsSidebarSlot(slot) and not self:IsTouchCompatible(actionId) then
+                    info.disabled = 1
+                end
                 info.func = function()
-                    self:SetSlotBinding(slot, actionId)
+                    local ok = self:SetSlotBinding(slot, actionId)
+                    if not ok then return end
                     UIDropDownMenu_SetSelectedValue(dropdown, actionId)
                     UIDropDownMenu_SetText(actionName, dropdown)
                 end

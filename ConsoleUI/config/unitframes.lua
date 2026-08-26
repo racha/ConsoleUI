@@ -607,11 +607,23 @@ function Config:CreateUnitFramesSection()
         end
     end
 
+    -- Frames settings use a fixed grid.  Do not anchor controls to rendered
+    -- label widths: localized text and short names otherwise produce visibly
+    -- different columns from card to card.
+    local GRID_COL_WIDTH = 310
+    local GRID_ROW_HEIGHT = 28
+    local SCALE_LABEL_WIDTH = 108
+    local SCALE_BOX_X = 116
+
     local function AddScaleField(parent, spec, x, y)
         local label = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
-        label:SetWidth(128)
+        label:SetWidth(SCALE_LABEL_WIDTH)
+        label:SetHeight(20)
         label:SetJustifyH("LEFT")
+        if label.SetJustifyV then
+            label:SetJustifyV("MIDDLE")
+        end
         label:SetText(T(spec.name))
         label:SetTextColor(unpack(self.UI_COLORS.muted))
 
@@ -624,7 +636,7 @@ function Config:CreateUnitFramesSection()
             T("1.0 is Blizzard default. Range: 0.5–2.0."),
             self.NUDGE_SCALE)
         box:ClearAllPoints()
-        box:SetPoint("LEFT", label, "RIGHT", 4, 0)
+        box:SetPoint("TOPLEFT", parent, "TOPLEFT", x + SCALE_BOX_X, y)
         box:SetScript("OnTextChanged", MakeChanged(spec.key))
         self.unitFrameScaleBoxes[spec.key] = box
         return box
@@ -645,21 +657,19 @@ function Config:CreateUnitFramesSection()
     local function FillGroupBox(box, group)
         local specs = SpecsInGroup(group)
         local n = Count(specs)
-        local rowH = 28
-        local colW = 310
         local i
         for i = 1, n do
             local row = math.floor((i - 1) / 2)
             local col = Mod(i - 1, 2)
-            local x = box.contentLeft + col * colW
-            local y = box.contentTop - row * rowH
+            local x = box.contentLeft + col * GRID_COL_WIDTH
+            local y = box.contentTop - row * GRID_ROW_HEIGHT
             AddScaleField(box, specs[i], x, y)
         end
         local rows = math.floor((n + 1) / 2)
         if rows < 1 then
             rows = 1
         end
-        return 28 + rows * rowH + box.bottomPadding
+        return 28 + rows * GRID_ROW_HEIGHT + box.bottomPadding
     end
 
     self.unitFrameScaleBoxes = {}
@@ -667,8 +677,12 @@ function Config:CreateUnitFramesSection()
     local function AddOffsetField(parent, key, labelText, x, y, applyFn, tip)
         local label = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
-        label:SetWidth(24)
+        label:SetWidth(18)
+        label:SetHeight(20)
         label:SetJustifyH("LEFT")
+        if label.SetJustifyV then
+            label:SetJustifyV("MIDDLE")
+        end
         label:SetText(labelText)
         label:SetTextColor(unpack(self.UI_COLORS.muted))
 
@@ -689,7 +703,7 @@ function Config:CreateUnitFramesSection()
             tip or T("Offset from Blizzard's top-right corner, in screen pixels. Negative X is left, negative Y is down. Range: -2000 to 2000."),
             20)
         box:ClearAllPoints()
-        box:SetPoint("LEFT", label, "RIGHT", 4, 0)
+        box:SetPoint("TOPLEFT", parent, "TOPLEFT", x + 22, y)
         box:SetScript("OnTextChanged", function()
             local num = tonumber(this:GetText())
             if num and num >= Config.MINIMAP_OFFSET_MIN and num <= Config.MINIMAP_OFFSET_MAX then
@@ -705,9 +719,9 @@ function Config:CreateUnitFramesSection()
     local minimapSpec = { key = "minimapScale", name = "Size" }
     AddScaleField(minimapBox, minimapSpec, minimapBox.contentLeft, minimapBox.contentTop)
     self.minimapScaleBox = self.unitFrameScaleBoxes.minimapScale
-    self.minimapXBox = AddOffsetField(minimapBox, "minimapXOffset", "X:", minimapBox.contentLeft, minimapBox.contentTop - 28)
-    self.minimapYBox = AddOffsetField(minimapBox, "minimapYOffset", "Y:", minimapBox.contentLeft + 140, minimapBox.contentTop - 28)
-    minimapBox:SetHeight(28 + 56 + minimapBox.bottomPadding)
+    self.minimapXBox = AddOffsetField(minimapBox, "minimapXOffset", "X:", minimapBox.contentLeft + 260, minimapBox.contentTop)
+    self.minimapYBox = AddOffsetField(minimapBox, "minimapYOffset", "Y:", minimapBox.contentLeft + 430, minimapBox.contentTop)
+    minimapBox:SetHeight(28 + GRID_ROW_HEIGHT + minimapBox.bottomPadding)
     minimapBox.heightCalculated = true
     self:AddSectionReset(minimapBox, function()
         Config:ResetMinimapSection()
@@ -718,15 +732,15 @@ function Config:CreateUnitFramesSection()
     auraBox:SetPoint("TOPLEFT", minimapBox, "BOTTOMLEFT", 0, -6)
     auraBox:SetPoint("RIGHT", section, "RIGHT", -5, 0)
     AddScaleField(auraBox, { key = "buffScale", name = "Buffs" }, auraBox.contentLeft, auraBox.contentTop)
-    AddScaleField(auraBox, { key = "debuffScale", name = "Debuffs" }, auraBox.contentLeft + 310, auraBox.contentTop)
+    AddScaleField(auraBox, { key = "debuffScale", name = "Debuffs" }, auraBox.contentLeft + GRID_COL_WIDTH, auraBox.contentTop)
     local applyAuras = function()
         Config:ApplyAuraScales()
     end
-    self.buffXBox = AddOffsetField(auraBox, "buffXOffset", "X:", auraBox.contentLeft, auraBox.contentTop - 28, applyAuras)
-    self.buffYBox = AddOffsetField(auraBox, "buffYOffset", "Y:", auraBox.contentLeft + 140, auraBox.contentTop - 28, applyAuras)
-    self.debuffXBox = AddOffsetField(auraBox, "debuffXOffset", "X:", auraBox.contentLeft + 310, auraBox.contentTop - 28, applyAuras)
-    self.debuffYBox = AddOffsetField(auraBox, "debuffYOffset", "Y:", auraBox.contentLeft + 450, auraBox.contentTop - 28, applyAuras)
-    auraBox:SetHeight(28 + 56 + auraBox.bottomPadding)
+    self.buffXBox = AddOffsetField(auraBox, "buffXOffset", "X:", auraBox.contentLeft, auraBox.contentTop - GRID_ROW_HEIGHT, applyAuras)
+    self.buffYBox = AddOffsetField(auraBox, "buffYOffset", "Y:", auraBox.contentLeft + 140, auraBox.contentTop - GRID_ROW_HEIGHT, applyAuras)
+    self.debuffXBox = AddOffsetField(auraBox, "debuffXOffset", "X:", auraBox.contentLeft + GRID_COL_WIDTH, auraBox.contentTop - GRID_ROW_HEIGHT, applyAuras)
+    self.debuffYBox = AddOffsetField(auraBox, "debuffYOffset", "Y:", auraBox.contentLeft + GRID_COL_WIDTH + 140, auraBox.contentTop - GRID_ROW_HEIGHT, applyAuras)
+    auraBox:SetHeight(28 + GRID_ROW_HEIGHT * 2 + auraBox.bottomPadding)
     auraBox.heightCalculated = true
     self:AddSectionReset(auraBox, function()
         Config:ResetAuraSection()
@@ -741,9 +755,9 @@ function Config:CreateUnitFramesSection()
         Config:ApplyPetFramePosition()
     end
     local petTip = T("Offset from Blizzard's pet frame position, in screen pixels. Negative X is left, negative Y is down. Range: -2000 to 2000.")
-    self.petFrameXBox = AddOffsetField(playerBox, "petFrameXOffset", "X:", playerBox.contentLeft + 310, playerBox.contentTop - 28, applyPetFrame, petTip)
-    self.petFrameYBox = AddOffsetField(playerBox, "petFrameYOffset", "Y:", playerBox.contentLeft + 450, playerBox.contentTop - 28, applyPetFrame, petTip)
-    playerBox:SetHeight(playerH + 28)
+    self.petFrameXBox = AddOffsetField(playerBox, "petFrameXOffset", "X:", playerBox.contentLeft + GRID_COL_WIDTH, playerBox.contentTop - GRID_ROW_HEIGHT, applyPetFrame, petTip)
+    self.petFrameYBox = AddOffsetField(playerBox, "petFrameYOffset", "Y:", playerBox.contentLeft + GRID_COL_WIDTH + 140, playerBox.contentTop - GRID_ROW_HEIGHT, applyPetFrame, petTip)
+    playerBox:SetHeight(playerH + GRID_ROW_HEIGHT)
     playerBox.heightCalculated = true
     self:AddSectionReset(playerBox, function()
         Config:ResetUnitFrameGroup("player")

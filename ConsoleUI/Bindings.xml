@@ -94,9 +94,15 @@
     <Binding name="ConsoleUI_INTERACT" header="CONSOLEUIINTERACT">ConsoleUI_InteractNearest()</Binding>
     <Binding name="ConsoleUI_UNIT_MENU">ConsoleUI_UnitMenu()</Binding>
 
-    <!-- Manual only; never claimed automatically. -->
-    <Binding name="ConsoleUI_MOUSELOOK" header="CONSOLEUIMOUSE">ConsoleUI_MouseLook()</Binding>
-    <Binding name="ConsoleUI_MOUSELOOK_START">ConsoleUI_MouseLookStart()</Binding>
+    <!-- User-facing Mouse Lock controls. Hold bindings receive down + up. -->
+    <Binding name="ConsoleUI_MOUSELOCK" header="CONSOLEUIMOUSE">ConsoleUI_MouseLock()</Binding>
+    <Binding name="ConsoleUI_MOUSELOCK_HOLD" runOnUp="true">ConsoleUI_MouseLockHold(keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_MOUSEUNLOCK">ConsoleUI_MouseUnlock()</Binding>
+    <Binding name="ConsoleUI_MOUSEUNLOCK_HOLD" runOnUp="true">ConsoleUI_MouseUnlockHold(keystate ~= "up")</Binding>
+    <Binding name="ConsoleUI_MOUSELOOK">ConsoleUI_MouseLockToggle()</Binding>
+
+    <!-- Internal F9 companion emitted alongside WASD by the MouseLOCK mapper. -->
+    <Binding name="ConsoleUI_MOUSELOOK_START" hidden="true">ConsoleUI_MouseLookStart()</Binding>
 
     <Binding name="ConsoleUI_STANCE_1" header="CONSOLEUISTANCE">ConsoleUI_StanceButton(1)</Binding>
     <Binding name="ConsoleUI_STANCE_2">ConsoleUI_StanceButton(2)</Binding>

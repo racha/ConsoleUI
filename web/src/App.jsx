@@ -128,6 +128,25 @@ function Layout({ children, current }) {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (!menuOpen) {
+      document.documentElement.classList.remove("mobile-menu-open");
+      document.body.classList.remove("mobile-menu-open");
+      return undefined;
+    }
+    document.documentElement.classList.add("mobile-menu-open");
+    document.body.classList.add("mobile-menu-open");
+    function closeOnEscape(event) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.documentElement.classList.remove("mobile-menu-open");
+      document.body.classList.remove("mobile-menu-open");
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
     function onKey(event) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -150,8 +169,9 @@ function Layout({ children, current }) {
           <img src={asset("assets/images/brand/consoleui-wordmark.svg")} alt="ConsoleUI." width="168" height="39" />
         </Link>
         <div className="top-actions">
-          <button type="button" className="search-launch" onClick={() => setSearchOpen(true)}>
-            Search
+          <button type="button" className="search-launch" aria-label="Search the guide" onClick={() => setSearchOpen(true)}>
+            <span className="search-label">Search</span>
+            <span className="search-symbol" aria-hidden="true">⌕</span>
             <kbd>⌘K</kbd>
           </button>
           <Link to="/">Guide</Link>
@@ -164,14 +184,21 @@ function Layout({ children, current }) {
             type="button"
             aria-expanded={menuOpen ? "true" : "false"}
             aria-controls="site-nav"
+            aria-label={menuOpen ? "Close navigation" : "Open navigation"}
             onClick={() => setMenuOpen((open) => !open)}
           >
-            Menu
+            {menuOpen ? "Close" : "Menu"}
           </button>
         </div>
       </header>
+      <button
+        className={menuOpen ? "nav-scrim open" : "nav-scrim"}
+        type="button"
+        aria-label="Close navigation"
+        onClick={() => setMenuOpen(false)}
+      />
       <div className="site-shell">
-        <nav id="site-nav" className={menuOpen ? "sidebar open" : "sidebar"}>
+        <nav id="site-nav" className={menuOpen ? "sidebar open" : "sidebar"} aria-label="Documentation">
           {navigation.map((group) => (
             <div key={group.title}>
               <p className="nav-group">{group.title}</p>

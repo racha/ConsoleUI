@@ -446,8 +446,36 @@ function ManualLook:OnMovementBinding()
     return self:Start()
 end
 
-function ConsoleUI_MouseLook()
+function ConsoleUI_MouseLock()
+    return ManualLook:Start()
+end
+
+function ConsoleUI_MouseLockHold(isDown)
+    if isDown then
+        return ManualLook:Start()
+    end
+    return ManualLook:Stop()
+end
+
+function ConsoleUI_MouseUnlock()
+    return ManualLook:Stop()
+end
+
+function ConsoleUI_MouseUnlockHold(isDown)
+    if isDown then
+        return ManualLook:Stop()
+    end
+    return ManualLook:Start()
+end
+
+function ConsoleUI_MouseLockToggle()
     return ManualLook:Toggle()
+end
+
+-- Backward-compatible slash/API alias. Existing saved ConsoleUI_MOUSELOOK
+-- bindings now display as Mouse Lock Toggle and keep the same behavior.
+function ConsoleUI_MouseLook()
+    return ConsoleUI_MouseLockToggle()
 end
 
 -- Mapper companion binding: lock only. Movement remains bound directly to

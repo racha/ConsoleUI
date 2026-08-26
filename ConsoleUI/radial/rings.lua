@@ -88,6 +88,7 @@ function Rings:CreateRing(name)
         icon = nil,
         slots = {},
     }
+    if ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then ConsoleUI.profiles:MarkDirty(false) end
     return id
 end
 
@@ -117,6 +118,7 @@ function Rings:DeleteRing(id)
     end
     self:UnbindRing(id)
     db[id] = nil
+    if ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then ConsoleUI.profiles:MarkDirty(false) end
 end
 
 function Rings:RenameRing(id, name)
@@ -124,6 +126,7 @@ function Rings:RenameRing(id, name)
     if not ring then return end
     if name and name ~= "" then
         ring.name = name
+        if ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then ConsoleUI.profiles:MarkDirty(false) end
     end
 end
 
@@ -137,6 +140,7 @@ function Rings:SetSlot(id, index, entry)
     if not ring.icon and entry and entry.texture then
         ring.icon = entry.texture
     end
+    if ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then ConsoleUI.profiles:MarkDirty(false) end
 end
 
 function Rings:RingIcon(ring)

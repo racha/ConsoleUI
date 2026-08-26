@@ -135,7 +135,7 @@ function ConsoleUI:RunAudit()
     line("CUI-AUDIT COPY_START")
 
     run("core", function()
-        local addonVersion = "1.0.0"
+        local addonVersion = "1.0.1"
         if GetAddOnMetadata then
             addonVersion = GetAddOnMetadata("ConsoleUI", "Version") or addonVersion
         end
@@ -385,7 +385,14 @@ function ConsoleUI:RunAudit()
     run("layout", function()
         local bars = self.actionbars
         if bars and bars.SelfCheckLayout then
-            ok("selfcheck layout", bars:SelfCheckLayout())
+            local layoutGood = bars:SelfCheckLayout()
+            ok("selfcheck layout", layoutGood)
+            if not layoutGood and bars.lastSelfCheckFailures then
+                local failureIndex
+                for failureIndex = 1, Count(bars.lastSelfCheckFailures) do
+                    line("FAIL  layout detail  " .. tostring(bars.lastSelfCheckFailures[failureIndex]))
+                end
+            end
         else
             ok("selfcheck layout", false, "missing")
         end
@@ -592,6 +599,7 @@ function ConsoleUI:RunAudit()
             ok("no auto repair", true)
         end
         ok("vendor bags fn", self.hooks and self.hooks.OnVendorInteraction ~= nil)
+        ok("vendor bags schedule", self.hooks and self.hooks.ScheduleVendorBags ~= nil)
         ok("all bags fn", self.hooks and self.hooks.ToggleAllBags ~= nil)
     end)
 
@@ -614,6 +622,39 @@ function ConsoleUI:RunAudit()
             ok("selfcheck keyboard", false, "missing")
         end
         ok("steal 69", ConsoleUIKeyboard.StealCount == 69, ConsoleUIKeyboard.StealCount)
+    end)
+
+    run("profiles", function()
+        local profiles = self.profiles
+        ok("profiles module", profiles ~= nil)
+        ok("profiles schema", ConsoleUIProfileDB and ConsoleUIProfileDB.schemaVersion == 2,
+            ConsoleUIProfileDB and ConsoleUIProfileDB.schemaVersion)
+        local key = profiles and profiles.GetCurrentProfileKey and profiles:GetCurrentProfileKey()
+        local current = profiles and profiles.GetCurrentProfile and profiles:GetCurrentProfile()
+        info("profile key", tostring(key))
+        ok("character profile", current ~= nil, current and current.displayName or "missing")
+        ok("profile settings", current and type(current.config) == "table")
+        ok("profile bindings", current and type(current.proxiedActions) == "table")
+        ok("profile rings", current and type(current.rings) == "table")
+        ok("profile action bars", current and type(current.actionBars) == "table")
+        ok("legacy preserved", not ConsoleUIDB.profileMigrationV2
+            or (ConsoleUIProfileDB.legacyBackups and ConsoleUIProfileDB.legacyBackups[key] ~= nil))
+        ok("touch validation", self.proxied and self.proxied.IsTouchCompatible ~= nil)
+        ok("touch preserve", self.proxied and self.proxied.ReleaseSidebarBindings ~= nil)
+        if self.proxied and self.proxied.GetInvalidTouchAssignments then
+            local invalid = self.proxied:GetInvalidTouchAssignments()
+            if Count(invalid) > 0 then
+                soft("touch assignments", Count(invalid) .. " incompatible assignment(s) preserved but disabled")
+            else
+                ok("touch assignments", true, "compatible")
+            end
+        end
+        local report = ConsoleUIDB and ConsoleUIDB.profileLastRestore
+        if report then
+            info("profile restore", "restored=" .. tostring(report.restored)
+                .. "|fallback=" .. tostring(report.fallback)
+                .. "|unresolved=" .. tostring(report.unresolved))
+        end
     end)
 
     run("cursor", function()

@@ -14,6 +14,7 @@
   --cui-radius: 12px;
   --cui-max: 1180px;
   --cui-read: 760px;
+  --cui-mobile-header: 64px;
 }
 
 * { box-sizing: border-box; }
@@ -114,6 +115,8 @@ button:focus-visible,
   border-radius: 8px;
   padding: 8px 12px;
 }
+
+.nav-scrim { display: none; }
 
 .site-shell {
   max-width: var(--cui-max);
@@ -511,24 +514,70 @@ figcaption,
 }
 
 @media (max-width: 760px) {
-  .topbar { padding: 0 16px; }
+  html.mobile-menu-open,
+  body.mobile-menu-open { overflow: hidden; }
+  .topbar {
+    height: var(--cui-mobile-header);
+    padding: 0 12px;
+    gap: 8px;
+    z-index: 10;
+  }
+  .brand img { width: min(132px, 38vw); }
+  .top-actions { gap: 8px; }
   .top-actions > a,
   .version-badge { display: none; }
   .menu-toggle { display: inline-block; }
   .site-shell { display: block; padding: 22px 16px 56px; }
+  .nav-scrim.open {
+    display: block;
+    position: fixed;
+    inset: var(--cui-mobile-header) 0 0;
+    z-index: 8;
+    width: 100%;
+    border: 0;
+    background: rgba(7, 8, 10, 0.72);
+  }
   .sidebar {
     display: none;
-    position: static;
-    max-height: none;
-    border-bottom: 1px solid var(--cui-border);
-    padding: 0 0 16px;
-    margin-bottom: 24px;
+    margin: 0;
   }
-  .sidebar.open { display: block; }
+  .sidebar.open {
+    display: block;
+    position: fixed;
+    top: var(--cui-mobile-header);
+    right: 0;
+    bottom: auto;
+    z-index: 9;
+    width: min(88vw, 360px);
+    height: calc(100vh - var(--cui-mobile-header));
+    height: calc(100dvh - var(--cui-mobile-header));
+    max-height: calc(100vh - var(--cui-mobile-header));
+    max-height: calc(100dvh - var(--cui-mobile-header));
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    padding: 22px 18px 40px;
+    border-left: 1px solid var(--cui-border);
+    background: rgba(11, 12, 15, 0.985);
+    box-shadow: -18px 0 44px rgba(0, 0, 0, 0.42);
+  }
+  .sidebar a { padding: 9px 10px; }
   .media-pair { grid-template-columns: 1fr; }
   .page-nav { flex-direction: column; }
   .footer { padding: 20px 16px 32px; }
   .footer-row { flex-direction: column; }
+}
+
+@media (max-width: 380px) {
+  .search-launch { padding: 7px 9px; }
+  .search-label { display: none; }
+  .search-symbol { display: inline; font-size: 19px; line-height: 1; }
+}
+
+@media (min-width: 381px) {
+  .search-symbol { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

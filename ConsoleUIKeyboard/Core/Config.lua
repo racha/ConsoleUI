@@ -9,6 +9,9 @@ function Keyboard:ApplyLanguage(name)
     ConsoleUIKeyboardDB = ConsoleUIKeyboardDB or {}
     ConsoleUIKeyboardDB.layoutVersion = Language.LayoutVersion or 2
     self:SetLayout()
+    if ConsoleUI and ConsoleUI.profiles and ConsoleUI.profiles.MarkDirty then
+        ConsoleUI.profiles:MarkDirty(false)
+    end
     U.Print("layout " .. name)
 end
 

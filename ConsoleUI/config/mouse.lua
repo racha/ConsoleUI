@@ -70,7 +70,7 @@ function Config:CreateMouseSection()
         "Lock when a ConsoleUI action binding casts or uses an action.")
     actionCheck:SetPoint("TOPLEFT", lockBox, "TOPLEFT", 340, lockBox.contentTop)
     AddHelp(lockBox, movementCheck,
-        "The manual Mouse Look binding and /cui look remain available whenever the system is enabled.", -8)
+        "Mouse Lock, Hold, Unlock, Unlock Hold, Toggle, and /cui look remain available whenever the system is enabled.", -8)
 
     self:AddSectionReset(lockBox, function()
         Config:Set("mouseLookLockOnMovement", Config.DEFAULTS.mouseLookLockOnMovement)

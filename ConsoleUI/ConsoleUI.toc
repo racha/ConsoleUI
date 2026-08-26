@@ -7,7 +7,7 @@
 ## Title-zhTW: |cfff1f2f4Console|r|cffffd12eUI|r |cff8b8f98by HouseLegend|r
 ## Author: HouseLegend
 # x-release-please-start-version
-## Version: 1.0.0
+## Version: 1.0.1
 # x-release-please-end
 ## Notes: Game controller UI for WoW Vanilla 1.12
 ## Notes-esES: Interfaz de mando para WoW Vanilla
@@ -17,6 +17,7 @@
 ## Notes-zhTW: 魔獸世界遊戲控制器介面
 ## DefaultState: Enabled
 ## LoadOnDemand: 0
+## SavedVariables: ConsoleUIProfileDB
 ## SavedVariablesPerCharacter: ConsoleUIDB
 ## OptionalDeps: pfUI, Quiver, SimpleActionSets, ModernMapMarkers
 
@@ -31,4 +32,3 @@ init\xpbar.xml
 init\castbar.xml
 init\loot.xml
 audit.lua
-Bindings.xml
