@@ -545,18 +545,21 @@ end
 function Profiles:ApplySettingsAndBindings()
     local cfg = ConsoleUI.config
     if cfg then
+        if cfg.RefreshSettingInputs then cfg:RefreshSettingInputs() end
         ConsoleUI_DEBUG_KEYS = ConsoleUIDB.config and ConsoleUIDB.config.debugEnabled
         if cfg.UpdateCrosshair then cfg:UpdateCrosshair() end
         if cfg.UpdateActionBarLayout then cfg:UpdateActionBarLayout() end
         if ConsoleUI.actionbars and ConsoleUI.actionbars.UpdateSideBars then ConsoleUI.actionbars:UpdateSideBars() end
         if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then ConsoleUI.xpbar:UpdateAllBars() end
         if ConsoleUI.castbar and ConsoleUI.castbar.ReloadConfig then ConsoleUI.castbar:ReloadConfig() end
+        if ConsoleUI.swingbar and ConsoleUI.swingbar.ReloadConfig then ConsoleUI.swingbar:ReloadConfig() end
         if ConsoleUI.loot and ConsoleUI.loot.ApplyEnabled then ConsoleUI.loot:ApplyEnabled() end
         if ConsoleUI.actionbars and ConsoleUI.actionbars.extra and ConsoleUI.actionbars.extra.Update then ConsoleUI.actionbars.extra:Update() end
         if ConsoleUI.cursor and ConsoleUI.cursor.hintbar and ConsoleUI.cursor.hintbar.Refresh then ConsoleUI.cursor.hintbar:Refresh() end
         if cfg.ApplyHudBorderChrome then cfg:ApplyHudBorderChrome() end
         if ConsoleUI.actionbars and ConsoleUI.actionbars.ApplyDefaultBarVisibility then ConsoleUI.actionbars:ApplyDefaultBarVisibility() end
         if cfg.ApplyUnitFrameScales then cfg:ApplyUnitFrameScales() end
+        if cfg.QueueUnitFrameLayout then cfg:QueueUnitFrameLayout() end
         if ConsoleUI.mouselook and ConsoleUI.mouselook.ApplySettings then ConsoleUI.mouselook:ApplySettings() end
         if ConsoleUI.cursor and ConsoleUI.cursor.tooltip and ConsoleUI.cursor.tooltip.ApplyPromptVisibility then
             ConsoleUI.cursor.tooltip:ApplyPromptVisibility()

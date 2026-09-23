@@ -101,6 +101,14 @@ local function GetRestColor()
     return GetStringColor(rest_color)
 end
 
+function XPBar:ClearRestedFill(bar)
+    local rested = bar and bar.restedbar
+    if not rested then return end
+    rested:SetValue(0)
+    rested:Hide()
+    if rested.cuiWatchFill then rested.cuiWatchFill:Hide() end
+end
+
 function XPBar:ApplyFillColors(bar)
     if not bar or not bar.bar then
         return
@@ -423,19 +431,17 @@ local function OnEvent()
         self.bar:SetValue(xp)
         local cr, cg, cb = GetPlayerClassColor()
         self.bar:SetStatusBarColor(cr, cg, cb, 1.0)
-        XPBar:ApplyFillColors(self)
-        
+        if self.restedbar then self.restedbar:SetMinMaxValues(0, xpmax) end
         if ex and ex > 0 then
             if self.restedbar then
                 self.restedbar:Show()
-                self.restedbar:SetMinMaxValues(0, xpmax)
                 self.restedbar:SetValue(xp + ex)
             end
         else
-            if self.restedbar then
-                self.restedbar:Hide()
-            end
+            XPBar:ClearRestedFill(self)
         end
+        -- Paint only after both values reflect the current level/rested pool.
+        XPBar:ApplyFillColors(self)
         
         if self.bar.text then
             self.bar.text:SetText(XPBar.FormatWatchText("XP", xp, xpmax))
@@ -452,9 +458,7 @@ local function OnEvent()
         end
         return
     elseif mode == "PETXP" then
-        if self.restedbar then
-            self.restedbar:Hide()
-        end
+        XPBar:ClearRestedFill(self)
         self.enabled = true
         if not passiveRefresh then
             self:Show()
@@ -477,9 +481,7 @@ local function OnEvent()
         end
         return
     elseif mode == "REP" then
-        if self.restedbar then
-            self.restedbar:Hide()
-        end
+        XPBar:ClearRestedFill(self)
         
         for i = 1, 99 do
             local name, description, standingID, barMin, barMax, barValue, atWarWith, canToggleAtWar, isHeader, isCollapsed, isWatched = GetFactionInfo(i)
@@ -842,6 +844,9 @@ function XPBar:UpdateAllBars()
     end
     if ConsoleUI.castbar and ConsoleUI.castbar.UpdatePosition then
         ConsoleUI.castbar:UpdatePosition()
+    end
+    if ConsoleUI.swingbar and ConsoleUI.swingbar.UpdatePosition then
+        ConsoleUI.swingbar:UpdatePosition()
     end
     self:RefreshFills()
 end

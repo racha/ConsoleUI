@@ -716,14 +716,9 @@ end
 -- Update the circular cooldown animation
 function ActionBars:UpdateCircularCooldown(frame)
     if not frame.enabled or frame.duration == 0 then
+        frame.enabled = false
         frame:Hide()
-        -- Restore icon color when cooldown ends
-        if frame.icon then
-            frame.icon:SetVertexColor(1, 1, 1, 1)
-        end
-        if ActionBars.SliceMask then
-            ActionBars.SliceMask:SyncColor(frame:GetParent())
-        end
+        self:PaintButtonColor(frame:GetParent())
         return
     end
     
@@ -736,13 +731,7 @@ function ActionBars:UpdateCircularCooldown(frame)
         frame.enabled = false
         frame:Hide()
         
-        -- Restore icon color
-        if frame.icon then
-            frame.icon:SetVertexColor(1, 1, 1, 1)
-        end
-        if ActionBars.SliceMask then
-            ActionBars.SliceMask:SyncColor(frame:GetParent())
-        end
+        self:PaintButtonColor(frame:GetParent())
         return
     end
     
@@ -751,13 +740,7 @@ function ActionBars:UpdateCircularCooldown(frame)
     
     -- Darken the icon based on cooldown progress
     -- Start very dark (0.3) and gradually brighten to (0.7) as cooldown ends
-    if frame.icon then
-        local brightness = 0.3 + (progress * 0.4)
-        frame.icon:SetVertexColor(brightness, brightness, brightness, 1)
-        if ActionBars.SliceMask then
-            ActionBars.SliceMask:SyncColor(frame:GetParent())
-        end
-    end
+    self:PaintButtonColor(frame:GetParent(), 0.3 + (progress * 0.4))
     
     -- Update cooldown text (no decimals)
     if frame.text then
@@ -793,23 +776,12 @@ function ActionBars:StartCircularCooldown(button, start, duration)
             frame.text:SetPoint("CENTER", button, "CENTER", -buttonSize * 0.02, 0)
         end
         
-        -- Immediately darken the icon
-        if frame.icon then
-            frame.icon:SetVertexColor(0.3, 0.3, 0.3, 1)
-        end
-        if self.SliceMask then
-            self.SliceMask:SyncColor(button)
-        end
+        -- Dim the current range/usability tint, not an unrelated gray.
+        self:PaintButtonColor(button)
     else
         frame.enabled = false
         frame:Hide()
-        -- Restore icon color
-        if frame.icon then
-            frame.icon:SetVertexColor(1, 1, 1, 1)
-        end
-        if self.SliceMask then
-            self.SliceMask:SyncColor(button)
-        end
+        self:PaintButtonColor(button)
     end
 end
 
@@ -818,14 +790,8 @@ function ActionBars:StopCircularCooldown(button)
     if button.circularCooldown then
         button.circularCooldown.enabled = false
         button.circularCooldown:Hide()
-        -- Restore icon color
-        if button.circularCooldown.icon then
-            button.circularCooldown.icon:SetVertexColor(1, 1, 1, 1)
-        end
-        if self.SliceMask then
-            self.SliceMask:SyncColor(button)
-        end
     end
+    self:PaintButtonColor(button)
 end
 
 function ActionBars:OnPlayerEnteringWorld()
@@ -1581,8 +1547,10 @@ function ActionBars:UpdateButton(button)
     if proxiedAction then
         icon:SetTexture(proxiedAction.icon)
         icon:Show()
-        button.rangeTimer = nil
         button.isProxiedAction = proxiedAction
+        self:UpdateButtonRange(button)
+        self:UpdateButtonUsable(button)
+        self:StopCircularCooldown(button)
         cooldown:Hide()
         -- Stop any flashing/glow effects since this is a proxied action, not an action slot
         self:StopFlash(button)
@@ -1593,31 +1561,21 @@ function ActionBars:UpdateButton(button)
         icon:Show()
         button.isProxiedAction = nil
         
-        -- Reset range state when updating button
-        -- Use -1 to force UpdateButtonUsable to refresh colors (since valid states are 0-3)
-        button.outofrange = nil
-        button.vertexstate = -1
+        self:UpdateButtonRange(button)
         
         self:UpdateButtonState(button)
         self:UpdateButtonUsable(button)
         self:UpdateButtonCooldown(button)
         self:UpdateButtonCount(button)
         self:UpdateButtonFlash(button)
-        
-        -- Initialize range timer for range checking (only if action has range)
-        if HasAction(actionID) and ActionHasRange(actionID) then
-            button.rangeTimer = self.RANGE_CHECK_TIME
-        else
-            button.rangeTimer = nil
-        end
     else
         icon:Hide()
         cooldown:Hide()
-        button.rangeTimer = nil
         button.isProxiedAction = nil
         -- Reset color state for empty slots
-        button.outofrange = nil
-        button.vertexstate = -1
+        self:UpdateButtonRange(button)
+        button.vertexstate = 0
+        self:StopCircularCooldown(button)
         -- Reset colors to normal (white) for normalTexture and overlay
         local normalTexture = getglobal(button:GetName().."NormalTexture")
         local overlay = getglobal(button:GetName().."Overlay")
@@ -1766,72 +1724,64 @@ function ActionBars:UpdateButtonState(button)
     end
 end
 
-function ActionBars:UpdateButtonUsable(button)
+function ActionBars:UpdateButtonRange(button)
     local actionID = self:GetActionID(button)
-    local icon = getglobal(button:GetName().."Icon")
-    local normalTexture = getglobal(button:GetName().."NormalTexture")
-    local overlay = getglobal(button:GetName().."Overlay")  -- Modern style overlay
+    button.outofrange = nil
+    button.rangeTimer = nil
+    if not button.isProxiedAction and HasAction(actionID) and ActionHasRange(actionID) then
+        -- The client handles minimum/maximum range; nil is not out of range.
+        button.outofrange = IsActionInRange(actionID) == 0 or nil
+        button.rangeTimer = self.RANGE_CHECK_TIME
+    end
+    local hotkey = getglobal(button:GetName() .. "HotKey")
+    if hotkey then
+        if button.outofrange then hotkey:SetVertexColor(1.0, 0.1, 0.1)
+        else hotkey:SetVertexColor(0.6, 0.6, 0.6) end
+    end
+end
+
+function ActionBars:PaintButtonColor(button, brightness)
+    local icon = getglobal(button:GetName() .. "Icon") or button.icon
     if not icon then return end
-    
-    local isUsable, notEnoughMana = IsUsableAction(actionID)
-    local newVertexState = 0
-    
-    -- Check range first (if out of range, show red)
-    if button.outofrange then
-        newVertexState = 1
-        if button.vertexstate ~= 1 then
-            icon:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
-            if normalTexture then
-                normalTexture:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
-            end
-            if overlay then
-                overlay:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
-            end
-            button.vertexstate = 1
-        end
-    -- Usable - Blizzard colors from constants
-    elseif isUsable then
-        newVertexState = 0
-        if button.vertexstate ~= 0 then
-            icon:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-            if normalTexture then
-                normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-            end
-            if overlay then
-                overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-            end
-            button.vertexstate = 0
-        end
-    -- Not enough mana - Blizzard colors from constants
-    elseif notEnoughMana then
-        newVertexState = 2
-        if button.vertexstate ~= 2 then
-            icon:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-            if normalTexture then
-                normalTexture:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-            end
-            if overlay then
-                overlay:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-            end
-            button.vertexstate = 2
-        end
-    -- Not usable - Blizzard behavior: icon gray, border white
-    else
-        newVertexState = 3
-        if button.vertexstate ~= 3 then
-            icon:SetVertexColor(self.NA_COLOR[1], self.NA_COLOR[2], self.NA_COLOR[3], self.NA_COLOR[4])
-            if normalTexture then
-                normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-            end
-            if overlay then
-                overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-            end
-            button.vertexstate = 3
+    local color = self.NORMAL_COLOR
+    if button.vertexstate == 1 then color = self.RANGE_COLOR
+    elseif button.vertexstate == 2 then color = self.OOM_COLOR
+    elseif button.vertexstate == 3 then color = self.NA_COLOR end
+    -- Pet buttons share cooldowns but have no action-slot color state.
+    -- They retain white icons with the same 0.3 -> 0.7 dimming curve.
+    if not brightness then
+        brightness = 1
+        local cooldown = button.circularCooldown
+        if cooldown and cooldown.enabled and cooldown.duration > 0 then
+            local progress = (GetTime() - cooldown.start) / cooldown.duration
+            if progress < 1 then brightness = 0.3 + math.max(0, progress) * 0.4 end
         end
     end
-    if self.SliceMask and button._sliceMask then
-        self.SliceMask:SyncColor(button)
+    icon:SetVertexColor(color[1] * brightness, color[2] * brightness, color[3] * brightness, color[4])
+    if self.SliceMask and button._sliceMask then self.SliceMask:SyncColor(button) end
+end
+
+function ActionBars:UpdateButtonUsable(button)
+    local isUsable, notEnoughMana
+    if not button.isProxiedAction then
+        isUsable, notEnoughMana = IsUsableAction(self:GetActionID(button))
     end
+    local state = 0
+    if button.isProxiedAction then state = 0
+    elseif button.outofrange then state = 1
+    elseif isUsable then state = 0
+    elseif notEnoughMana then state = 2
+    else state = 3 end
+    button.vertexstate = state
+    local borderColor = self.NORMAL_COLOR
+    if state == 1 then borderColor = self.RANGE_COLOR
+    elseif state == 2 then borderColor = self.OOM_COLOR end
+    -- Unusable actions keep white borders; cooldown dimming affects only icons.
+    local normalTexture = getglobal(button:GetName() .. "NormalTexture")
+    local overlay = getglobal(button:GetName() .. "Overlay")
+    if normalTexture then normalTexture:SetVertexColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4]) end
+    if overlay then overlay:SetVertexColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4]) end
+    self:PaintButtonColor(button)
 end
 
 function ActionBars:UpdateButtonCooldown(button)
@@ -2036,46 +1986,15 @@ function ActionBars:ButtonOnUpdate(button, elapsed)
         end
     end
     
-    -- Handle range checking (like pfUI)
+    -- Poll at the existing 200ms interval; repaint only on a range transition.
     if button.rangeTimer then
         button.rangeTimer = button.rangeTimer - elapsed
         if button.rangeTimer <= 0 then
-            -- Check if action has range and is out of range
-            if HasAction(actionID) and ActionHasRange(actionID) then
-                local inRange = IsActionInRange(actionID)
-                if inRange == 0 then -- Out of range
-                    if not button.outofrange then
-                        button.outofrange = true
-                        self:UpdateButtonUsable(button)
-                    end
-                else -- In range or nil (no target)
-                    if button.outofrange then
-                        button.outofrange = nil
-                        self:UpdateButtonUsable(button)
-                    end
-                end
-            else
-                -- Action doesn't have range, clear out of range state
-                if button.outofrange then
-                    button.outofrange = nil
-                    self:UpdateButtonUsable(button)
-                end
-            end
-            
-            -- Update hotkey color (legacy support)
-            local hotkey = getglobal(button:GetName().."HotKey")
-            if hotkey then
-                if button.outofrange then
-                    hotkey:SetVertexColor(1.0, 0.1, 0.1)
-                else
-                    hotkey:SetVertexColor(0.6, 0.6, 0.6)
-                end
-            end
-            
-            button.rangeTimer = self.RANGE_CHECK_TIME
+            local wasOutOfRange = button.outofrange
+            self:UpdateButtonRange(button)
+            if wasOutOfRange ~= button.outofrange then self:UpdateButtonUsable(button) end
         end
     end
-    
     -- Handle tooltip updates
     if button.updateTooltip then
         button.updateTooltip = button.updateTooltip - elapsed
@@ -2731,6 +2650,8 @@ function ActionBars:CreateSideBarButton(parent, buttonIndex, side)
     button:RegisterEvent("PLAYER_LEAVE_COMBAT")
     button:RegisterEvent("UNIT_INVENTORY_CHANGED")
     
+    button:RegisterEvent("PLAYER_TARGET_CHANGED")
+
     -- Event handler
     button:SetScript("OnEvent", function()
         ActionBars:SideBarButtonOnEvent(this, event)
@@ -2784,14 +2705,15 @@ end
 
 function ActionBars:SideBarButtonOnEvent(button, event)
     if event == "ACTIONBAR_SLOT_CHANGED" then
-        if arg1 == 0 or arg1 == button.actionSlot then
+        if arg1 == -1 or arg1 == 0 or arg1 == button.actionSlot then
             self:UpdateSideBarButton(button)
         end
     elseif event == "ACTIONBAR_UPDATE_STATE" or 
            event == "ACTIONBAR_UPDATE_USABLE" or
            event == "PLAYER_ENTER_COMBAT" or
            event == "PLAYER_LEAVE_COMBAT" or
-           event == "UNIT_INVENTORY_CHANGED" then
+           event == "UNIT_INVENTORY_CHANGED" or
+           event == "PLAYER_TARGET_CHANGED" then
         self:UpdateSideBarButton(button)
     elseif event == "ACTIONBAR_UPDATE_COOLDOWN" then
         self:UpdateSideBarButtonCooldown(button)
@@ -2799,57 +2721,13 @@ function ActionBars:SideBarButtonOnEvent(button, event)
 end
 
 function ActionBars:SideBarButtonOnUpdate(button, elapsed)
-    -- Range check timer
     if button.rangeTimer then
         button.rangeTimer = button.rangeTimer - elapsed
         if button.rangeTimer <= 0 then
-            local inRange = IsActionInRange(button.actionSlot)
-            local normalTexture = getglobal(button:GetName() .. "NormalTexture")
-            local overlay = getglobal(button:GetName() .. "Overlay")  -- Modern style overlay
-            if inRange == 0 then
-                -- Out of range: red color (using same constants as main action bar)
-                button.icon:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
-                if normalTexture then
-                    normalTexture:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
-                end
-                if overlay then
-                    overlay:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
-                end
-                button.outofrange = true
-            else
-                -- In range: check usability again to get correct color
-                button.outofrange = nil
-                local isUsable, notEnoughMana = IsUsableAction(button.actionSlot)
-                if isUsable then
-                    button.icon:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-                    if normalTexture then
-                        normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-                    end
-                    if overlay then
-                        overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-                    end
-                elseif notEnoughMana then
-                    button.icon:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-                    if normalTexture then
-                        normalTexture:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-                    end
-                    if overlay then
-                        overlay:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-                    end
-                else
-                    button.icon:SetVertexColor(self.NA_COLOR[1], self.NA_COLOR[2], self.NA_COLOR[3], self.NA_COLOR[4])
-                    if normalTexture then
-                        normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-                    end
-                    if overlay then
-                        overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-                    end
-                end
-            end
-            button.rangeTimer = self.RANGE_CHECK_TIME
+            self:UpdateButtonRange(button)
+            self:UpdateButtonUsable(button)
         end
     end
-    
     -- Flashing
     if button.flashing == 1 then
         button.flashtime = button.flashtime - elapsed
@@ -2910,25 +2788,16 @@ function ActionBars:UpdateSideBarButton(button)
     -- Store proxied action on button for click handler
     button.isProxiedAction = proxiedAction
     
-    local normalTexture = getglobal(button:GetName() .. "NormalTexture")
-    local overlay = getglobal(button:GetName() .. "Overlay")  -- Modern style overlay
-    
     -- If slot has a proxied action, show that icon (priority over action slot)
     if proxiedAction then
         button.icon:SetTexture(proxiedAction.icon)
         button.icon:Show()
         button:SetAlpha(1.0)
-        button.rangeTimer = nil
+        self:UpdateButtonRange(button)
+        self:UpdateButtonUsable(button)
+        self:StopCircularCooldown(button)
         button.cooldown:Hide()
         button:SetChecked(0)
-        -- Normal colors for proxied actions
-        button.icon:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-        if normalTexture then
-            normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-        end
-        if overlay then
-            overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-        end
         -- Hide count for proxied actions
         button.count:Hide()
         if self:HasPlate(button) then
@@ -2957,66 +2826,25 @@ function ActionBars:UpdateSideBarButton(button)
         button.count:Hide()
     end
     
-    -- Update usable state - exact Blizzard behavior (using same constants as main action bar)
-    local isUsable, notEnoughMana = IsUsableAction(actionSlot)
-    
-    -- Check range first (if out of range, show red)
-    if button.outofrange then
-        button.icon:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
-        if normalTexture then
-            normalTexture:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
-        end
-        if overlay then
-            overlay:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
-        end
-    elseif isUsable then
-        -- Usable: icon white, border white
-        button.icon:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-        if normalTexture then
-            normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-        end
-        if overlay then
-            overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-        end
-    elseif notEnoughMana then
-        -- Not enough mana: icon blue, border blue
-        button.icon:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-        if normalTexture then
-            normalTexture:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-        end
-        if overlay then
-            overlay:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-        end
-    else
-        -- Not usable: icon gray, border white (Blizzard behavior)
-        button.icon:SetVertexColor(self.NA_COLOR[1], self.NA_COLOR[2], self.NA_COLOR[3], self.NA_COLOR[4])
-        if normalTexture then
-            normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-        end
-        if overlay then
-            overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
-        end
-    end
-    
+    -- Refresh the current assignment, never reuse the previous action's red tint.
+    self:UpdateButtonRange(button)
+    self:UpdateButtonUsable(button)
     -- Update cooldown
     self:UpdateSideBarButtonCooldown(button)
     
     -- Touch bars never show current-action / auto-attack highlight.
     button:SetChecked(0)
     
-    -- Start range timer if action has range
-    if ActionHasRange(actionSlot) then
-        button.rangeTimer = self.RANGE_CHECK_TIME
-    else
-        button.rangeTimer = nil
-    end
-
     if self:HasPlate(button) then
         self:PaintDiamond(button)
     end
 end
 
 function ActionBars:UpdateSideBarButtonCooldown(button)
+    if button.isProxiedAction or not HasAction(button.actionSlot) then
+        self:StopCircularCooldown(button)
+        return
+    end
     local start, duration, enable = GetActionCooldown(button.actionSlot)
     
     -- Hide default square cooldown - we use our own for both styles

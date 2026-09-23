@@ -13,7 +13,7 @@ last_reviewed: 2026-08-26
 | General | Language, keyboard behavior, Glyphs, and general UI |
 | Mouse | Mouse Look, lock/unlock groups, invert, speed |
 | Action Bars | Layouts, main/touch/stance/pet bars, positions and scales |
-| HUD | XP, reputation, cast, loot, hint bar |
+| HUD | XP, reputation, cast, swing timer, loot, hint bar |
 | Bindings | Base and modifier pages, spell placement, touch and mouse actions |
 | Rings | User Ring creation and editing |
 | Frames | Minimap, auras, player, target, party, party pets |

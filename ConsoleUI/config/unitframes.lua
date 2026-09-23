@@ -171,6 +171,7 @@ function Config:WatchUnitFrame(frame)
         end
         if ConsoleUI.config and ConsoleUI.config.ApplyUnitFrameScales then
             ConsoleUI.config:ApplyUnitFrameScales()
+            ConsoleUI.config:QueueUnitFrameLayout()
         end
     end)
 end
@@ -200,8 +201,8 @@ function Config:HookPetFramePosition()
     if self._petFrameHooked then
         return
     end
-    self._petFrameHooked = true
     if PetFrame_Update then
+        self._petFrameHooked = true
         local orig = PetFrame_Update
         PetFrame_Update = function()
             orig()
@@ -315,6 +316,7 @@ function Config:ApplyMinimapScale()
     if map and map ~= frame and map.SetScale then
         map:SetScale(1)
     end
+    self:ApplyAuraPositions()
 end
 
 function Config:ApplyNamedScale(name, desired)
@@ -348,8 +350,8 @@ function Config:HookAuraLayout()
     if self._auraLayoutHooked then
         return
     end
-    self._auraLayoutHooked = true
     if BuffButtons_UpdatePositions then
+        self._auraLayoutHooked = true
         local orig = BuffButtons_UpdatePositions
         BuffButtons_UpdatePositions = function()
             orig()
@@ -387,22 +389,18 @@ function Config:ApplyAuraPositions()
     dy = self:ClampMinimapOffset(dy)
     local host = getglobal("TemporaryEnchantFrame")
     if host and host.ClearAllPoints then
-        if bx ~= 0 or by ~= 0 or host.consoleUIAuraMoved then
-            local rel = getglobal("MinimapCluster") or UIParent
-            local rp = getglobal("MinimapCluster") and "TOPLEFT" or "TOPRIGHT"
-            host:ClearAllPoints()
-            host:SetPoint("TOPRIGHT", rel, rp, bx, -13 + by)
-            host.consoleUIAuraMoved = true
-        end
+        -- Zero offsets still mean "beside the minimap", not "leave Blizzard's
+        -- anchor alone". Session-only moved flags disappear on /reload.
+        local rel = self:GetMinimapFrame() or UIParent
+        local rp = rel ~= UIParent and "TOPLEFT" or "TOPRIGHT"
+        host:ClearAllPoints()
+        host:SetPoint("TOPRIGHT", rel, rp, bx, -13 + by)
     end
     local btn = getglobal("DebuffButton1") or getglobal("BuffButton16")
     if btn and btn.ClearAllPoints then
-        if dx ~= 0 or dy ~= 0 or btn.consoleUIAuraMoved then
-            local rel = getglobal("TemporaryEnchantFrame") or UIParent
-            btn:ClearAllPoints()
-            btn:SetPoint("TOPRIGHT", rel, "TOPRIGHT", dx, self:DebuffRowStockY() + dy)
-            btn.consoleUIAuraMoved = true
-        end
+        local rel = host or UIParent
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPRIGHT", rel, "TOPRIGHT", dx, self:DebuffRowStockY() + dy)
     end
 end
 
@@ -533,6 +531,45 @@ function Config:ResetUnitFrameScales()
     self:ResetAuraSection()
 end
 
+-- Blizzard may anchor frames after our login/aura event handler. Coalesce
+-- restoration onto the next frame, then remove the updater completely.
+function Config:QueueUnitFrameLayout(aurasOnly)
+    if self.unitFrameScaleBusy or self.unitFrameLayoutApplying then return end
+    local watcher = self.unitFrameScaleEvents
+    if not watcher then return end
+    if not aurasOnly or self.unitFrameLayoutPending == "all" then
+        self.unitFrameLayoutPending = "all"
+    else
+        self.unitFrameLayoutPending = "auras"
+    end
+    if self.unitFrameLayoutQueued then return end
+    self.unitFrameLayoutQueued = true
+    watcher:SetScript("OnUpdate", function()
+        watcher:SetScript("OnUpdate", nil)
+        local pending = Config.unitFrameLayoutPending
+        Config.unitFrameLayoutPending = nil
+        Config.unitFrameLayoutQueued = nil
+        Config.unitFrameLayoutApplying = true
+        Config:HookUnitFrameLayout()
+        if pending == "auras" then Config:ApplyAuraScales()
+        else Config:ApplyUnitFrameScales() end
+        Config.unitFrameLayoutApplying = nil
+    end)
+end
+
+function Config:HookUnitFrameLayout()
+    self:HookAuraLayout()
+    self:HookPetFramePosition()
+    if not self._unitFrameLayoutHooked and UIParent_ManageFramePositions then
+        self._unitFrameLayoutHooked = true
+        local orig = UIParent_ManageFramePositions
+        UIParent_ManageFramePositions = function()
+            orig()
+            Config:QueueUnitFrameLayout()
+        end
+    end
+end
+
 function Config:EnsureUnitFrameScaleEvents()
     if self.unitFrameScaleEvents or not CreateFrame then
         return
@@ -544,27 +581,34 @@ function Config:EnsureUnitFrameScaleEvents()
     watcher:RegisterEvent("PARTY_MEMBERS_CHANGED")
     watcher:RegisterEvent("PLAYER_AURAS_CHANGED")
     watcher:RegisterEvent("UNIT_AURA")
+    watcher:RegisterEvent("ADDON_LOADED")
     watcher:SetScript("OnEvent", function()
         local cfg = ConsoleUI.config
         if not cfg then
             return
         end
+        if event == "UNIT_AURA" and arg1 and arg1 ~= "player" then return end
+        cfg:HookUnitFrameLayout()
         if event == "PLAYER_AURAS_CHANGED" or event == "UNIT_AURA" then
             if cfg.ApplyAuraScales then
                 cfg:ApplyAuraScales()
             end
+            cfg:QueueUnitFrameLayout(true)
             return
         end
         if cfg.ApplyUnitFrameScales then
             cfg:ApplyUnitFrameScales()
         end
+        cfg:QueueUnitFrameLayout()
     end)
     self.unitFrameScaleEvents = watcher
 end
 
 function Config:InitializeUnitFrameScales()
     self:EnsureUnitFrameScaleEvents()
+    self:HookUnitFrameLayout()
     self:ApplyUnitFrameScales()
+    self:QueueUnitFrameLayout()
 end
 
 local function Mod(a, b)

@@ -115,20 +115,21 @@ function CastBar:EnsureFill(b)
         fill:Hide()
         b.cuiCastFill = fill
     end
-    b.cuiCastFill:SetTexture(CastBar.FILL_TEX)
-    b.cuiCastFill:SetDrawLayer("ARTWORK")
-    b.cuiCastFill:ClearAllPoints()
-    b.cuiCastFill:SetPoint("TOPLEFT", strip, "TOPLEFT", 1, -1)
-    b.cuiCastFill:SetPoint("BOTTOMLEFT", strip, "BOTTOMLEFT", 1, 1)
+    local fill = b.cuiCastFill
+    if fill.cuiAnchorStrip ~= strip then
+        fill:SetTexture(CastBar.FILL_TEX)
+        fill:SetDrawLayer("ARTWORK")
+        fill:ClearAllPoints()
+        fill:SetPoint("TOPLEFT", strip, "TOPLEFT", 1, -1)
+        fill:SetPoint("BOTTOMLEFT", strip, "BOTTOMLEFT", 1, 1)
+        fill.cuiAnchorStrip = strip
+    end
 end
 
 function CastBar:SyncFill(b, pct)
     self:EnsureFill(b)
     if not b or not b.cuiCastFill then
         return
-    end
-    if ConsoleUI.config and ConsoleUI.config.HideStockFill then
-        ConsoleUI.config:HideStockFill(b.bar)
     end
     pct = tonumber(pct) or 0
     if pct < 0 then
@@ -176,11 +177,15 @@ function CastBar:EnsureLag(b)
         lag:Hide()
         b.cuiCastLag = lag
     end
-    b.cuiCastLag:SetTexture(CastBar.FILL_TEX)
-    b.cuiCastLag:SetVertexColor(CastBar.LAG_R, CastBar.LAG_G, CastBar.LAG_B, 1)
-    b.cuiCastLag:ClearAllPoints()
-    b.cuiCastLag:SetPoint("TOPRIGHT", strip, "TOPRIGHT", -1, -1)
-    b.cuiCastLag:SetPoint("BOTTOMRIGHT", strip, "BOTTOMRIGHT", -1, 1)
+    local lag = b.cuiCastLag
+    if lag.cuiAnchorStrip ~= strip then
+        lag:SetTexture(CastBar.FILL_TEX)
+        lag:SetVertexColor(CastBar.LAG_R, CastBar.LAG_G, CastBar.LAG_B, 1)
+        lag:ClearAllPoints()
+        lag:SetPoint("TOPRIGHT", strip, "TOPRIGHT", -1, -1)
+        lag:SetPoint("BOTTOMRIGHT", strip, "BOTTOMRIGHT", -1, 1)
+        lag.cuiAnchorStrip = strip
+    end
 end
 
 function CastBar:SyncLag(b, duration)
@@ -209,11 +214,14 @@ function CastBar:SyncLag(b, duration)
     end
     local width = full * pct
     if width < 1 then
-        b.cuiCastLag:Hide()
+        if b.cuiCastLag:IsShown() then b.cuiCastLag:Hide() end
         return
     end
-    b.cuiCastLag:SetWidth(width)
-    b.cuiCastLag:Show()
+    if b.cuiCastLag.cuiWidth ~= width then
+        b.cuiCastLag:SetWidth(width)
+        b.cuiCastLag.cuiWidth = width
+    end
+    if not b.cuiCastLag:IsShown() then b.cuiCastLag:Show() end
 end
 
 function CastBar:HideWatchChrome(b)
@@ -800,6 +808,9 @@ function CastBar:UpdatePosition()
     -- Layout only. PaintLook resets the StatusBar texture and flashes the fill.
     self:EnsureLayers(bar)
     self:ApplyFillColor(bar)
+    if ConsoleUI.swingbar and ConsoleUI.swingbar.UpdatePosition then
+        ConsoleUI.swingbar:UpdatePosition()
+    end
 end
 
 -- ============================================================================
@@ -827,6 +838,9 @@ function CastBar:ReloadConfig()
         end
         -- Restore the default Blizzard castbar when our castbar is disabled
         self:ShowBlizzardCastbar()
+        if ConsoleUI.swingbar and ConsoleUI.swingbar.UpdatePosition then
+            ConsoleUI.swingbar:UpdatePosition()
+        end
         return
     end
     

@@ -9,6 +9,7 @@ last_reviewed: 2026-08-26
 Same newest-first blocks as `ConsoleUI.CHANGELOG` in `config/changelog.lua`. First install uses Welcome. This list is for upgrades.
 
 <div class="changelog-map">
+<a href="#v1-0-2">1.0.2</a>
 <a href="#v1-0-1">1.0.1</a>
 <a href="#v1">1.0.0</a>
 <a href="#rc5">RC5</a>
@@ -19,6 +20,19 @@ Same newest-first blocks as `ConsoleUI.CHANGELOG` in `config/changelog.lua`. Fir
 <a href="#rc3">RC3</a>
 <a href="#rc2">RC2</a>
 </div>
+
+<h2 id="v1-0-2">1.0.2</h2>
+
+- **New** Melee and dual-wield swing timers
+- **New** Segmented ranged Draw, Shoot, and Cooldown timer
+- **New** Swing Timer HUD settings for size, position, labels, color, and combat visibility
+- **Fixed** Hunter shot range colors
+- **Fixed** Stale rested XP after level-up
+- **Fixed** Copy From restoring bars and Blizzard frame positions
+- **Fixed** Minimap and buff/debuff layout after reload
+- **Fixed** XP, reputation, and swing-timer settings alignment
+- **Fixed** Missing release-package self-check files
+- **Improved** HUD update performance
 
 <h2 id="v1-0-1">1.0.1</h2>
 

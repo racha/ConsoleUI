@@ -84,6 +84,10 @@ ConsoleUI:SetScript("OnEvent", function()
             ConsoleUI.castbar:Initialize()
         end
 
+        if ConsoleUI.swingbar and ConsoleUI.swingbar.Initialize then
+            ConsoleUI.swingbar:Initialize()
+        end
+
         if ConsoleUI.loot and ConsoleUI.loot.Initialize then
             ConsoleUI.loot:Initialize()
         end
@@ -298,7 +302,7 @@ end
 function ConsoleUI_Welcome()
     if ConsoleUI.welcomed then return end
     ConsoleUI.welcomed = true
-    local version = "1.0.1"
+    local version = "1.0.2"
     if GetAddOnMetadata then
         version = GetAddOnMetadata("ConsoleUI", "Version") or version
     end
@@ -314,7 +318,7 @@ end
 function ConsoleUI:ReportDiagnostics()
     local version, build, date, toc = GetBuildInfo()
     local cfg = self.config
-    local addonVersion = "1.0.1"
+    local addonVersion = "1.0.2"
     if GetAddOnMetadata then
         addonVersion = GetAddOnMetadata("ConsoleUI", "Version") or addonVersion
     end
@@ -331,7 +335,7 @@ function ConsoleUI:ReportDiagnostics()
     if self.actionbars and self.actionbars.SelfCheckLayout then
         ConsoleUI_Print("ConsoleUI-DIAG|layoutCheck=" .. tostring(self.actionbars:SelfCheckLayout()))
     end
-    ConsoleUI_Print("ConsoleUI-DIAG|modules=bars:" .. tostring(self.actionbars ~= nil) .. ",cursor:" .. tostring(self.cursor ~= nil) .. ",radial:" .. tostring(self.radial ~= nil) .. ",rings:" .. tostring(self.rings ~= nil) .. ",loot:" .. tostring(self.loot ~= nil) .. ",unit:" .. tostring(self.unit ~= nil) .. ",hintbar:" .. tostring(self.cursor and self.cursor.hintbar ~= nil) .. ",xpbar:" .. tostring(self.xpbar ~= nil) .. ",castbar:" .. tostring(self.castbar ~= nil))
+    ConsoleUI_Print("ConsoleUI-DIAG|modules=bars:" .. tostring(self.actionbars ~= nil) .. ",cursor:" .. tostring(self.cursor ~= nil) .. ",radial:" .. tostring(self.radial ~= nil) .. ",rings:" .. tostring(self.rings ~= nil) .. ",loot:" .. tostring(self.loot ~= nil) .. ",unit:" .. tostring(self.unit ~= nil) .. ",hintbar:" .. tostring(self.cursor and self.cursor.hintbar ~= nil) .. ",xpbar:" .. tostring(self.xpbar ~= nil) .. ",castbar:" .. tostring(self.castbar ~= nil) .. ",swingbar:" .. tostring(self.swingbar ~= nil))
     local radial = self.radial
     ConsoleUI_Print("ConsoleUI-DIAG|radial=vis:" .. tostring(radial and radial:IsVisible()) .. ",dir:" .. tostring(radial and radial.GetSelectedDirectionID and radial:GetSelectedDirectionID() or "none"))
     ConsoleUI_Print("ConsoleUI-DIAG|bind W=" .. tostring(GetBindingAction("W")) .. "|A=" .. tostring(GetBindingAction("A")) .. "|S=" .. tostring(GetBindingAction("S")) .. "|D=" .. tostring(GetBindingAction("D")) .. "|1=" .. tostring(GetBindingAction("1")))

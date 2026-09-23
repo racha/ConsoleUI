@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.1-e8be46" alt="Version 1.0.1">
+  <img src="https://img.shields.io/badge/version-1.0.2-e8be46" alt="Version 1.0.2">
   <img src="https://img.shields.io/badge/Vanilla-1.12-e8be46" alt="Vanilla 1.12">
 </p>
 
@@ -71,6 +71,7 @@ Use the [Steam Standard](https://racha.github.io/ConsoleUI/controller/steam-stan
 ## In the guide
 
 - **[Action bars](https://racha.github.io/ConsoleUI/features/action-bars/)** — Controller, Flat, and Full. Modifier pages, stance, pet.
+- **[HUD and Frames](https://racha.github.io/ConsoleUI/features/hud-frames/)** — XP, reputation, cast, melee/ranged swing timers, loot, and frame controls.
 - **[Mouse Look](https://racha.github.io/ConsoleUI/features/mouse-look/)** — Lock the camera. Unlock with right-click.
 - **[Quick Menu](https://racha.github.io/ConsoleUI/features/quick-menu/)** — Bags, map, spellbook, quests, social, chat, settings.
 - **[Rings](https://racha.github.io/ConsoleUI/features/rings/)** — Your eight-slice spell and item wheels.

@@ -113,6 +113,23 @@ Config.DEFAULTS = {
     castbarChannelColorR = 1.0,    -- Gold by default (for channeling)
     castbarChannelColorG = 0.75,
     castbarChannelColorB = 0.25,
+    -- Swing timer settings
+    swingBarEnabled = true,
+    swingBarWidth = 400,
+    swingBarHeight = 4,
+    swingBarGap = 8,
+    swingBarOffsetX = 0,
+    swingBarOffsetY = 0,
+    swingBarShowMainLabel = true,
+    swingBarShowOffLabel = true,
+    swingBarShowRangedLabel = true,
+    swingBarShowTimer = true,
+    swingBarShowSpark = true,
+    swingBarCombatOnly = true,
+    swingBarFadeDuration = 0.25,
+    swingBarColorR = 1.00,
+    swingBarColorG = 0.82,
+    swingBarColorB = 0.18,
     -- Keybinding settings (proxied actions are now managed by config/proxied.lua)
     -- Locale settings
     language = nil,  -- nil = use game locale, otherwise "enUS", "deDE", etc.
@@ -248,6 +265,9 @@ function Config:InitializeDB()
     if ConsoleUI.castbar and ConsoleUI.castbar.ReloadConfig then
         ConsoleUI.castbar:ReloadConfig()
     end
+    if ConsoleUI.swingbar and ConsoleUI.swingbar.ReloadConfig then
+        ConsoleUI.swingbar:ReloadConfig()
+    end
     if ConsoleUI.mouselook and ConsoleUI.mouselook.ApplySettings then
         ConsoleUI.mouselook:ApplySettings()
     end
@@ -336,7 +356,7 @@ function Config:HudOffsetFromText(value)
     return n
 end
 
-function Config:AddOffsetRow(box, anchor, xKey, yKey, onChange, limit)
+function Config:AddOffsetRow(box, anchor, xKey, yKey, onChange, limit, rowY)
     local function clip(value)
         local n = tonumber(value) or 0
         if limit == false then
@@ -359,7 +379,14 @@ function Config:AddOffsetRow(box, anchor, xKey, yKey, onChange, limit)
         yTip = yTip .. " Range: -" .. cap .. " to " .. cap .. "."
     end
     local xLabel = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    xLabel:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
+    if rowY then
+        xLabel:SetPoint("TOPLEFT", box, "TOPLEFT", box.contentLeft, rowY)
+    else
+        xLabel:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
+    end
+    xLabel:SetWidth(14)
+    xLabel:SetHeight(20)
+    xLabel:SetJustifyH("LEFT")
     xLabel:SetText("X:")
     local xBox = self:CreateEditBox(box, 42,
         function() return tostring(clip(self:Get(xKey))) end,
@@ -372,9 +399,12 @@ function Config:AddOffsetRow(box, anchor, xKey, yKey, onChange, limit)
         "X Offset",
         xTip,
         self.NUDGE_MOVE)
-    xBox:SetPoint("LEFT", xLabel, "RIGHT", 5, 0)
+    xBox:SetPoint("TOPLEFT", xLabel, "TOPRIGHT", 5, 0)
     local yLabel = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    yLabel:SetPoint("LEFT", xBox, "RIGHT", 12, 0)
+    yLabel:SetPoint("TOPLEFT", xBox, "TOPRIGHT", 12, 0)
+    yLabel:SetWidth(14)
+    yLabel:SetHeight(20)
+    yLabel:SetJustifyH("LEFT")
     yLabel:SetText("Y:")
     local yBox = self:CreateEditBox(box, 42,
         function() return tostring(clip(self:Get(yKey))) end,
@@ -387,7 +417,7 @@ function Config:AddOffsetRow(box, anchor, xKey, yKey, onChange, limit)
         "Y Offset",
         yTip,
         self.NUDGE_MOVE)
-    yBox:SetPoint("LEFT", yLabel, "RIGHT", 5, 0)
+    yBox:SetPoint("TOPLEFT", yLabel, "TOPRIGHT", 5, 0)
     return xBox, yBox
 end
 
@@ -736,22 +766,32 @@ function Config:EnsureWatchFill(statusBar)
     end
     if statusBar.cuiWatchFill then
         local fill = statusBar.cuiWatchFill
-        fill:SetTexture(self.STATUS_BAR_WATCH_FILL)
-        if fill.SetDrawLayer then
-            fill:SetDrawLayer(layer)
+        if fill.cuiTexture ~= self.STATUS_BAR_WATCH_FILL then
+            fill:SetTexture(self.STATUS_BAR_WATCH_FILL)
+            fill.cuiTexture = self.STATUS_BAR_WATCH_FILL
         end
-        fill:ClearAllPoints()
-        fill:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
-        fill:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
+        if fill.SetDrawLayer and fill.cuiLayer ~= layer then
+            fill:SetDrawLayer(layer)
+            fill.cuiLayer = layer
+        end
+        if fill.cuiAnchorHost ~= host then
+            fill:ClearAllPoints()
+            fill:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
+            fill:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
+            fill.cuiAnchorHost = host
+        end
         return
     end
     local fill = host:CreateTexture(nil, layer)
     fill:SetTexture(self.STATUS_BAR_WATCH_FILL)
     fill:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
     fill:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
+    fill.cuiTexture, fill.cuiLayer, fill.cuiAnchorHost = self.STATUS_BAR_WATCH_FILL, layer, host
     statusBar.cuiWatchFill = fill
     if statusBar.SetStatusBarTexture then
         statusBar:SetStatusBarTexture(self.STATUS_BAR_WHITE)
+        -- Assigning a stock texture can show it again on the first sync.
+        self:HideStockFill(statusBar)
     end
 end
 
@@ -760,9 +800,14 @@ function Config:SyncWatchFill(statusBar)
         return
     end
     self:EnsureWatchFill(statusBar)
-    self:HideStockFill(statusBar)
     local fill = statusBar.cuiWatchFill
     if not fill then
+        return
+    end
+    -- The custom fill belongs to the host, not the status bar. Hiding the
+    -- rested status bar alone therefore does not hide its visible texture.
+    if statusBar.IsShown and not statusBar:IsShown() then
+        if fill:IsShown() then fill:Hide() end
         return
     end
     local minv, maxv = 0, 1
@@ -791,7 +836,7 @@ function Config:SyncWatchFill(statusBar)
     end
     local width = full * pct
     if width < 1 then
-        fill:Hide()
+        if fill:IsShown() then fill:Hide() end
         return
     end
     local top, bot = 0, 1
@@ -799,19 +844,25 @@ function Config:SyncWatchFill(statusBar)
         top, bot = self:WatchTexV(host)
     end
     -- Crop the trap, do not stretch it. Stretch would squash the cut.
-    fill:SetTexture(self.STATUS_BAR_WATCH_FILL)
-    fill:SetTexCoord(0, pct, top, bot)
-    fill:ClearAllPoints()
-    fill:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
-    fill:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 0, 0)
-    fill:SetWidth(width)
+    if fill.cuiPct ~= pct or fill.cuiTop ~= top or fill.cuiBot ~= bot then
+        fill:SetTexCoord(0, pct, top, bot)
+        fill.cuiPct, fill.cuiTop, fill.cuiBot = pct, top, bot
+    end
+    if fill.cuiWidth ~= width then
+        fill:SetWidth(width)
+        fill.cuiWidth = width
+    end
     local r, g, b, a = 1, 1, 1, 1
     if statusBar.GetStatusBarColor then
         r, g, b, a = statusBar:GetStatusBarColor()
     end
     local dim = self.WATCH_FILL_DIM or 0.78
-    fill:SetVertexColor((r or 1) * dim, (g or 1) * dim, (b or 1) * dim, 1)
-    fill:Show()
+    r, g, b = (r or 1) * dim, (g or 1) * dim, (b or 1) * dim
+    if fill.cuiR ~= r or fill.cuiG ~= g or fill.cuiB ~= b then
+        fill:SetVertexColor(r, g, b, 1)
+        fill.cuiR, fill.cuiG, fill.cuiB = r, g, b
+    end
+    if not fill:IsShown() then fill:Show() end
 end
 
 function Config:PaintStatusBarFill(bar)
@@ -2844,7 +2895,7 @@ function Config:CreateBarsSection()
     xpBox:ClearAllPoints()
     xpBox:SetPoint("TOPLEFT", hudSection, "TOPLEFT", 0, -6)
     xpBox:SetPoint("RIGHT", hudSection, "CENTER", -6, 0)
-    xpBox:SetHeight(132)
+    xpBox:SetHeight(144)
     xpBox.heightCalculated = true  -- Don't auto-calculate
     
     -- Row 1: Always Visible and Text checkboxes
@@ -2898,7 +2949,8 @@ function Config:CreateBarsSection()
     -- Row 2: Width and Height. Timeout shares the offset row below so the
     -- spinner controls never collide with the next label at narrow UI scales.
     local xpWidthLabel = xpBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    xpWidthLabel:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft, xpBox.contentTop - 36)
+    xpWidthLabel:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft, xpBox.contentTop - 38)
+    xpWidthLabel:SetHeight(20)
     xpWidthLabel:SetText(T("Width") .. ":")
     
     local xpWidthEditBox = self:CreateEditBox(xpBox, 40,
@@ -2919,7 +2971,8 @@ function Config:CreateBarsSection()
     xpWidthEditBox:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 44, xpBox.contentTop - 38)
     
     local xpHeightLabel = xpBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    xpHeightLabel:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 125, xpBox.contentTop - 36)
+    xpHeightLabel:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 125, xpBox.contentTop - 38)
+    xpHeightLabel:SetHeight(20)
     xpHeightLabel:SetText(T("Height") .. ":")
     
     local xpHeightEditBox = self:CreateEditBox(xpBox, 30,
@@ -2935,7 +2988,7 @@ function Config:CreateBarsSection()
         end,
         T("XP Bar Height"),
         T("Height of XP bar in pixels. Range: 16-100."))
-    xpHeightEditBox:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 173, xpBox.contentTop - 38)
+    xpHeightEditBox:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 181, xpBox.contentTop - 38)
     
     local xpTimeoutLabel = xpBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     xpTimeoutLabel:SetText(T("Timeout") .. ":")
@@ -2957,9 +3010,12 @@ function Config:CreateBarsSection()
         if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
             ConsoleUI.xpbar:UpdateAllBars()
         end
-    end)
-    xpTimeoutLabel:SetPoint("TOPLEFT", xpWidthLabel, "BOTTOMLEFT", 174, -10)
-    xpTimeoutEditBox:SetPoint("LEFT", xpTimeoutLabel, "RIGHT", 5, 0)
+    end, nil, xpBox.contentTop - 74)
+    xpTimeoutLabel:SetPoint("TOPLEFT", xpBox, "TOPLEFT", xpBox.contentLeft + 174, xpBox.contentTop - 74)
+    xpTimeoutLabel:SetHeight(20)
+    xpTimeoutLabel:SetWidth(54)
+    xpTimeoutLabel:SetJustifyH("LEFT")
+    xpTimeoutEditBox:SetPoint("TOPLEFT", xpTimeoutLabel, "TOPRIGHT", 5, 0)
 
     self:AddSectionReset(xpBox, function()
         Config:Set("xpBarAlways", Config.DEFAULTS.xpBarAlways)
@@ -2986,7 +3042,7 @@ function Config:CreateBarsSection()
     repBox:ClearAllPoints()
     repBox:SetPoint("TOPRIGHT", hudSection, "TOPRIGHT", 0, -6)
     repBox:SetPoint("LEFT", hudSection, "CENTER", 6, 0)
-    repBox:SetHeight(132)
+    repBox:SetHeight(144)
     repBox.heightCalculated = true  -- Don't auto-calculate
     
     -- Row 1: Always Visible and Text checkboxes
@@ -3041,7 +3097,8 @@ function Config:CreateBarsSection()
     -- Row 2: Width and Height. Timeout shares the offset row below so the
     -- spinner controls never collide with the next label at narrow UI scales.
     local repWidthLabel = repBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    repWidthLabel:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft, repBox.contentTop - 36)
+    repWidthLabel:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft, repBox.contentTop - 38)
+    repWidthLabel:SetHeight(20)
     repWidthLabel:SetText(T("Width") .. ":")
     
     local repWidthEditBox = self:CreateEditBox(repBox, 40,
@@ -3062,7 +3119,8 @@ function Config:CreateBarsSection()
     repWidthEditBox:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 44, repBox.contentTop - 38)
     
     local repHeightLabel = repBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    repHeightLabel:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 125, repBox.contentTop - 36)
+    repHeightLabel:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 125, repBox.contentTop - 38)
+    repHeightLabel:SetHeight(20)
     repHeightLabel:SetText(T("Height") .. ":")
     
     local repHeightEditBox = self:CreateEditBox(repBox, 30,
@@ -3078,7 +3136,7 @@ function Config:CreateBarsSection()
         end,
         T("Rep Bar Height"),
         T("Height of Reputation bar in pixels. Range: 16-100."))
-    repHeightEditBox:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 173, repBox.contentTop - 38)
+    repHeightEditBox:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 181, repBox.contentTop - 38)
     
     local repTimeoutLabel = repBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     repTimeoutLabel:SetText(T("Timeout") .. ":")
@@ -3100,9 +3158,12 @@ function Config:CreateBarsSection()
         if ConsoleUI.xpbar and ConsoleUI.xpbar.UpdateAllBars then
             ConsoleUI.xpbar:UpdateAllBars()
         end
-    end)
-    repTimeoutLabel:SetPoint("TOPLEFT", repWidthLabel, "BOTTOMLEFT", 174, -10)
-    repTimeoutEditBox:SetPoint("LEFT", repTimeoutLabel, "RIGHT", 5, 0)
+    end, nil, repBox.contentTop - 74)
+    repTimeoutLabel:SetPoint("TOPLEFT", repBox, "TOPLEFT", repBox.contentLeft + 174, repBox.contentTop - 74)
+    repTimeoutLabel:SetHeight(20)
+    repTimeoutLabel:SetWidth(54)
+    repTimeoutLabel:SetJustifyH("LEFT")
+    repTimeoutEditBox:SetPoint("TOPLEFT", repTimeoutLabel, "TOPRIGHT", 5, 0)
 
     self:AddSectionReset(repBox, function()
         Config:Set("repBarAlways", Config.DEFAULTS.repBarAlways)
@@ -3325,9 +3386,207 @@ function Config:CreateBarsSection()
         end
     end)
 
+    -- ==================== Swing Timer Box ====================
+    local swingBox = self:CreateSectionBox(hudSection, T("Swing Timer"))
+    swingBox:ClearAllPoints()
+    swingBox:SetPoint("TOPLEFT", castBox, "BOTTOMLEFT", 0, -6)
+    swingBox:SetPoint("RIGHT", hudSection, "RIGHT", -5, 0)
+    swingBox:SetHeight(168)
+    swingBox.heightCalculated = true
+
+    local function ApplySwingTimer()
+        if ConsoleUI.swingbar and ConsoleUI.swingbar.ReloadConfig then
+            ConsoleUI.swingbar:ReloadConfig()
+        end
+    end
+
+    local swingEnabledCheck = self:CreateCheckbox(swingBox, T("Enable"),
+        function() return Config:Get("swingBarEnabled") ~= false end,
+        function(checked) Config:Set("swingBarEnabled", checked); ApplySwingTimer() end,
+        T("Show melee, dual-wield, and ranged auto-attack timers."))
+    swingEnabledCheck:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft, swingBox.contentTop)
+
+    local combatOnlyCheck = self:CreateCheckbox(swingBox, T("Only during combat"),
+        function() return Config:Get("swingBarCombatOnly") ~= false end,
+        function(checked) Config:Set("swingBarCombatOnly", checked); ApplySwingTimer() end,
+        T("Fade the swing timer out when the character leaves combat."))
+    combatOnlyCheck:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 130, swingBox.contentTop)
+
+    local sparkCheck = self:CreateCheckbox(swingBox, T("Spark"),
+        function() return Config:Get("swingBarShowSpark") ~= false end,
+        function(checked) Config:Set("swingBarShowSpark", checked); ApplySwingTimer() end,
+        T("Show the moving spark at the current swing position."))
+    sparkCheck:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 345, swingBox.contentTop)
+
+    local linkedNote = swingBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    linkedNote:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 455, swingBox.contentTop - 4)
+    linkedNote:SetText(T("Main/off-hand layout is linked"))
+    linkedNote:SetTextColor(unpack(self.UI_COLORS.muted))
+
+    local swingWidthLabel = swingBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    swingWidthLabel:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft, swingBox.contentTop - 37)
+    swingWidthLabel:SetHeight(20)
+    swingWidthLabel:SetText(T("Width") .. ":")
+    local swingWidthBox = self:CreateEditBox(swingBox, 42,
+        function() return tostring(Config:Get("swingBarWidth") or 400) end,
+        function(value)
+            local num = tonumber(value) or 400
+            if num < 120 then num = 120 end
+            if num > 2000 then num = 2000 end
+            Config:Set("swingBarWidth", num); ApplySwingTimer()
+        end,
+        T("Swing Timer Width"), T("Total width in pixels. Dual-wield divides this width between both hands. Range: 120-2000."))
+    swingWidthBox:SetPoint("LEFT", swingWidthLabel, "RIGHT", 5, 0)
+
+    local swingHeightLabel = swingBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    swingHeightLabel:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 135, swingBox.contentTop - 37)
+    swingHeightLabel:SetHeight(20)
+    swingHeightLabel:SetText(T("Height") .. ":")
+    local swingHeightBox = self:CreateEditBox(swingBox, 35,
+        function() return tostring(Config:Get("swingBarHeight") or 4) end,
+        function(value)
+            local num = tonumber(value) or 4
+            if num < 3 then num = 3 end
+            if num > 40 then num = 40 end
+            Config:Set("swingBarHeight", num); ApplySwingTimer()
+        end,
+        T("Swing Timer Height"), T("Height of each swing strip in pixels. Range: 3-40."))
+    swingHeightBox:SetPoint("LEFT", swingHeightLabel, "RIGHT", 5, 0)
+
+    local swingGapLabel = swingBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    swingGapLabel:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 265, swingBox.contentTop - 37)
+    swingGapLabel:SetHeight(20)
+    swingGapLabel:SetText(T("Bar gap") .. ":")
+    local swingGapBox = self:CreateEditBox(swingBox, 35,
+        function() return tostring(Config:Get("swingBarGap") or 8) end,
+        function(value)
+            local num = tonumber(value) or 8
+            if num < 0 then num = 0 end
+            if num > 40 then num = 40 end
+            Config:Set("swingBarGap", num); ApplySwingTimer()
+        end,
+        T("Swing Bar Gap"), T("Space between linked dual-wield bars. Range: 0-40. Ranged segments use a fixed 3-pixel gap."))
+    swingGapBox:SetPoint("LEFT", swingGapLabel, "RIGHT", 5, 0)
+
+    local fadeLabel = swingBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fadeLabel:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 390, swingBox.contentTop - 37)
+    fadeLabel:SetHeight(20)
+    fadeLabel:SetText(T("Fade") .. ":")
+    local fadeBox = self:CreateEditBox(swingBox, 35,
+        function() return tostring(Config:Get("swingBarFadeDuration") or 0.25) end,
+        function(value)
+            local num = tonumber(value) or 0.25
+            if num < 0 then num = 0 end
+            if num > 3 then num = 3 end
+            Config:Set("swingBarFadeDuration", num); ApplySwingTimer()
+        end,
+        T("Swing Timer Fade"), T("Fade-in and fade-out duration in seconds. Range: 0-3."), 0.1)
+    fadeBox:SetPoint("LEFT", fadeLabel, "RIGHT", 5, 0)
+
+    local swingColorLabel = swingBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    swingColorLabel:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 510, swingBox.contentTop - 37)
+    swingColorLabel:SetHeight(20)
+    swingColorLabel:SetText(T("Color") .. ":")
+    local swingColorBtn = CreateFrame("Button", self:GetNextElementName("ColorBtn"), swingBox)
+    swingColorBtn:SetWidth(40)
+    swingColorBtn:SetHeight(20)
+    swingColorBtn:SetPoint("LEFT", swingColorLabel, "RIGHT", 5, 0)
+    swingColorBtn:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 8,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 } })
+    swingColorBtn:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    swingColorBtn.label = T("Swing Timer Color")
+    swingColorBtn.tooltipText = T("Choose the fill color used by every swing timer segment. Interrupted draws flash red and released shots flash white.")
+    local swingColorPreview = swingColorBtn:CreateTexture(nil, "BACKGROUND")
+    swingColorPreview:SetAllPoints()
+    local function UpdateSwingColorPreview()
+        swingColorPreview:SetTexture(Config:Get("swingBarColorR") or 1, Config:Get("swingBarColorG") or 0.82, Config:Get("swingBarColorB") or 0.18)
+    end
+    UpdateSwingColorPreview()
+    swingColorBtn:SetScript("OnClick", function()
+        local oldR = Config:Get("swingBarColorR") or 1
+        local oldG = Config:Get("swingBarColorG") or 0.82
+        local oldB = Config:Get("swingBarColorB") or 0.18
+        ColorPickerFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+        ColorPickerFrame:SetFrameLevel(2000)
+        if ColorPickerOkayButton then
+            ColorPickerOkayButton:SetFrameStrata("FULLSCREEN_DIALOG")
+            ColorPickerOkayButton:SetFrameLevel(2001)
+        end
+        if ColorPickerCancelButton then
+            ColorPickerCancelButton:SetFrameStrata("FULLSCREEN_DIALOG")
+            ColorPickerCancelButton:SetFrameLevel(2001)
+        end
+        ColorPickerFrame.func = function()
+            local r, g, b = ColorPickerFrame:GetColorRGB()
+            Config:Set("swingBarColorR", r); Config:Set("swingBarColorG", g); Config:Set("swingBarColorB", b)
+            UpdateSwingColorPreview(); ApplySwingTimer()
+        end
+        ColorPickerFrame.cancelFunc = function()
+            Config:Set("swingBarColorR", oldR); Config:Set("swingBarColorG", oldG); Config:Set("swingBarColorB", oldB)
+            UpdateSwingColorPreview(); ApplySwingTimer()
+        end
+        ColorPickerFrame:SetColorRGB(oldR, oldG, oldB)
+        ColorPickerFrame.hasOpacity = false
+        local delayFrame = CreateFrame("Frame")
+        delayFrame:SetScript("OnUpdate", function()
+            delayFrame:Hide()
+            ColorPickerFrame:Show()
+        end)
+        delayFrame:Show()
+    end)
+
+    local swingXBox, swingYBox = self:AddOffsetRow(swingBox, swingWidthLabel, "swingBarOffsetX", "swingBarOffsetY", ApplySwingTimer, nil, swingBox.contentTop - 74)
+
+    local mainLabelCheck = self:CreateCheckbox(swingBox, T("Main weapon name"),
+        function() return Config:Get("swingBarShowMainLabel") ~= false end,
+        function(checked) Config:Set("swingBarShowMainLabel", checked); ApplySwingTimer() end,
+        T("Show the equipped main-hand weapon name."))
+    mainLabelCheck:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft, swingBox.contentTop - 104)
+
+    local offLabelCheck = self:CreateCheckbox(swingBox, T("Off weapon name"),
+        function() return Config:Get("swingBarShowOffLabel") ~= false end,
+        function(checked) Config:Set("swingBarShowOffLabel", checked); ApplySwingTimer() end,
+        T("Show the equipped off-hand weapon name."))
+    offLabelCheck:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 170, swingBox.contentTop - 104)
+
+    local rangedLabelCheck = self:CreateCheckbox(swingBox, T("Ranged weapon name"),
+        function() return Config:Get("swingBarShowRangedLabel") ~= false end,
+        function(checked) Config:Set("swingBarShowRangedLabel", checked); ApplySwingTimer() end,
+        T("Show the equipped bow, gun, wand, or thrown weapon name."))
+    rangedLabelCheck:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 340, swingBox.contentTop - 104)
+
+    local timerLabelCheck = self:CreateCheckbox(swingBox, T("Timer label"),
+        function() return Config:Get("swingBarShowTimer") ~= false end,
+        function(checked) Config:Set("swingBarShowTimer", checked); ApplySwingTimer() end,
+        T("Show elapsed and total swing time."))
+    timerLabelCheck:SetPoint("TOPLEFT", swingBox, "TOPLEFT", swingBox.contentLeft + 530, swingBox.contentTop - 104)
+
+    self:AddSectionReset(swingBox, function()
+        local keys = { "swingBarEnabled", "swingBarWidth", "swingBarHeight", "swingBarGap",
+            "swingBarOffsetX", "swingBarOffsetY", "swingBarShowMainLabel", "swingBarShowOffLabel",
+            "swingBarShowRangedLabel", "swingBarShowTimer", "swingBarShowSpark", "swingBarCombatOnly",
+            "swingBarFadeDuration", "swingBarColorR", "swingBarColorG", "swingBarColorB" }
+        local i
+        for i = 1, table.getn(keys) do Config:Set(keys[i], Config.DEFAULTS[keys[i]]) end
+        swingEnabledCheck:SetChecked(Config.DEFAULTS.swingBarEnabled and 1 or 0)
+        combatOnlyCheck:SetChecked(Config.DEFAULTS.swingBarCombatOnly and 1 or 0)
+        sparkCheck:SetChecked(Config.DEFAULTS.swingBarShowSpark and 1 or 0)
+        mainLabelCheck:SetChecked(Config.DEFAULTS.swingBarShowMainLabel and 1 or 0)
+        offLabelCheck:SetChecked(Config.DEFAULTS.swingBarShowOffLabel and 1 or 0)
+        rangedLabelCheck:SetChecked(Config.DEFAULTS.swingBarShowRangedLabel and 1 or 0)
+        timerLabelCheck:SetChecked(Config.DEFAULTS.swingBarShowTimer and 1 or 0)
+        swingWidthBox:SetText(tostring(Config.DEFAULTS.swingBarWidth))
+        swingHeightBox:SetText(tostring(Config.DEFAULTS.swingBarHeight))
+        swingGapBox:SetText(tostring(Config.DEFAULTS.swingBarGap))
+        fadeBox:SetText(tostring(Config.DEFAULTS.swingBarFadeDuration))
+        swingXBox:SetText(tostring(Config.DEFAULTS.swingBarOffsetX))
+        swingYBox:SetText(tostring(Config.DEFAULTS.swingBarOffsetY))
+        UpdateSwingColorPreview(); ApplySwingTimer()
+    end)
+
     local lootBox = self:CreateSectionBox(hudSection, T("Loot"))
     lootBox:ClearAllPoints()
-    lootBox:SetPoint("TOPLEFT", castBox, "BOTTOMLEFT", 0, -6)
+    lootBox:SetPoint("TOPLEFT", swingBox, "BOTTOMLEFT", 0, -6)
     lootBox:SetPoint("RIGHT", hudSection, "RIGHT", -5, 0)
     lootBox:SetHeight(64)
     lootBox.heightCalculated = true
@@ -3655,7 +3914,7 @@ function Config:CreateAboutSection()
     by:SetText("by HouseLegend")
     by:SetTextColor(unpack(self.UI_COLORS.muted))
 
-    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.1"
+    local version = GetAddOnMetadata and GetAddOnMetadata("ConsoleUI", "Version") or "1.0.2"
     local pill = CreateFrame("Frame", nil, hero)
     pill:SetWidth(110)
     pill:SetHeight(24)
@@ -4058,9 +4317,27 @@ function Config:AddSectionReset(box, onClick)
     return btn
 end
 
+function Config:RefreshSettingInputs()
+    local boxes = self.settingEditBoxes or {}
+    local i
+    for i = 1, table.getn(boxes) do
+        local box = boxes[i]
+        -- Some fields save immediately in OnTextChanged. A read-only refresh
+        -- must not execute those setters or overwrite the copied profile.
+        local changed = box:GetScript("OnTextChanged")
+        box:SetScript("OnTextChanged", nil)
+        local value = box.cuiGetValue()
+        if value ~= nil then box:SetText(value) end
+        box:SetScript("OnTextChanged", changed)
+    end
+end
+
 function Config:CreateEditBox(parent, width, getFunc, setFunc, label, tooltipText, step)
     local name = self:GetNextElementName("Edit")
     local editBox = CreateFrame("EditBox", name, parent)
+    self.settingEditBoxes = self.settingEditBoxes or {}
+    editBox.cuiGetValue = getFunc
+    table.insert(self.settingEditBoxes, editBox)
     local minW = self.EDIT_BOX_WIDTH or 56
     if not width or width < minW then
         width = minW
@@ -4489,6 +4766,7 @@ function Config:ShowSection(sectionId)
         
         -- Refresh all checkboxes in this section to reflect current config values
         self:RefreshCheckboxes(section)
+        self:RefreshSettingInputs()
         
         -- Refresh proxied dropdowns if showing keybindings section
         if sectionId == "keybindings" or sectionId == "bindings" then
@@ -4870,10 +5148,13 @@ StaticPopupDialogs["ConsoleUI_COPY_CHARACTER_PROFILE"] = {
     text = "Copy all ConsoleUI settings from '%s'? Your current character profile will be backed up first.",
     button1 = "Copy",
     button2 = "Cancel",
-    OnAccept = function()
-        local dialog = this or getglobal("StaticPopup1")
-        local sourceKey = dialog and dialog.data
-        if not sourceKey or not ConsoleUI.profiles then return end
+    OnAccept = function(sourceKey)
+        -- Vanilla passes dialog.data directly; global `this` can be Button1.
+        -- Do not guess StaticPopup1: another popup may occupy that slot.
+        if type(sourceKey) ~= "string" or not ConsoleUI.profiles then
+            StaticPopup_Show("ConsoleUI_PROFILE_ERROR", "The copy source is missing. Please select a profile and try again.")
+            return
+        end
         local ok, why = ConsoleUI.profiles:CopyFrom(sourceKey)
         if not ok then
             StaticPopup_Show("ConsoleUI_PROFILE_ERROR", why or "Failed to copy profile")

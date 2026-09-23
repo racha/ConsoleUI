@@ -11,6 +11,21 @@ local CL = ConsoleUI.changelog
 -- Newest first. version must match the TOC Version string.
 ConsoleUI.CHANGELOG = {
     {
+        version = "1.0.2",
+        lines = {
+            "New melee swing timer",
+            "New dual-wield swing timers",
+            "New segmented ranged Draw, Shoot, and Cooldown timer",
+            "New swing timer HUD settings",
+            "Fixed hunter action range colors",
+            "Fixed rested XP display after level-up",
+            "Fixed profile Copy From layout restore",
+            "Fixed minimap and aura positions after reload",
+            "Fixed XP, reputation, and swing timer settings rows",
+            "Improved HUD update performance",
+        },
+    },
+    {
         version = "1.0.1",
         lines = {
             "New Glyphs settings section under General",
@@ -169,9 +184,9 @@ end
 
 function CL.CurrentVersion()
     if GetAddOnMetadata then
-        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.1"
+        return GetAddOnMetadata("ConsoleUI", "Version") or "1.0.2"
     end
-    return "1.0.1"
+    return "1.0.2"
 end
 
 function CL.EntriesSince(last, all)

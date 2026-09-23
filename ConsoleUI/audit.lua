@@ -135,7 +135,7 @@ function ConsoleUI:RunAudit()
     line("CUI-AUDIT COPY_START")
 
     run("core", function()
-        local addonVersion = "1.0.1"
+        local addonVersion = "1.0.2"
         if GetAddOnMetadata then
             addonVersion = GetAddOnMetadata("ConsoleUI", "Version") or addonVersion
         end
@@ -195,6 +195,7 @@ function ConsoleUI:RunAudit()
         ok("module hint", self.cursor and self.cursor.hintbar ~= nil)
         ok("module xpbar", self.xpbar ~= nil)
         ok("module castbar", self.castbar ~= nil)
+        ok("module swingbar", self.swingbar ~= nil)
         ok("module extra", self.actionbars and self.actionbars.extra ~= nil)
         ok("module placement", self.placement ~= nil)
         ok("module hooks", self.hooks ~= nil)
@@ -221,6 +222,14 @@ function ConsoleUI:RunAudit()
         ok("frame hint", Exists(getglobal("ConsoleUIHintBar")))
         ok("frame xp", Exists(getglobal("ConsoleUIExperienceBar")) or (self.config and self.config:Get("xpBarEnabled") == false), "disabled ok")
         ok("frame cast", Exists(getglobal("ConsoleUICastBar")) or (self.config and self.config:Get("castbarEnabled") == false), "disabled ok")
+        ok("frame swing", Exists(getglobal("ConsoleUISwingBar")) or (self.config and self.config:Get("swingBarEnabled") == false), "disabled ok")
+        if self.swingbar then
+            local mainSpeed, offSpeed = 0, 0
+            if UnitAttackSpeed then mainSpeed, offSpeed = UnitAttackSpeed("player") end
+            local rangedSpeed = UnitRangedDamage and UnitRangedDamage("player") or 0
+            info("swing speeds", "main=" .. tostring(mainSpeed) .. " off=" .. tostring(offSpeed) .. " ranged=" .. tostring(rangedSpeed))
+            info("swing state", "mode=" .. tostring(self.swingbar.SelectMode and self.swingbar:SelectMode()) .. " combat=" .. tostring(self.swingbar.inCombat))
+        end
         ok("frame stance", Exists(getglobal("ConsoleUIStanceBar")))
         ok("frame pet", Exists(getglobal("ConsoleUIPetBar")))
     end)
