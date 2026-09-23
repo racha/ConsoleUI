@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Bindings>
+    <!-- The Wrath preview maps controller keys to secure button clicks at login.
+         Do not inherit Vanilla's Lua action bindings: they call UseAction. -->
+</Bindings>

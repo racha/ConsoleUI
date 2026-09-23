@@ -1,0 +1,11 @@
+## Interface: 30300
+## Title: ConsoleUI |cff8b8f98(3.3.5a port preview)|r
+## Notes: Work-in-progress Wrath port; not the released Vanilla addon
+## Author: HouseLegend
+## Version: 1.1.0-dev
+## SavedVariablesPerCharacter: ConsoleUIWrathDB
+
+actionbars\layout.lua
+actionbars\slicemask.lua
+wrath\securebar.lua
+wrath\main.lua
